@@ -1,3 +1,6 @@
+# relative moves
+alias ..="cd .."
+
 # helpful shortcuts
 alias carbon="cd /web/carbon" # not used often
 alias cb="cd /web/carbon"

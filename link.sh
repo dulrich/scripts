@@ -1,1 +1,2 @@
-# Configure ~/.bash_aliases to point at scripts/aliases.sh
+# add source scripts/aliases.sh
+
