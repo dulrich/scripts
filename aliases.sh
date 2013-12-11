@@ -6,8 +6,9 @@ alias carbon="cd /web/carbon" # not used often
 alias cb="cd /web/carbon"
 alias cn="cd /web/carbon/node"
 alias du="cd /web/dulrich" # not used often
-alias code="cd ~/code" # not used often
+alias code="cd /code" # not used often
 alias down="cd ~/Downloads"
+alias scripts="cd ~/scripts"
 
 # Remote Desktop Shortcuts
 alias rdesktop="rdesktop -g 1440x1080"
@@ -29,6 +30,7 @@ alias dl="~/scripts/daylog.sh"
 alias s="git status"
 alias a="git add ."
 alias c="git commit -m"
+alias gls="git log --stat"
 alias u="git pull"
 alias p="git push"
 alias x="git add . ; git pull"
