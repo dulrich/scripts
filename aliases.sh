@@ -51,7 +51,7 @@ function gr {
 	else
 		path=./
 	fi
-	grep -ir --exclude={*.min.js,*~} --exclude-dir=.git $1 $path ;
+	grep -Eir --exclude={*.min.js,*~} --exclude-dir=.git $1 $path ;
 }
 # this has been replaced by optional option 2 on gr
 # function grd { grep -ir --exclude={*.min.js,*~} --exclude-dir=.git $1 $2 ; }
