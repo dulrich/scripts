@@ -24,3 +24,8 @@ from previous days.
 
 Sets up a symbolic link from ~/.bash_aliases to scripts/aliases.sh
 
+## setting up a new machine
+
+```bash
+sudo apt-get install gmrun htop kate slock xmonad
+```
