@@ -19,11 +19,11 @@ alias ssh2="rdesktop -g 1440x1080 -u Administrator -d PAWN1 10.0.1.12"
 alias ssh3="rdesktop -g 1440x1080 -u Administrator -d PAWN1 10.0.1.13"
 
 
-alias d="date"
-alias fdate="date +%c" # not used often
-alias cll="clear;ll" # not used often
-alias cdate="clear;fdate" # not used often
-alias stamp="~/stamp.sh" # not used often
+# alias d="date"
+# alias fdate="date +%c" # not used often
+# alias cll="clear;ll" # not used often
+# alias cdate="clear;fdate" # not used often
+# alias stamp="~/stamp.sh" # not used often
 alias daylog="~/scripts/daylog.sh"
 alias dl="~/scripts/daylog.sh"
 
@@ -42,7 +42,7 @@ alias proddb="ssh atomic@10.10.10.100"
 
 alias my="mysql -u root -p"
 
-function cdll { cd $1 ; ll ; } # not used often
+# function cdll { cd $1 ; ll ; } # not used often
 
 # What you want grep to do 99% of the time
 function gr {
@@ -51,8 +51,18 @@ function gr {
 	else
 		path=./
 	fi
-	grep -Eir --exclude={*.min.js,*~} --exclude-dir=.git $1 $path ;
+	grep -Eir --exclude={*.min.js,*.min.css,*~} --exclude-dir=.git $1 $path ;
 }
+# Sometimes you just want an overview from grep
+function grc {
+	if [$# -gt 1]; then
+		path=$2
+	else
+		path=./
+	fi
+	grep -Eirc --exclude={*.min.js,*.min.css,*~} --exclude-dir=.git $1 $path | grep -E ':[^0]';
+}
+
 # this has been replaced by optional option 2 on gr
 # function grd { grep -ir --exclude={*.min.js,*~} --exclude-dir=.git $1 $2 ; }
 
