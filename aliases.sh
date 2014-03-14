@@ -51,7 +51,7 @@ function gr {
 	else
 		path=./
 	fi
-	grep -Eir --exclude={*.min.js,*.min.css,*~} --exclude-dir=.git $1 $path ;
+	grep -Eir --exclude={*.min.js,*.min.css,*~} --exclude-dir={.git,node_modules} $1 $path ;
 }
 # Sometimes you just want an overview from grep
 function grc {
@@ -60,7 +60,7 @@ function grc {
 	else
 		path=./
 	fi
-	grep -Eirc --exclude={*.min.js,*.min.css,*~} --exclude-dir=.git $1 $path | grep -E ':[^0]';
+	grep -Eirc --exclude={*.min.js,*.min.css,*~} --exclude-dir={.git,node_modules} $1 $path | grep -E ':[^0]';
 }
 
 # this has been replaced by optional option 2 on gr
