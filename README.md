@@ -29,3 +29,7 @@ Sets up a symbolic link from ~/.bash_aliases to scripts/aliases.sh
 ```bash
 sudo apt-get install gmrun htop kate slock xmonad
 ```
+
+## mysql-workbench Hotkey Fix
+
+Edit `/usr/share/mysql-workbench/data/main_menu.xml` to update shortcut keys.
