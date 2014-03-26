@@ -55,7 +55,7 @@ function gr {
 }
 # Sometimes you just want an overview from grep
 function grc {
-	if [$# -gt 1]; then
+	if [ $# -gt 1 ]; then
 		path=$2
 	else
 		path=./
