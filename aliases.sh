@@ -5,7 +5,6 @@ alias ..="cd .."
 alias carbon="cd /web/carbon" # not used often
 alias cb="cd /web/carbon"
 alias cn="cd /web/carbon/node"
-alias du="cd /web/dulrich" # not used often
 alias code="cd /code" # not used often
 alias down="cd ~/Downloads"
 alias scripts="cd ~/scripts"
@@ -53,7 +52,7 @@ function gr {
 	else
 		path=./
 	fi
-	grep -Eir --exclude={*.min.js,*.min.css,*~} --exclude-dir={.git,node_modules,uploads} $1 $path ;
+	grep -EiIr --exclude={*.min.js,*.min.css,*~} --exclude-dir={.git,node_modules,uploads} $1 $path ;
 }
 # Sometimes you just want an overview from grep
 function grc {
@@ -62,7 +61,7 @@ function grc {
 	else
 		path=./
 	fi
-	grep -Eirc --exclude={*.min.js,*.min.css,*~} --exclude-dir={.git,node_modules,uploads} $1 $path | grep -E ':[^0]';
+	grep -EiIrc --exclude={*.min.js,*.min.css,*~} --exclude-dir={.git,node_modules,uploads} $1 $path | grep -E ':[^0]';
 }
 
 # shortcut for mass rewrites
