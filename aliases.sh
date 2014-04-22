@@ -5,7 +5,6 @@ alias ..="cd .."
 alias carbon="cd /web/carbon" # not used often
 alias cb="cd /web/carbon"
 alias cn="cd /web/carbon/node"
-alias du="cd /web/dulrich" # not used often
 alias code="cd /code" # not used often
 alias down="cd ~/Downloads"
 alias scripts="cd ~/scripts"
@@ -53,7 +52,7 @@ function gr {
 	else
 		path=./
 	fi
-	grep -EiIr --exclude={*.min.js,*.min.css,*~} --exclude-dir={.git,node_modules} $1 $path ;
+	grep -EiIr --exclude={*.min.js,*.min.css,*~} --exclude-dir={.git,node_modules,uploads} $1 $path ;
 }
 # Sometimes you just want an overview from grep
 function grc {
@@ -62,7 +61,17 @@ function grc {
 	else
 		path=./
 	fi
-	grep -EiIrc --exclude={*.min.js,*.min.css,*~} --exclude-dir={.git,node_modules} $1 $path | grep -E ':[^0]';
+	grep -EiIrc --exclude={*.min.js,*.min.css,*~} --exclude-dir={.git,node_modules,uploads} $1 $path | grep -E ':[^0]';
+}
+
+# shortcut for mass rewrites
+function rall {
+	if [ $# -lt 2 ]; then
+		$2=''
+	fi
+	
+# 	find . -type f -not {'/.git/','/node_modules/'} -exec sed -i 's/$1/$2/' {} \;
+	find . -type f | grep -Ev '.git|node_modules|uploads|.png|.jpg|.jpeg' | xargs -d '\n' sed -i -e "s/$1/$2/g"
 }
 
 # this has been replaced by optional option 2 on gr
@@ -78,6 +87,7 @@ function timer {
 
 ## 
 alias nodeup="forever start /web/carbon/node/client_file_server.js ; nodemon /web/carbon/node/app_server.js"
+alias fl="forever list"
 alias webstack="service apache2 restart ; fuser -k 80/tcp ; service nginx restart ;"
 alias a2log="tail -n 50 -f /var/log/apache2/error.log"
 alias phplog="tail -n 50 -f /var/log/php/php_errors.log"
