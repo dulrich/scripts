@@ -31,5 +31,7 @@ if [ $# -gt 0 ]; then
 fi
 
 echo "[LOG FOR $name]"
-cat $logpath$(date +%Y-%m-%d).daylog
+if [ -f $logpath$(date +%Y-%m-%d).daylog ]; then
+	cat $logpath$(date +%Y-%m-%d).daylog
+fi
 echo $now "=== [NOW]"
