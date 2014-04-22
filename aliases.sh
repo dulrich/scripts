@@ -92,3 +92,4 @@ alias webstack="service apache2 restart ; fuser -k 80/tcp ; service nginx restar
 alias a2log="tail -n 50 -f /var/log/apache2/error.log"
 alias phplog="tail -n 50 -f /var/log/php/php_errors.log"
 
+alias pow="sudo poweroff now"
