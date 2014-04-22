@@ -16,7 +16,7 @@ alias rdesktop="rdesktop -g 1440x1080"
 alias kris7="rdesktop -g 1440x1080 -u kris 10.10.0.15"
 alias ssh1="rdesktop -g 1440x1080 -u Administrator -d PAWN1 10.0.1.11"
 alias ssh2="rdesktop -g 1440x1080 -u Administrator -d PAWN1 10.0.1.12"
-alias ssh3="rdesktop -g 1440x1080 -u Administrator -d PAWN1 10.0.1.13"
+alias ssh3="rdesktop -g 1440x1080 -u Administrator -d SSH3 10.0.1.13"
 
 
 # alias d="date"
@@ -53,7 +53,7 @@ function gr {
 	else
 		path=./
 	fi
-	grep -Eir --exclude={*.min.js,*.min.css,*~} --exclude-dir={.git,node_modules} $1 $path ;
+	grep -EiIr --exclude={*.min.js,*.min.css,*~} --exclude-dir={.git,node_modules} $1 $path ;
 }
 # Sometimes you just want an overview from grep
 function grc {
@@ -62,7 +62,7 @@ function grc {
 	else
 		path=./
 	fi
-	grep -Eirc --exclude={*.min.js,*.min.css,*~} --exclude-dir={.git,node_modules} $1 $path | grep -E ':[^0]';
+	grep -EiIrc --exclude={*.min.js,*.min.css,*~} --exclude-dir={.git,node_modules} $1 $path | grep -E ':[^0]';
 }
 
 # this has been replaced by optional option 2 on gr
