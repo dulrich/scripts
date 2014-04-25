@@ -1,17 +1,18 @@
 #!/bin/bash
 
 logpath="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )/logs/"
+dstring=''
+newmsg=true
 
-while getopts ":d:l" opt; do
+while getopts ":d:y" opt; do
 	case $opt in
 		d)
-			echo "[LOG FOR $OPTARG]"
-			cat $logpath$OPTARG.daylog
-			exit 0
+			dstring="$OPTARG"
+			newmsg=false
 			;;
-		l)
-			cat $logpath$(date +%Y-%m-%d).daylog
-			exit 0
+		y)
+			dstring='yesterday'
+			newmsg=false
 			;;
 		\?)
 			echo "Invalid option: -$OPTARG"
@@ -24,14 +25,19 @@ while getopts ":d:l" opt; do
 	esac
 done
 
-name=$(date +%Y-%m-%d)
+name=$(date -d "$dstring" +%Y-%m-%d)
 now=$(date +%I:%M\ %P)
-if [ $# -gt 0 ]; then
+if [ $# -gt 0 ] && $newmsg ; then
 	echo $now "===" $@ >> $logpath$name.daylog
 fi
 
 echo "[LOG FOR $name]"
-if [ -f $logpath$(date +%Y-%m-%d).daylog ]; then
-	cat $logpath$(date +%Y-%m-%d).daylog
+if [ -f $logpath$(date -d "$dstring" +%Y-%m-%d).daylog ]; then
+	cat $logpath$(date -d "$dstring" +%Y-%m-%d).daylog
 fi
-echo $now "=== [NOW]"
+
+if [ "$dstring" = '' ] ; then
+	echo $now "=== [NOW]"
+fi
+
+exit 0
