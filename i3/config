@@ -75,9 +75,9 @@ bindsym $mod+Ctrl+Shift+Right resize grow width 10 px or 4 ppt
 
 # Start i3bar to display a workspace bar (plus the system information i3status
 # finds out, if available)
-bar {
-	status_command i3status
-}
+#bar {
+#	status_command i3status
+#}
 
 # Workspace Shifts; identical with 2 Outputs
 bindsym $mod+Left move workspace to output left
