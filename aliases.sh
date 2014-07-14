@@ -5,6 +5,7 @@ alias ..="cd .."
 alias carbon="cd /web/carbon" # not used often
 alias cb="cd /web/carbon"
 alias cn="cd /web/carbon/node"
+alias cly="cd /web/catalyst"
 alias code="cd /code" # not used often
 alias down="cd ~/Downloads"
 alias scripts="cd ~/scripts"
@@ -28,12 +29,14 @@ alias dl="~/scripts/daylog.sh"
 
 alias s="git status"
 alias a="git add ."
+alias b="git checkout"
 alias c="git commit -m"
 alias f="git fetch upstream"
 alias gls="git log --stat"
 alias m="git merge upstream/master"
 alias u="git pull"
 alias p="git push"
+alias up="git pull;git push"
 alias x="git add . ; git pull"
 function z { git commit -m "$1" ; git push ; }
 
