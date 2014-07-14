@@ -43,6 +43,9 @@ function z { git commit -m "$1" ; git push ; }
 # SSH Shortcuts
 alias prodweb="ssh atomic@10.10.10.101"
 alias proddb="ssh atomic@10.10.10.100"
+alias work="ssh 10.10.0.47"
+
+alias prodmysql="mysql -A -u root -p -h 10.10.10.100"
 
 alias my="mysql -u root -p"
 
