@@ -43,6 +43,7 @@ alias proddb="ssh atomic@10.10.10.100"
 alias work="ssh 10.10.0.47"
 
 alias prodmysql="mysql -A -u root -p -h 10.10.10.100"
+alias workmysql="mysql -A -u root -p -h 10.10.0.47"
 
 alias my="mysql -u root -p"
 
