@@ -85,3 +85,7 @@ bindsym $mod+Right move workspace to output right
 
 bindsym $mod+t floating toggle
 bindsym $mod+Shift t layout toggle
+
+# change language modes
+bindsym $mod+e exec setxkbmap us
+bindsym $mod+s exec setxkbmap es
