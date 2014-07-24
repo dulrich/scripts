@@ -19,17 +19,19 @@ alias ssh2="rdesktop -g 1440x1080 -u Administrator -d PAWN1 10.0.1.12"
 alias ssh3="rdesktop -g 1440x1080 -u Administrator -d SSH3 10.0.1.13"
 
 
-# alias d="date"
-# alias fdate="date +%c" # not used often
-# alias cll="clear;ll" # not used often
-# alias cdate="clear;fdate" # not used often
-# alias stamp="~/stamp.sh" # not used often
 alias daylog="~/scripts/daylog.sh"
 alias dl="~/scripts/daylog.sh"
 
 alias s="git status"
 alias a="git add ."
-alias b="git checkout"
+function b {
+	if [ $# -eq 1 ]; then
+		branch=$1
+	else
+		branch='master'
+	fi
+	git checkout $branch
+}
 alias c="git commit -m"
 alias f="git fetch upstream"
 alias gls="git log --stat"
@@ -50,9 +52,7 @@ alias workmysql="mysql -A -u root -p -h 10.10.0.47"
 
 alias my="mysql -u root -p"
 
-# function cdll { cd $1 ; ll ; } # not used often
-
-# What you want grep to do 99% of the time
+# What I want grep to do 99% of the time
 function gr {
 	if [ $# -gt 1 ]; then
 		path=$2
@@ -61,7 +61,7 @@ function gr {
 	fi
 	grep -EiIr --exclude={*.min.js,*.min.css,*~} --exclude-dir={.git,node_modules,uploads} $1 $path ;
 }
-# Sometimes you just want an overview from grep
+# Sometimes I just want an overview from grep
 function grc {
 	if [ $# -gt 1 ]; then
 		path=$2
@@ -77,12 +77,8 @@ function rall {
 		$2=''
 	fi
 	
-# 	find . -type f -not {'/.git/','/node_modules/'} -exec sed -i 's/$1/$2/' {} \;
 	find . -type f | grep -Ev '.git|node_modules|uploads|.png|.jpg|.jpeg' | xargs -d '\n' sed -i -e "s/$1/$2/g"
 }
-
-# this has been replaced by optional option 2 on gr
-# function grd { grep -ir --exclude={*.min.js,*~} --exclude-dir=.git $1 $2 ; }
 
 function timer {
 	MIN=$1;
