@@ -49,7 +49,6 @@ alias u="git pull"
 alias p="git push"
 alias pp="git push production master"
 alias up="git pull;git push"
-alias x="git add . ; git pull"
 function z { git commit -m "$1" ; git push ; }
 
 # SSH Shortcuts
@@ -113,8 +112,10 @@ alias en="setxkbmap us"
 # http://stackoverflow.com/questions/342969/how-do-i-get-bash-completion-to-work-with-aliases
 # git completion functions don't exist until this file is executed,
 # which would normally be the first time a full git command is tab-completed
-source /usr/share/bash-completion/completions/git
+if [ -f /usr/share/bash-completion/completions/git ]; then
+	source /usr/share/bash-completion/completions/git
 
-__git_complete a _git_add
-__git_complete b _git_checkout
-__git_complete d _git_diff
+	__git_complete a _git_add
+	__git_complete b _git_checkout
+	__git_complete d _git_diff
+fi
