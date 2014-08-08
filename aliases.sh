@@ -2,7 +2,6 @@
 alias ..="cd .."
 
 # helpful shortcuts
-alias carbon="cd /web/carbon" # not used often
 alias cb="cd /web/carbon"
 alias cn="cd /web/carbon/node"
 alias cly="cd /web/catalyst"
@@ -110,3 +109,12 @@ alias t='tail -n 100 -f'
 alias pow="sudo poweroff now"
 alias es="setxkbmap es"
 alias en="setxkbmap us"
+
+# http://stackoverflow.com/questions/342969/how-do-i-get-bash-completion-to-work-with-aliases
+# git completion functions don't exist until this file is executed,
+# which would normally be the first time a full git command is tab-completed
+source /usr/share/bash-completion/completions/git
+
+__git_complete a _git_add
+__git_complete b _git_checkout
+__git_complete d _git_diff
