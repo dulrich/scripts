@@ -23,7 +23,14 @@ alias daylog="~/scripts/daylog.sh"
 alias dl="~/scripts/daylog.sh"
 
 alias s="git status"
-alias a="git add ."
+function a {
+	if [ $# -gt 0 ]; then
+		files="$@"
+	else
+		files='.'
+	fi
+	git add $files
+}
 function b {
 	if [ $# -eq 1 ]; then
 		branch=$1
@@ -32,12 +39,16 @@ function b {
 	fi
 	git checkout $branch
 }
-alias c="git commit -m"
+function c {
+	git commit -m "$*"
+}
+alias d="git diff"
 alias f="git fetch upstream"
 alias gls="git log --stat"
 alias m="git merge upstream/master"
 alias u="git pull"
 alias p="git push"
+alias pp="git push production master"
 alias up="git pull;git push"
 alias x="git add . ; git pull"
 function z { git commit -m "$1" ; git push ; }
@@ -50,7 +61,7 @@ alias work="ssh 10.10.0.47"
 alias prodmysql="mysql -A -u root -p -h 10.10.10.100"
 alias workmysql="mysql -A -u root -p -h 10.10.0.47"
 
-alias my="mysql -u root -p"
+alias my="mysql -A -u root -p"
 
 # What I want grep to do 99% of the time
 function gr {
@@ -94,6 +105,7 @@ alias fl="forever list"
 alias webstack="service apache2 restart ; fuser -k 80/tcp ; service nginx restart ;"
 alias a2log="tail -n 50 -f /var/log/apache2/error.log"
 alias phplog="tail -n 50 -f /var/log/php/php_errors.log"
+alias t='tail -n 100 -f'
 
 alias pow="sudo poweroff now"
 alias es="setxkbmap es"
