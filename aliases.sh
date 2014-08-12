@@ -49,7 +49,7 @@ alias u="git pull"
 alias p="git push"
 alias pp="git push production master"
 alias up="git pull;git push"
-function z { git commit -m "$1" ; git push ; }
+function z { git commit -m "$*" ; git push ; }
 
 # SSH Shortcuts
 alias prodweb="ssh atomic@10.10.10.101"
@@ -60,6 +60,12 @@ alias prodmysql="mysql -A -u root -p -h 10.10.10.100"
 alias workmysql="mysql -A -u root -p -h 10.10.0.47"
 
 alias my="mysql -A -u root -p"
+
+# what find should usually do
+# quote name as necessary to avoid unexpected shell-expansions
+function ff {
+	find . -iname "$1"
+}
 
 # What I want grep to do 99% of the time
 function gr {
