@@ -64,7 +64,9 @@ alias my="mysql -A -u root -p"
 # what find should usually do
 # quote name as necessary to avoid unexpected shell-expansions
 function ff {
-	find . -iname "$1"
+# the shell expansion resulted in 'unknown predicate' but the expanded command works manually
+# 	find . -iname \""$1"\" -not\ -path\ \"*/{.git,node_modules,uploads}/*\"
+    find . -iname "$1" -not -path "*/.git/*" -not -path "*/node_modules/*" -not -path "*/uploads/*"
 }
 
 # What I want grep to do 99% of the time
