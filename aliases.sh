@@ -44,6 +44,8 @@ function c {
 alias d="git diff"
 alias f="git fetch upstream"
 alias gls="git log --stat"
+alias glt="git ls-tree --abbrev HEAD"
+alias gx="git update-index --chmod=+x"
 alias m="git merge upstream/master"
 alias u="git pull"
 alias p="git push"
