@@ -112,7 +112,9 @@ function timer {
 
 ## 
 alias nodeup="forever start /web/carbon/node/client_file_server.js ; nodemon /web/carbon/node/app_server.js"
-alias fl="forever list"
+alias fli="forever list"
+alias flo="forever logs"
+alias fra="forever restartall"
 alias webstack="service apache2 restart ; fuser -k 80/tcp ; service nginx restart ;"
 alias a2log="tail -n 50 -f /var/log/apache2/error.log"
 alias phplog="tail -n 50 -f /var/log/php/php_errors.log"
