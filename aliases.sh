@@ -45,7 +45,10 @@ alias d="git diff"
 alias f="git fetch upstream"
 alias gls="git log --stat"
 alias glt="git ls-tree --abbrev HEAD"
-alias gx="git update-index --chmod=+x"
+function gx {
+	chmod 755 $1
+	git update-index --chmod=+x $1
+}
 alias m="git merge upstream/master"
 alias u="git pull"
 alias p="git push"
