@@ -49,12 +49,22 @@ function gx {
 	chmod 755 $1
 	git update-index --chmod=+x $1
 }
-alias m="git merge upstream/master"
+function m {
+	if [ $# -eq 1 ]; then
+		branch=$1
+	else
+		branch='master'
+	fi
+	git merge $branch
+}
 alias u="git pull"
 alias p="git push"
 alias pp="git push production master"
 alias up="git pull;git push"
-function z { git commit -m "$*" ; git push ; }
+function z {
+	git commit -m "$*"
+	git push
+}
 
 # SSH Shortcuts
 alias prodweb="ssh atomic@10.10.10.101"
@@ -133,4 +143,7 @@ if [ -f /usr/share/bash-completion/completions/git ]; then
 	__git_complete a _git_add
 	__git_complete b _git_checkout
 	__git_complete d _git_diff
+	__git_complete m _git_merge
+	__git_complete p _git_push
+	__git_complete u _git_pull
 fi
