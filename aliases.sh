@@ -1,10 +1,6 @@
 # relative moves
 function .. {
-	path=..
-	if [ $# -eq 1 ]; then
-		path=../$1
-	fi
-	cd $path
+	cd "../$(defarg "$*" 0 '')"
 }
 function _.. {
 	local cur file path cpath
@@ -51,22 +47,26 @@ alias ssh3="rdesktop -g 1440x1080 -u Administrator -d SSH3 10.0.1.13"
 alias daylog="~/scripts/daylog.sh"
 alias dl="~/scripts/daylog.sh"
 
+# defarg args which default
+defarg() {
+	local args
+	args=($1)
+	
+	if [ "$2" == '@' ]; then
+		echo "${args[@]}"
+	elif [ ${#args[@]} -gt $2 ]; then
+		echo "${args[$2]}"
+	else
+		echo $3
+	fi
+}
+
 alias s="git status"
 function a {
-	if [ $# -gt 0 ]; then
-		files="$@"
-	else
-		files='.'
-	fi
-	git add $files
+	git add $(defarg "$*" 0 '.')
 }
 function b {
-	if [ $# -eq 1 ]; then
-		branch=$1
-	else
-		branch='master'
-	fi
-	git checkout $branch
+	git checkout $(defarg "$*" 0 'master')
 }
 function c {
 	git commit -m "$*"
@@ -80,12 +80,7 @@ function gx {
 	git update-index --chmod=+x $1
 }
 function m {
-	if [ $# -eq 1 ]; then
-		branch=$1
-	else
-		branch='master'
-	fi
-	git merge $branch
+	git merge $(defarg "$*" 0 'master')
 }
 alias u="git pull"
 alias p="git push"
@@ -116,20 +111,14 @@ function ff {
 
 # What I want grep to do 99% of the time
 function gr {
-	if [ $# -gt 1 ]; then
-		path=$2
-	else
-		path=./
-	fi
+	path=$(defarg "$*" 1 './')
+	
 	grep -EiIr --exclude={*.min.js,*.min.css,*~} --exclude-dir={.git,node_modules,uploads} $1 $path ;
 }
 # Sometimes I just want an overview from grep
 function grc {
-	if [ $# -gt 1 ]; then
-		path=$2
-	else
-		path=./
-	fi
+	path=$(defarg "$*" 1 './')
+
 	grep -EiIrc --exclude={*.min.js,*.min.css,*~} --exclude-dir={.git,node_modules,uploads} $1 $path | grep -E ':[^0]';
 }
 
