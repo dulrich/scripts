@@ -28,76 +28,37 @@ function _.. {
 complete -F _.. ..
 
 # helpful shortcuts
-alias cb="cd /web/carbon"
-alias cn="cd /web/carbon/node"
-alias cly="cd /web/catalyst"
 alias code="cd /code" # not used often
 alias down="cd ~/Downloads"
 alias scripts="cd ~/scripts"
 
 # Remote Desktop Shortcuts
-alias rdesktop="rdesktop -g 1440x1080"
+rd_res="1440x1080"
+alias rdesktop="rdesktop -g $rd_res"
 
-alias kris7="rdesktop -g 1440x1080 -u kris 10.10.0.15"
-alias ssh1="rdesktop -g 1440x1080 -u Administrator -d PAWN1 10.0.1.11"
-alias ssh2="rdesktop -g 1440x1080 -u Administrator -d PAWN1 10.0.1.12"
-alias ssh3="rdesktop -g 1440x1080 -u Administrator -d SSH3 10.0.1.13"
-
-
+# time tracking script
 alias daylog="~/scripts/daylog.sh"
 alias dl="~/scripts/daylog.sh"
 
 # defarg args which default
 defarg() {
-	local args
-	args=($1)
+	local all=0
+	local args=($1)
+	local which=$2
+	local def=$3
 	
-	if [ "$2" == '@' ]; then
-		echo "${args[@]}"
-	elif [ ${#args[@]} -gt $2 ]; then
-		echo "${args[$2]}"
+	if [ "$which" == '@' ]; then
+		all=1
+		which=0
+	fi
+	
+	if [ ${#args[@]} -gt $which ]; then
+		if [ all ]; then echo "${args[@]}"
+		else echo "${args[$which]}"; fi
 	else
-		echo $3
+		echo $def
 	fi
 }
-
-alias s="git status"
-function a {
-	git add $(defarg "$*" 0 '.')
-}
-function b {
-	git checkout $(defarg "$*" 0 'master')
-}
-function c {
-	git commit -m "$*"
-}
-alias d="git diff"
-alias f="git fetch upstream"
-alias gls="git log --stat"
-alias glt="git ls-tree --abbrev HEAD"
-function gx {
-	chmod 755 $1
-	git update-index --chmod=+x $1
-}
-function m {
-	git merge $(defarg "$*" 0 'master')
-}
-alias u="git pull"
-alias p="git push"
-alias pp="git push production master"
-alias up="git pull;git push"
-function z {
-	git commit -m "$*"
-	git push
-}
-
-# SSH Shortcuts
-alias prodweb="ssh atomic@10.10.10.101"
-alias proddb="ssh atomic@10.10.10.100"
-alias work="ssh 10.10.0.47"
-
-alias prodmysql="mysql -A -u root -p -h 10.10.10.100"
-alias workmysql="mysql -A -u root -p -h 10.10.0.47"
 
 alias my="mysql -A -u root -p"
 
@@ -111,13 +72,13 @@ function ff {
 
 # What I want grep to do 99% of the time
 function gr {
-	path=$(defarg "$*" 1 './')
+	local path=$(defarg "$*" 1 './')
 	
 	grep -EiIr --exclude={*.min.js,*.min.css,*~} --exclude-dir={.git,node_modules,uploads} $1 $path ;
 }
 # Sometimes I just want an overview from grep
 function grc {
-	path=$(defarg "$*" 1 './')
+	local path=$(defarg "$*" 1 './')
 
 	grep -EiIrc --exclude={*.min.js,*.min.css,*~} --exclude-dir={.git,node_modules,uploads} $1 $path | grep -E ':[^0]';
 }
@@ -132,19 +93,19 @@ function rall {
 }
 
 function timer {
-	MIN=$1;
+	local MIN=$1;
+	
 	for ((i=MIN*60;i>=0;i--)); do
 		echo -ne "\r$(date -d"0+$i sec" +%H:%M:%S)";
 		sleep 1;
 	done
 }
 
-## 
-alias nodeup="forever start /web/carbon/node/client_file_server.js ; nodemon /web/carbon/node/app_server.js"
+## assorted
 alias fli="forever list"
 alias flo="forever logs"
 alias fra="forever restartall"
-alias webstack="service apache2 restart ; fuser -k 80/tcp ; service nginx restart ;"
+alias webstack="service apache2 restart && service nginx restart"
 alias a2log="tail -n 50 -f /var/log/apache2/error.log"
 alias phplog="tail -n 50 -f /var/log/php/php_errors.log"
 alias t='tail -n 100 -f'
@@ -153,16 +114,8 @@ alias pow="sudo poweroff now"
 alias es="setxkbmap es"
 alias en="setxkbmap us"
 
-# http://stackoverflow.com/questions/342969/how-do-i-get-bash-completion-to-work-with-aliases
-# git completion functions don't exist until this file is executed,
-# which would normally be the first time a full git command is tab-completed
-if [ -f /usr/share/bash-completion/completions/git ]; then
-	source /usr/share/bash-completion/completions/git
+# load git aliases
+source ~/scripts/git-aliases.sh
 
-	__git_complete a _git_add
-	__git_complete b _git_checkout
-	__git_complete d _git_diff
-	__git_complete m _git_merge
-	__git_complete p _git_push
-	__git_complete u _git_pull
-fi
+# load work aliases
+source ~/scripts/work-aliases.sh
