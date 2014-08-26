@@ -6,28 +6,20 @@ Simple utility scripts and helpful bash aliases
 
 Defines A number of aliases and functions.
 
-Recommended usage: add the line 
+Recommended usage: add the line `source ~/scripts/aliases.sh` to `~/.bash_aliases` or `~/.bashrc` so that `aliases.sh` will be loaded along with whatever other local aliases you use.
+Alternately: `ln -s ~/scripts/aliases.sh ~/.bash_aliases`
 
-```bash
-source ~/scripts/aliases.sh
-```
-
-to your ~/.bash_aliases or ~/.bashrc so that aliases.sh will be loaded along 
-with whatever other local aliases you use.
+Chain-loads `git-aliases.sh` and `work-aliases.sh`
 
 ## daylog.sh
 
 Program for tracking what was going on at a certain time, and viewing logs
 from previous days.
 
-## link.sh
-
-Sets up a symbolic link from ~/.bash_aliases to scripts/aliases.sh
-
 ## setting up a new machine
 
 ```bash
-sudo apt-get install gmrun htop kate slock xmonad
+sudo apt-get install gmrun htop kate suckless-tools i3
 ```
 
 ## mysql-workbench Hotkey Fix
