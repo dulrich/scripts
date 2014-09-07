@@ -4,7 +4,7 @@ use vars qw($VERSION %IRSSI);
 
 $VERSION = '0.0.1';
 %IRSSI = (
-	authors		=> 'Bitt Faulk',
+	authors		=> 'David Ulrich',
 	contact		=> 'david@ulrichdev.com',
 	name		=> 'expando',
 	description	=> 'Expands given character sequences into other sequences',
@@ -13,21 +13,21 @@ $VERSION = '0.0.1';
 );
 
 my %replacements = (
-	_C_ => "the arcane language known only as 'C'"
+	_C_ => "the arcane language known only as 'C'",
+	_W_ => "the infallible wikipedia",
 );
 
-sub event_send_text () {
+sub do_expansion () {
 	my ($line, $server_rec, $wi_item_rec) = @_;
 	my $r;
 	my $rr;
 	
 	foreach $r ( keys %replacements ) {
 		$rr = $replacements{$r};
-		print $rr;
 		$line =~ s/\b$r\b/$rr/;
 	}
 	
 	Irssi::signal_continue($line, $server_rec, $wi_item_rec);
 }
 
-Irssi::signal_add_first('send text', "event_send_text");
+Irssi::signal_add_first('send text', "do_expansion");
