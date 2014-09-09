@@ -53,7 +53,7 @@ defarg() {
 	fi
 	
 	if [ ${#args[@]} -gt $which ]; then
-		if [ all ]; then echo "${args[@]}"
+		if [ $all ]; then echo "${args[@]}"
 		else echo "${args[$which]}"; fi
 	else
 		echo $def
