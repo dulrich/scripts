@@ -14,6 +14,7 @@ $VERSION = '0.0.1';
 
 my %replacements = (
 	_C_ => "the arcane language known only as 'C'",
+	_M_ => "that other mining game, whose name we do not mention",
 	_W_ => "the infallible wikipedia",
 );
 
