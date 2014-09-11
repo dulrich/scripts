@@ -92,6 +92,20 @@ function rall {
 	find . -type f | grep -Ev '.git|node_modules|uploads|.png|.jpg|.jpeg' | xargs -d '\n' sed -i -e "s/$1/$2/g"
 }
 
+# mass permission changes
+dirperm() {
+	local path=$(defarg "$*" 0 '.')
+
+	find $path -type d -exec chmod 755 {} +
+}
+
+fileperm() {
+	local path=$(defarg "$*" 0 '.')
+
+	find $path -type f -exec chmod 644 {} +
+}
+
+
 function timer {
 	local MIN=$1;
 	
