@@ -53,7 +53,7 @@ defarg() {
 	fi
 	
 	if [ ${#args[@]} -gt $which ]; then
-		if [ $all ]; then echo "${args[@]}"
+		if [ $all -eq 1 ]; then echo "${args[@]}"
 		else echo "${args[$which]}"; fi
 	else
 		echo $def
@@ -122,7 +122,8 @@ alias fra="forever restartall"
 alias webstack="service apache2 restart && service nginx restart"
 alias a2log="tail -n 50 -f /var/log/apache2/error.log"
 alias phplog="tail -n 50 -f /var/log/php/php_errors.log"
-alias t='tail -n 100 -f'
+alias t="tail -n 100 -f"
+alias n="nodemon"
 
 alias pow="sudo poweroff now"
 alias es="setxkbmap es"
