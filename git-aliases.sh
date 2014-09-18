@@ -21,6 +21,7 @@ function gx {
 function m {
 	git merge $(defarg "$*" 0 'master')
 }
+alias r="git reset HEAD"
 alias u="git pull"
 alias p="git push"
 alias pp="git push production master"
