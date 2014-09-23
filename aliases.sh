@@ -89,7 +89,7 @@ function rall {
 		$2=''
 	fi
 	
-	find . -type f | grep -Ev '.git|node_modules|uploads|.png|.jpg|.jpeg' | xargs -d '\n' sed -i -e "s/$1/$2/g"
+	find . -type f | grep -Ev '.git|node_modules|uploads|.png|.jpg|.jpeg' | xargs -d '\n' sed -i -r -e "s/$1/$2/g"
 }
 
 # mass permission changes
@@ -123,7 +123,11 @@ alias webstack="service apache2 restart && service nginx restart"
 alias a2log="tail -n 50 -f /var/log/apache2/error.log"
 alias phplog="tail -n 50 -f /var/log/php/php_errors.log"
 alias t="tail -n 100 -f"
-alias n="nodemon"
+function n {
+	local path=$(defarg "$*" 0 "server.js")
+
+	nodemon $path
+}
 
 alias pow="sudo poweroff now"
 alias es="setxkbmap es"
