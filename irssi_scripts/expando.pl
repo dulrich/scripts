@@ -7,7 +7,7 @@ $VERSION = '0.0.1';
 	authors		=> 'David Ulrich',
 	contact		=> 'david@ulrichdev.com',
 	name		=> 'expando',
-	description	=> 'Expands given character sequences into other sequences',
+	description	=> 'Expands given character sequences into other sequences. Originally for giving simple things ridiculously long, formal names.',
 	license		=> 'BSD',
 	url		=> 'none',
 );
@@ -15,6 +15,7 @@ $VERSION = '0.0.1';
 my %replacements = (
 	_C_ => "the arcane language known only as 'C'",
 	_M_ => "that other mining game, whose name we do not mention",
+	_MMM_ => "Frederick P. Brooks' mythical man month",
 	_W_ => "the infallible wikipedia",
 );
 
