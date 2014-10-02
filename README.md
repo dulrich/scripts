@@ -38,3 +38,11 @@ u
 m
 ```
 
+# irc commands #
+
+See also in [irssi_startup](./irssi_startup)
+
+* set timezone: `/script exec $ENV{'TZ'}='CST6CDT'`
+* ignore junk: `/ignore * MODES JOINS PARTS QUITS`
+* hide junk: `/set activity_hide_level QUITS JOINS PARTS KICKS MODES TOPIC NICKS`
+* hide activity: `/set activity_hide_targets #channel`
