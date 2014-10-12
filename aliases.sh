@@ -116,6 +116,7 @@ function timer {
 }
 
 ## assorted
+alias eject_fix="sudo eject -i off"
 alias fli="forever list"
 alias flo="forever logs"
 alias fra="forever restartall"
