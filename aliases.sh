@@ -28,7 +28,8 @@ function _.. {
 complete -F _.. ..
 
 # helpful shortcuts
-alias code="cd /code" # not used often
+alias code="cd /code"
+alias hh="cd /code/heirs-of-avalon"
 alias down="cd ~/Downloads"
 alias scripts="cd ~/scripts"
 
