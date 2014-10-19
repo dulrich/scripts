@@ -16,7 +16,7 @@ my %replacements = (
 	_C_ => "the arcane language known only as 'C'",
 	_H_ => "the inevitable heat death of the universe",
 	_M_ => "that other mining game, whose name we do not mention",
-	_MMM_ => "Frederick P. Brooks' mythical man month",
+	_MMM_ => "Frederick P. Brooks' classic, the mythical man month",
 	_W_ => "the infallible wikipedia",
 );
 
