@@ -132,6 +132,8 @@ function n {
 }
 
 alias pow="sudo poweroff now"
+alias upd="sudo apt-get update"
+alias upg="sudo apt-get upgrade"
 alias es="setxkbmap es"
 alias en="setxkbmap us"
 
