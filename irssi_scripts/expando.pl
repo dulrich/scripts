@@ -17,6 +17,7 @@ my %replacements = (
 	_H_ => "the inevitable heat death of the universe",
 	_M_ => "that other mining game, whose name we do not mention",
 	_MMM_ => "Frederick P. Brooks' classic, the mythical man month",
+	_S_ => "in 'Soviet Amerika',",
 	_W_ => "the infallible wikipedia",
 );
 
