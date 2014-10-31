@@ -130,6 +130,10 @@ function n {
 
 	nodemon $path
 }
+trackfix() {
+	rename s/Track\ // *
+	rename -v 's/^(\d)\./0$1./' *
+}
 
 alias pow="sudo poweroff now"
 alias upd="sudo apt-get update"
