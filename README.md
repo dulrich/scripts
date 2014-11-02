@@ -46,3 +46,8 @@ See also in [irssi_startup](./irssi_startup)
 * ignore junk: `/ignore * MODES JOINS PARTS QUITS`
 * hide junk: `/set activity_hide_level QUITS JOINS PARTS KICKS MODES TOPIC NICKS`
 * hide activity: `/set activity_hide_targets #channel`
+
+# assorted #
+
+* multiple wine desktops `wine explorer /desktop=_NAME_,resolution=1920x1080 "/path/to/_NAME_.exe"`
+* command line network swapping `nmcli con up uuid XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX`
