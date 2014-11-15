@@ -134,6 +134,9 @@ trackfix() {
 	rename s/Track\ // *
 	rename -v 's/^(\d)\./0$1./' *
 }
+imgcp() {
+	scp $1 ulrichdev.com:/web/ulrichdev/static/img/.
+}
 
 alias pow="sudo poweroff now"
 alias upd="sudo apt-get update"
