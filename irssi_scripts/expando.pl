@@ -15,6 +15,7 @@ $VERSION = '0.0.1';
 my %replacements = (
 	_C_ => "the arcane language known only as 'C'",
 	_H_ => "the inevitable heat death of the universe",
+	_I_ => "I, for one, welcome our Reptilian overlords",
 	_M_ => "that other mining game, whose name we do not mention",
 	_MMM_ => "Frederick P. Brooks' classic, the mythical man month",
 	_S_ => "in 'Soviet Amerika',",
