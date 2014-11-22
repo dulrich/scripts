@@ -4,8 +4,12 @@ logpath="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )/logs/"
 dstring=''
 newmsg=true
 
-while getopts ":d:y" opt; do
+while getopts ":b:d:y" opt; do
 	case $opt in
+		b)
+			dstring="-$OPTARG days"
+			newmsg=false
+			;;
 		d)
 			dstring="$OPTARG"
 			newmsg=false
