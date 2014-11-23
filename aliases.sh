@@ -40,6 +40,7 @@ alias rdesktop="rdesktop -g $rd_res"
 # time tracking script
 alias daylog="~/scripts/daylog.sh"
 alias dl="~/scripts/daylog.sh"
+alias life="~/scripts/daylog.sh -f life"
 
 # defarg args which default
 defarg() {
