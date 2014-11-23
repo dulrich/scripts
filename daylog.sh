@@ -1,10 +1,10 @@
 #!/bin/bash
 
-logpath="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )/logs/"
 dstring=''
+folder='logs'
 newmsg=true
 
-while getopts ":b:d:y" opt; do
+while getopts ":b:d:f:y" opt; do
 	case $opt in
 		b)
 			dstring="-$OPTARG days"
@@ -13,6 +13,9 @@ while getopts ":b:d:y" opt; do
 		d)
 			dstring="$OPTARG"
 			newmsg=false
+			;;
+		f)
+			folder="$OPTARG"
 			;;
 		y)
 			dstring='yesterday'
@@ -29,6 +32,9 @@ while getopts ":b:d:y" opt; do
 	esac
 done
 
+shift $(($OPTIND - 1))
+
+logpath="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )/$folder/"
 name=$(date -d "$dstring" +%Y-%m-%d)
 now=$(date +%I:%M\ %P)
 if [ $# -gt 0 ] && $newmsg ; then
