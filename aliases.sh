@@ -41,7 +41,7 @@ alias rdesktop="rdesktop -g $rd_res"
 alias daylog="~/scripts/daylog.sh"
 alias dl="~/scripts/daylog.sh"
 alias life="~/scripts/daylog.sh -f life"
-alias life="~/scripts/daylog.sh -f food"
+alias food="~/scripts/daylog.sh -f food"
 
 # defarg args which default
 defarg() {
