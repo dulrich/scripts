@@ -139,6 +139,11 @@ trackfix() {
 imgcp() {
 	scp $* ulrichdev.com:/web/ulrichdev/static/img/.
 }
+gigs() {
+	local path=$(defarg "$*" 0 "/")
+	
+	du -h -t 1G $path 2> /dev/null
+}
 
 alias pow="sudo poweroff now"
 alias upd="sudo apt-get update"
