@@ -11,6 +11,7 @@ alias ssh3="rdesktop -g $rd_res -u Administrator -d SSH3 10.0.1.13"
 
 alias prodweb="ssh atomic@10.10.10.101"
 alias proddb="ssh atomic@10.10.10.100"
+alias webweb="ssh atomic@10.10.10.102"
 alias work="ssh 10.10.0.47"
 
 alias prodmysql="mysql -A -u root -p -h 10.10.10.100"
