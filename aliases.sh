@@ -1,8 +1,8 @@
 # relative moves
-function .. {
+..() {
 	cd "../$(defarg "$*" 0 '')"
 }
-function _.. {
+_..() {
 	local cur file path cpath
 	COMPREPLY=()
 	cur="${COMP_WORDS[COMP_CWORD]}"
@@ -27,8 +27,35 @@ function _.. {
 }
 complete -F _.. ..
 
+code() {
+	cd "/code/$(defarg "$*" 0 '')"
+}
+_code() {
+	local cur file path cpath
+	COMPREPLY=()
+	cur="${COMP_WORDS[COMP_CWORD]}"
+	
+	IFS=/
+	path=($cur)
+	unset IFS
+	
+	file=''
+	if [ ${#path[@]} -gt 0 ]; then
+		file=${path[${#path[@]}-1]}
+		unset path[${#path[@]}-1]
+	fi
+	
+	cpath=/code
+	for p in "${path[@]}"; do
+		cpath="$cpath/$p"
+	done
+	
+	COMPREPLY=( $(compgen -W "$(ls $cpath)" $file ) )
+	return 0
+}
+complete -F _code code
+
 # helpful shortcuts
-alias code="cd /code"
 alias hh="cd /code/heirs-of-avalon"
 alias down="cd ~/Downloads"
 alias scripts="cd ~/scripts"
