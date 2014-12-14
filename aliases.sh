@@ -204,6 +204,7 @@ function timer {
 alias eject_fix="sudo eject -i off"
 alias fli="forever list"
 alias flo="forever logs"
+alias fr="forever restart"
 alias fra="forever restartall"
 alias webstack="service apache2 restart && service nginx restart"
 alias a2log="tail -n 50 -f /var/log/apache2/error.log"
