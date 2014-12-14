@@ -83,9 +83,36 @@ _web() {
 }
 complete -F _web web
 
+down() {
+	cd "~/Downloads/(defarg "$*" 0 '')"
+}
+_down() {
+	local cur file path cpath
+	COMPREPLY=()
+	cur="${COMP_WORDS[COMP_CWORD]}"
+	
+	IFS=/
+	path=($cur)
+	unset IFS
+	
+	file=''
+	if [ ${#path[@]} -gt 0 ]; then
+		file=${path[${#path[@]}-1]}
+		unset path[${#path[@]}-1]
+	fi
+	
+	cpath=/web
+	for p in "${path[@]}"; do
+		cpath="$cpath/$p"
+	done
+	
+	COMPREPLY=( $(compgen -W "$(ls $cpath)" $file ) )
+	return 0
+}
+complete -F _down down
+
 # helpful shortcuts
 alias hh="cd /code/heirs-of-avalon"
-alias down="cd ~/Downloads"
 alias scripts="cd ~/scripts"
 
 # Remote Desktop Shortcuts
