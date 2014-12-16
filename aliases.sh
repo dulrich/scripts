@@ -228,11 +228,22 @@ gigs() {
 	du -h -t 1G $path 2> /dev/null
 }
 
-# a totally irrelevant curiosity
+# a totally irrelevant curiosities
+hashalen() {
+	local len=$(defarg "$*" 0 4)
+	
+	printf -- '%s\n' $(git log --pretty=format:'%H' | grep -i --color=always "[[:alpha:]]\{$len\}")
+}
+hashstr() {
+	local str=$(defarg "$*" 0 "dead")
+	
+	printf -- '%s\n' $(git log --pretty=format:'%H' | grep -i --color=always "$str")
+}
 hashwords() {
 	len=$(defarg "$*" 0 4)
 
 	dwords=$(grep "^[a-fA-F]\{$len\}$" /etc/dictionaries-common/words)
+	
 	echo "=============================="
 	echo "searching $len letter words..."
 	echo "=============================="
@@ -241,6 +252,7 @@ hashwords() {
 		printf "\nword: $w"
 		printf -- '\n\t%s' $(git log --pretty=format:'%H' | grep -i --color=always "$w")
 	done
+	
 	echo ""
 	echo "=============================="
 	echo "...done"
