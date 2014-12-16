@@ -84,7 +84,7 @@ _web() {
 complete -F _web web
 
 down() {
-	cd "~/Downloads/(defarg "$*" 0 '')"
+	cd "~/Downloads/$(defarg "$*" 0 '')"
 }
 _down() {
 	local cur file path cpath
@@ -226,6 +226,25 @@ gigs() {
 	local path=$(defarg "$*" 0 "/")
 	
 	du -h -t 1G $path 2> /dev/null
+}
+
+# a totally irrelevant curiosity
+hashwords() {
+	len=$(defarg "$*" 0 4)
+
+	dwords=$(grep "^[a-fA-F]\{$len\}$" /etc/dictionaries-common/words)
+	echo "=============================="
+	echo "searching $len letter words..."
+	echo "=============================="
+	
+	for w in $dwords; do
+		printf "\nword: $w"
+		printf -- '\n\t%s' $(git log --pretty=format:'%H' | grep -i --color=always "$w")
+	done
+	echo ""
+	echo "=============================="
+	echo "...done"
+	echo "=============================="
 }
 
 alias pow="sudo poweroff now"
