@@ -3,26 +3,7 @@
 	cd "../$(defarg "$*" 0 '')"
 }
 _..() {
-	local cur file path cpath
-	COMPREPLY=()
-	cur="${COMP_WORDS[COMP_CWORD]}"
-	
-	IFS=/
-	path=($cur)
-	unset IFS
-	
-	file=''
-	if [ ${#path[@]} -gt 0 ]; then
-		file=${path[${#path[@]}-1]}
-		unset path[${#path[@]}-1]
-	fi
-	
-	cpath=../
-	for p in "${path[@]}"; do
-		cpath="$cpath/$p"
-	done
-	
-	COMPREPLY=( $(compgen -W "$(ls $cpath)" $file ) )
+	COMPREPLY=( $(genpath ../ "${COMP_WORDS[COMP_CWORD]}") )
 	return 0
 }
 complete -F _.. ..
@@ -31,26 +12,7 @@ code() {
 	cd "/code/$(defarg "$*" 0 '')"
 }
 _code() {
-	local cur file path cpath
-	COMPREPLY=()
-	cur="${COMP_WORDS[COMP_CWORD]}"
-	
-	IFS=/
-	path=($cur)
-	unset IFS
-	
-	file=''
-	if [ ${#path[@]} -gt 0 ]; then
-		file=${path[${#path[@]}-1]}
-		unset path[${#path[@]}-1]
-	fi
-	
-	cpath=/code
-	for p in "${path[@]}"; do
-		cpath="$cpath/$p"
-	done
-	
-	COMPREPLY=( $(compgen -W "$(ls $cpath)" $file ) )
+	COMPREPLY=( $(genpath /code "${COMP_WORDS[COMP_CWORD]}") )
 	return 0
 }
 complete -F _code code
@@ -59,26 +21,7 @@ web() {
 	cd "/web/$(defarg "$*" 0 '')"
 }
 _web() {
-	local cur file path cpath
-	COMPREPLY=()
-	cur="${COMP_WORDS[COMP_CWORD]}"
-	
-	IFS=/
-	path=($cur)
-	unset IFS
-	
-	file=''
-	if [ ${#path[@]} -gt 0 ]; then
-		file=${path[${#path[@]}-1]}
-		unset path[${#path[@]}-1]
-	fi
-	
-	cpath=/web
-	for p in "${path[@]}"; do
-		cpath="$cpath/$p"
-	done
-	
-	COMPREPLY=( $(compgen -W "$(ls $cpath)" $file ) )
+	COMPREPLY=( $(genpath web "${COMP_WORDS[COMP_CWORD]}") )
 	return 0
 }
 complete -F _web web
@@ -87,26 +30,7 @@ down() {
 	cd "~/Downloads/$(defarg "$*" 0 '')"
 }
 _down() {
-	local cur file path cpath
-	COMPREPLY=()
-	cur="${COMP_WORDS[COMP_CWORD]}"
-	
-	IFS=/
-	path=($cur)
-	unset IFS
-	
-	file=''
-	if [ ${#path[@]} -gt 0 ]; then
-		file=${path[${#path[@]}-1]}
-		unset path[${#path[@]}-1]
-	fi
-	
-	cpath=/web
-	for p in "${path[@]}"; do
-		cpath="$cpath/$p"
-	done
-	
-	COMPREPLY=( $(compgen -W "$(ls $cpath)" $file ) )
+	COMPREPLY=( $(genpath ~/Downloads "${COMP_WORDS[COMP_CWORD]}") )
 	return 0
 }
 complete -F _down down
@@ -143,6 +67,31 @@ defarg() {
 	else
 		echo $def
 	fi
+}
+
+# completion generator for offset paths
+genpath() {
+	local cur file path cpath reply
+	reply=()
+	cpath="$1"
+	cur="$2"
+	
+	IFS=/
+	path=($cur)
+	unset IFS
+	
+	file=''
+	if [ ${#path[@]} -gt 0 ]; then
+		file=${path[${#path[@]}-1]}
+		unset path[${#path[@]}-1]
+	fi
+	
+	for p in "${path[@]}"; do
+		cpath="$cpath/$p"
+	done
+	
+	reply=( $(compgen -W "$(ls $cpath)" $file ) )
+	echo "${reply[@]}"
 }
 
 alias my="mysql -A -u root -p"
