@@ -140,15 +140,6 @@ fileperm() {
 }
 
 
-function timer {
-	local MIN=$1;
-	
-	for ((i=MIN*60;i>=0;i--)); do
-		echo -ne "\r$(date -d"0+$i sec" +%H:%M:%S)";
-		sleep 1;
-	done
-}
-
 ## assorted
 alias eject_fix="sudo eject -i off"
 alias fli="forever list"
@@ -176,6 +167,23 @@ gigs() {
 	
 	du -h -t 1G $path 2> /dev/null
 }
+
+alias pow="sudo poweroff now"
+alias upd="sudo apt-get update"
+alias upg="sudo apt-get upgrade"
+alias aar="sudo apt-add-repository"
+alias es="setxkbmap es"
+alias en="setxkbmap us"
+
+function timer {
+	local MIN=$(defarg "$*" 0 1)
+	
+	for ((i=MIN*60;i>=0;i--)); do
+		echo -ne "\r$(date -d"0+$i sec" +%H:%M:%S)"
+		sleep 1
+	done
+}
+
 
 # a totally irrelevant curiosities
 hashalen() {
@@ -208,12 +216,6 @@ hashwords() {
 	echo "=============================="
 }
 
-alias pow="sudo poweroff now"
-alias upd="sudo apt-get update"
-alias upg="sudo apt-get upgrade"
-alias aar="sudo apt-add-repository"
-alias es="setxkbmap es"
-alias en="setxkbmap us"
 
 # load git aliases
 source ~/scripts/git-aliases.sh
