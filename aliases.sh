@@ -21,7 +21,7 @@ web() {
 	cd "/web/$(defarg "$*" 0 '')"
 }
 _web() {
-	COMPREPLY=( $(genpath web "${COMP_WORDS[COMP_CWORD]}") )
+	COMPREPLY=( $(genpath /web "${COMP_WORDS[COMP_CWORD]}") )
 	return 0
 }
 complete -F _web web
