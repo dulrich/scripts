@@ -17,24 +17,24 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 alias s="git status"
-function a {
+a () {
 	git add $(defarg "$*" '@' '.')
 }
-function b {
+b () {
 	git checkout $(defarg "$*" 0 'master')
 }
-function c {
+c () {
 	git commit -m "$*"
 }
 alias d="git diff"
 alias f="git fetch upstream"
 alias gls="git log --stat"
 alias glt="git ls-tree --abbrev HEAD"
-function gx {
+gx () {
 	chmod 755 $1
 	git update-index --chmod=+x $1
 }
-function m {
+m () {
 	git merge $(defarg "$*" 0 'master')
 }
 alias r="git reset HEAD"
@@ -42,7 +42,7 @@ alias u="git pull"
 alias p="git push"
 alias pp="git push production master"
 alias up="git pull;git push"
-function z {
+z () {
 	git commit -m "$*"
 	git push
 }

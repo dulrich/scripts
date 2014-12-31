@@ -1,35 +1,35 @@
 # relative moves
-..() {
+.. () {
 	cd "../$(defarg "$*" 0 '')"
 }
-_..() {
+_.. () {
 	COMPREPLY=( $(genpath ../ "${COMP_WORDS[COMP_CWORD]}") )
 	return 0
 }
 complete -F _.. ..
 
-code() {
+code () {
 	cd "/code/$(defarg "$*" 0 '')"
 }
-_code() {
+_code () {
 	COMPREPLY=( $(genpath /code "${COMP_WORDS[COMP_CWORD]}") )
 	return 0
 }
 complete -F _code code
 
-web() {
+web () {
 	cd "/web/$(defarg "$*" 0 '')"
 }
-_web() {
+_web () {
 	COMPREPLY=( $(genpath /web "${COMP_WORDS[COMP_CWORD]}") )
 	return 0
 }
 complete -F _web web
 
-down() {
+down () {
 	cd "~/Downloads/$(defarg "$*" 0 '')"
 }
-_down() {
+_down () {
 	COMPREPLY=( $(genpath ~/Downloads "${COMP_WORDS[COMP_CWORD]}") )
 	return 0
 }
@@ -50,7 +50,7 @@ alias life="~/scripts/daylog.sh -f life"
 alias food="~/scripts/daylog.sh -f food"
 
 # defarg args which default
-defarg() {
+defarg () {
 	local all=0
 	local args=($1)
 	local which=$2
@@ -70,7 +70,7 @@ defarg() {
 }
 
 # completion generator for offset paths
-genpath() {
+genpath () {
 	local cur file path cpath reply
 	reply=()
 	cpath="$1"
@@ -98,27 +98,27 @@ alias my="mysql -A -u root -p"
 
 # what find should usually do
 # quote name as necessary to avoid unexpected shell-expansions
-function ff {
+ff () {
 # the shell expansion resulted in 'unknown predicate' but the expanded command works manually
 # 	find . -iname \""$1"\" -not\ -path\ \"*/{.git,node_modules,uploads}/*\"
     find . -iname "$1" -not -path "*/.git/*" -not -path "*/node_modules/*" -not -path "*/uploads/*"
 }
 
 # What I want grep to do 99% of the time
-function gr {
+gr () {
 	local path=$(defarg "$*" 1 './')
 	
 	grep -EiIr --exclude={*.min.js,*.min.css,*~} --exclude-dir={.git,node_modules,uploads} $1 $path ;
 }
 # Sometimes I just want an overview from grep
-function grc {
+grc () {
 	local path=$(defarg "$*" 1 './')
 
 	grep -EiIrc --exclude={*.min.js,*.min.css,*~} --exclude-dir={.git,node_modules,uploads} $1 $path | grep -E ':[^0]';
 }
 
 # shortcut for mass rewrites
-function rall {
+rall () {
 	if [ $# -lt 2 ]; then
 		$2=''
 	fi
@@ -127,13 +127,13 @@ function rall {
 }
 
 # mass permission changes
-dirperm() {
+dirperm () {
 	local path=$(defarg "$*" 0 '.')
 
 	find $path -type d -exec chmod 755 {} +
 }
 
-fileperm() {
+fileperm () {
 	local path=$(defarg "$*" 0 '.')
 
 	find $path -type f -exec chmod 644 {} +
@@ -150,19 +150,19 @@ alias webstack="service apache2 restart && service nginx restart"
 alias a2log="tail -n 50 -f /var/log/apache2/error.log"
 alias phplog="tail -n 50 -f /var/log/php/php_errors.log"
 alias t="tail -n 100 -f"
-function n {
+n() {
 	local path=$(defarg "$*" 0 "server.js")
 
 	nodemon $path
 }
-trackfix() {
+trackfix () {
 	rename s/Track\ // *
 	rename -v 's/^(\d)\./0$1./' *
 }
-imgcp() {
+imgcp () {
 	scp $* ulrichdev.com:/web/ulrichdev/static/img/.
 }
-gigs() {
+gigs () {
 	local path=$(defarg "$*" 0 "/")
 	
 	du -h -t 1G $path 2> /dev/null
@@ -175,7 +175,7 @@ alias aar="sudo apt-add-repository"
 alias es="setxkbmap es"
 alias en="setxkbmap us"
 
-function timer {
+timer () {
 	local MIN=$(defarg "$*" 0 1)
 	
 	for ((i=MIN*60;i>=0;i--)); do
@@ -186,17 +186,17 @@ function timer {
 
 
 # a totally irrelevant curiosities
-hashalen() {
+hashalen () {
 	local len=$(defarg "$*" 0 4)
 	
 	printf -- '%s\n' $(git log --pretty=format:'%H' | grep -i --color=always "[[:alpha:]]\{$len\}")
 }
-hashstr() {
+hashstr () {
 	local str=$(defarg "$*" 0 "dead")
 	
 	printf -- '%s\n' $(git log --pretty=format:'%H' | grep -i --color=always "$str")
 }
-hashwords() {
+hashwords () {
 	len=$(defarg "$*" 0 4)
 
 	dwords=$(grep "^[a-fA-F]\{$len\}$" /etc/dictionaries-common/words)
