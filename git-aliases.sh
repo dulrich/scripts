@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # git-aliases.sh: shorten common git tasks
-# Copyright 2013 - 2014 David Ulrich
+# Copyright 2013 - 2015 David Ulrich
 # 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
