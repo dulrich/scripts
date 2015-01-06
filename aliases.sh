@@ -45,7 +45,7 @@ _web () {
 complete -F _web web
 
 down () {
-	cd "~/Downloads/$(defarg "$*" 0 '')"
+	cd ~/Downloads/$(defarg "$*" 0 '')
 }
 _down () {
 	COMPREPLY=( $(genpath ~/Downloads "${COMP_WORDS[COMP_CWORD]}") )
