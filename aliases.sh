@@ -18,7 +18,7 @@
 
 # relative moves
 .. () {
-	cd "../$(defarg "$*" 0 '')"
+	cd ../$(defarg "$*" 0 '')
 }
 _.. () {
 	COMPREPLY=( $(genpath ../ "${COMP_WORDS[COMP_CWORD]}") )
@@ -27,7 +27,7 @@ _.. () {
 complete -F _.. ..
 
 code () {
-	cd "/code/$(defarg "$*" 0 '')"
+	cd /code/$(defarg "$*" 0 '')
 }
 _code () {
 	COMPREPLY=( $(genpath /code "${COMP_WORDS[COMP_CWORD]}") )
@@ -36,7 +36,7 @@ _code () {
 complete -F _code code
 
 web () {
-	cd "/web/$(defarg "$*" 0 '')"
+	cd /web/$(defarg "$*" 0 '')
 }
 _web () {
 	COMPREPLY=( $(genpath /web "${COMP_WORDS[COMP_CWORD]}") )
@@ -53,9 +53,17 @@ _down () {
 }
 complete -F _down down
 
+scripts () {
+	cd ~/scripts/$(defarg "$*" 0 '')
+}
+_scripts () {
+	COMPREPLY=( $(genpath ~/scripts "${COMP_WORDS[COMP_CWORD]}") )
+	return 0
+}
+complete -F _scripts scripts
+
 # helpful shortcuts
 alias hh="cd /code/heirs-of-avalon"
-alias scripts="cd ~/scripts"
 
 # Remote Desktop Shortcuts
 rd_res="1440x1080"
