@@ -121,6 +121,7 @@ genpath () {
 }
 
 alias my="mysql -A -u root -p"
+alias mykill="pkill mysql-workbench" #lol
 
 # what find should usually do
 # quote name as necessary to avoid unexpected shell-expansions
