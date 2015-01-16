@@ -17,9 +17,27 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 # dirs
-alias cb="cd /web/carbon"
-alias cn="cd /web/carbon/node"
-alias cly="cd /web/catalyst"
+cb () {
+	cd /web/carbon/$(defarg "$*" 0 '')
+}
+_cb () {
+	COMPREPLY=( $(genpath /web/carbon/ "${COMP_WORDS[COMP_CWORD]}") )
+	return 0
+}
+cn () {
+	cd /web/carbon/node/$(defarg "$*" 0 '')
+}
+_cn () {
+	COMPREPLY=( $(genpath /web/carbon/node/ "${COMP_WORDS[COMP_CWORD]}") )
+	return 0
+}
+cly () {
+	cd /web/catalyst/$(defarg "$*" 0 '')
+}
+_cly () {
+	COMPREPLY=( $(genpath /web/catalyst/ "${COMP_WORDS[COMP_CWORD]}") )
+	return 0
+}
 
 # remote
 alias kris7="rdesktop -g $rd_res -u kris 10.10.0.15"
