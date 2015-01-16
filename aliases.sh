@@ -30,7 +30,7 @@ code () {
 	cd /code/$(defarg "$*" 0 '')
 }
 _code () {
-	COMPREPLY=( $(genpath /code "${COMP_WORDS[COMP_CWORD]}") )
+	COMPREPLY=( $(genpath /code/ "${COMP_WORDS[COMP_CWORD]}") )
 	return 0
 }
 complete -F _code code
@@ -39,7 +39,7 @@ web () {
 	cd /web/$(defarg "$*" 0 '')
 }
 _web () {
-	COMPREPLY=( $(genpath /web "${COMP_WORDS[COMP_CWORD]}") )
+	COMPREPLY=( $(genpath /web/ "${COMP_WORDS[COMP_CWORD]}") )
 	return 0
 }
 complete -F _web web
@@ -48,7 +48,7 @@ down () {
 	cd ~/Downloads/$(defarg "$*" 0 '')
 }
 _down () {
-	COMPREPLY=( $(genpath ~/Downloads "${COMP_WORDS[COMP_CWORD]}") )
+	COMPREPLY=( $(genpath ~/Downloads/ "${COMP_WORDS[COMP_CWORD]}") )
 	return 0
 }
 complete -F _down down
@@ -57,7 +57,7 @@ scripts () {
 	cd ~/scripts/$(defarg "$*" 0 '')
 }
 _scripts () {
-	COMPREPLY=( $(genpath ~/scripts "${COMP_WORDS[COMP_CWORD]}") )
+	COMPREPLY=( $(genpath ~/scripts/ "${COMP_WORDS[COMP_CWORD]}") )
 	return 0
 }
 complete -F _scripts scripts
