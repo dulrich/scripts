@@ -2,6 +2,7 @@
 
 Simple utility scripts and helpful bash aliases
 
+
 ## aliases.sh
 
 Defines A number of aliases and functions.
@@ -11,10 +12,12 @@ Alternately: run `./links.sh`, which is the same as `ln -s ~/scripts/aliases.sh 
 
 Chain-loads `git-aliases.sh` and `work-aliases.sh`
 
+
 ## daylog.sh
 
 Program for tracking what was going on at a certain time, and viewing logs
 from previous days.
+
 
 ## setting up a new machine
 
@@ -22,9 +25,11 @@ from previous days.
 sudo apt-get install gmrun htop kate suckless-tools i3
 ```
 
+
 ## mysql-workbench Hotkey Fix
 
 Edit `/usr/share/mysql-workbench/data/main_menu.xml` to update shortcut keys.
+
 
 ## Working with forked projects
 
@@ -38,6 +43,7 @@ u
 m
 ```
 
+
 # irc commands #
 
 See also in [irssi_startup](./irssi_startup)
@@ -47,10 +53,12 @@ See also in [irssi_startup](./irssi_startup)
 * hide junk: `/set activity_hide_level QUITS JOINS PARTS KICKS MODES TOPIC NICKS`
 * hide activity: `/set activity_hide_targets #channel`
 
+
 # assorted #
 
 * multiple wine desktops `wine explorer /desktop=_NAME_,resolution=1920x1080 "/path/to/_NAME_.exe"`
 * command line network swapping `nmcli con up uuid XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX`
+
 
 # license / copying #
 
