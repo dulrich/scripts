@@ -130,6 +130,7 @@ ff () {
 # 	find . -iname \""$1"\" -not\ -path\ \"*/{.git,node_modules,uploads}/*\"
     find . -iname "$1" -not -path "*/.git/*" -not -path "*/node_modules/*" -not -path "*/uploads/*"
 }
+alias subcount="find . -type f | wc -l"
 
 # What I want grep to do 99% of the time
 gr () {
