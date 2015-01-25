@@ -136,13 +136,19 @@ alias subcount="find . -type f | wc -l"
 gr () {
 	local path=$(defarg "$*" 1 './')
 	
-	grep -EiIr --exclude={*.min.js,*.min.css,*~} --exclude-dir={.git,node_modules,uploads} $1 $path ;
+	grep -EiIR --exclude={*.min.js,*.min.css,*~} --exclude-dir={.git,node_modules,uploads} $1 $path ;
 }
 # Sometimes I just want an overview from grep
 grc () {
 	local path=$(defarg "$*" 1 './')
 
-	grep -EiIrc --exclude={*.min.js,*.min.css,*~} --exclude-dir={.git,node_modules,uploads} $1 $path | grep -E ':[^0]';
+	grep -EiIRc --exclude={*.min.js,*.min.css,*~} --exclude-dir={.git,node_modules,uploads} $1 $path | grep -E ':[^0]';
+}
+# POSIX character classes can be a pain, especially if you forget egrep uses them
+gp () {
+	local path=$(defarg "$*" 1 './')
+
+	grep -PiIR --exclude={*.min.js,*.min.css,*~} --exclude-dir={.git,node_modules,uploads} $1 $path ;
 }
 
 # shortcut for mass rewrites
