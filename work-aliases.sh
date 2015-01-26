@@ -24,7 +24,7 @@ _cb () {
 	COMPREPLY=( $(genpath /web/carbon/ "${COMP_WORDS[COMP_CWORD]}") )
 	return 0
 }
-complete -F _cb cb
+_comp cb
 
 cn () {
 	cd /web/carbon/node/$(defarg "$*" 0 '')
@@ -33,7 +33,7 @@ _cn () {
 	COMPREPLY=( $(genpath /web/carbon/node/ "${COMP_WORDS[COMP_CWORD]}") )
 	return 0
 }
-complete -F _cn cn
+_comp cn
 
 cly () {
 	cd /web/catalyst/$(defarg "$*" 0 '')
@@ -42,7 +42,7 @@ _cly () {
 	COMPREPLY=( $(genpath /web/catalyst/ "${COMP_WORDS[COMP_CWORD]}") )
 	return 0
 }
-complete -F _cly cly
+_comp cly
 
 # remote
 alias kris7="rdesktop -g $rd_res -u kris 10.10.0.15"

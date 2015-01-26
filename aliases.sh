@@ -16,15 +16,20 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+# typing out the options everytime gets old
+_comp () {
+	complete -o nospace -F "_$1" "$1"
+}
+
 # relative moves
 .. () {
 	cd ../$(defarg "$*" 0 '')
 }
 _.. () {
-	COMPREPLY=( $(genpath ../ "${COMP_WORDS[COMP_CWORD]}") )
+	COMPREPLY=( $(genpath .. "${COMP_WORDS[COMP_CWORD]}") )
 	return 0
 }
-complete -F _.. ..
+_comp ..
 
 code () {
 	cd /code/$(defarg "$*" 0 '')
@@ -33,7 +38,7 @@ _code () {
 	COMPREPLY=( $(genpath /code/ "${COMP_WORDS[COMP_CWORD]}") )
 	return 0
 }
-complete -F _code code
+_comp code
 
 web () {
 	cd /web/$(defarg "$*" 0 '')
@@ -42,7 +47,7 @@ _web () {
 	COMPREPLY=( $(genpath /web/ "${COMP_WORDS[COMP_CWORD]}") )
 	return 0
 }
-complete -F _web web
+_comp web
 
 down () {
 	cd ~/Downloads/$(defarg "$*" 0 '')
@@ -51,7 +56,7 @@ _down () {
 	COMPREPLY=( $(genpath ~/Downloads/ "${COMP_WORDS[COMP_CWORD]}") )
 	return 0
 }
-complete -F _down down
+_comp down
 
 scripts () {
 	cd ~/scripts/$(defarg "$*" 0 '')
@@ -60,7 +65,7 @@ _scripts () {
 	COMPREPLY=( $(genpath ~/scripts/ "${COMP_WORDS[COMP_CWORD]}") )
 	return 0
 }
-complete -F _scripts scripts
+_comp scripts
 
 # helpful shortcuts
 alias hh="cd /code/heirs-of-avalon"
@@ -74,6 +79,11 @@ alias daylog="~/scripts/daylog.sh"
 alias dl="~/scripts/daylog.sh"
 alias life="~/scripts/daylog.sh -f life"
 alias food="~/scripts/daylog.sh -f food"
+
+# echo messes up some function returns
+debug () {
+	echo "$*" >> /tmp/debug
+}
 
 # defarg args which default
 defarg () {
@@ -105,6 +115,10 @@ genpath () {
 	IFS=/
 	path=($cur)
 	unset IFS
+	
+	if [ "${cur: -1}" == '/' ]; then
+		path[${#path[@]}]=""
+	fi
 	
 	file=''
 	if [ ${#path[@]} -gt 0 ]; then
