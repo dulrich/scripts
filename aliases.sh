@@ -107,9 +107,10 @@ defarg () {
 
 # completion generator for offset paths
 genpath () {
-	local cur file path cpath reply
+	local cur file path cpath opath reply
 	reply=()
 	cpath="$1"
+	opath=""
 	cur="$2"
 	
 	IFS=/
@@ -128,9 +129,16 @@ genpath () {
 	
 	for p in "${path[@]}"; do
 		cpath="$cpath/$p"
+		if [ "$opath" == "" ]; then opath="$p"
+		else opath="$opath/$p"; fi
 	done
 	
-	reply=( $(compgen -W "$(ls $cpath)" $file ) )
+	reply=( $(compgen -W "$(find $cpath -mindepth 1 -maxdepth 1 -type d -printf '%f/\t')" $file ) )
+	
+	if [ ${#reply[@]} -eq 1 ] && [ "$opath" != "" ]; then
+		reply=( "$opath/${reply[0]}" )
+	fi
+	
 	echo "${reply[@]}"
 }
 
