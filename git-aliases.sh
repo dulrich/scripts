@@ -30,6 +30,8 @@ alias d="git diff"
 alias f="git fetch upstream"
 alias gls="git log --stat"
 alias glt="git ls-tree --abbrev HEAD"
+alias gmv="git mv"
+alias grm="git rm"
 gx () {
 	chmod 755 $1
 	git update-index --chmod=+x $1
@@ -56,6 +58,8 @@ if [ -f /usr/share/bash-completion/completions/git ]; then
 	__git_complete a _git_add
 	__git_complete b _git_checkout
 	__git_complete d _git_diff
+	__git_complete gmv _git_mv
+	__git_complete grm _git_rm
 	__git_complete m _git_merge
 	__git_complete p _git_push
 	__git_complete u _git_pull
