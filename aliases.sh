@@ -21,51 +21,33 @@ _comp () {
 	complete -o nospace -F "_$1" "$1"
 }
 
-# relative moves
-.. () {
-	cd ../$(defarg "$*" 0 '')
+# echo messes up some function returns
+debug () {
+	echo "$*" >> /tmp/debug
 }
-_.. () {
-	COMPREPLY=( $(genpath .. "${COMP_WORDS[COMP_CWORD]}") )
-	return 0
-}
-_comp ..
 
-code () {
-	cd /code/$(defarg "$*" 0 '')
+aliascd () {
+	debug "$1 $2"
+	eval "
+$1 () {
+	cd $2/\$(defarg \"\$*\" 0 '')
 }
-_code () {
-	COMPREPLY=( $(genpath /code/ "${COMP_WORDS[COMP_CWORD]}") )
+_$1 () {
+	COMPREPLY=( \$(genpath $2 \"\${COMP_WORDS[COMP_CWORD]}\") )
 	return 0
 }
-_comp code
+_comp $1
+	"
+}
 
-web () {
-	cd /web/$(defarg "$*" 0 '')
-}
-_web () {
-	COMPREPLY=( $(genpath /web/ "${COMP_WORDS[COMP_CWORD]}") )
-	return 0
-}
-_comp web
+# cd aliases, eval style
+cdnames=( .. code  web  down        scripts   )
+cdpaths=( .. /code /web ~/Downloads ~/scripts )
 
-down () {
-	cd ~/Downloads/$(defarg "$*" 0 '')
-}
-_down () {
-	COMPREPLY=( $(genpath ~/Downloads/ "${COMP_WORDS[COMP_CWORD]}") )
-	return 0
-}
-_comp down
-
-scripts () {
-	cd ~/scripts/$(defarg "$*" 0 '')
-}
-_scripts () {
-	COMPREPLY=( $(genpath ~/scripts/ "${COMP_WORDS[COMP_CWORD]}") )
-	return 0
-}
-_comp scripts
+for i in {0..4}
+do
+	aliascd ${cdnames[$i]} ${cdpaths[$i]}
+done
 
 # helpful shortcuts
 alias hh="cd /code/heirs-of-avalon"
@@ -79,11 +61,6 @@ alias daylog="~/scripts/daylog.sh"
 alias dl="~/scripts/daylog.sh"
 alias life="~/scripts/daylog.sh -f life"
 alias food="~/scripts/daylog.sh -f food"
-
-# echo messes up some function returns
-debug () {
-	echo "$*" >> /tmp/debug
-}
 
 # defarg args which default
 defarg () {

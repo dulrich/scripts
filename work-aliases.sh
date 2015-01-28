@@ -16,33 +16,14 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-# dirs
-cb () {
-	cd /web/carbon/$(defarg "$*" 0 '')
-}
-_cb () {
-	COMPREPLY=( $(genpath /web/carbon/ "${COMP_WORDS[COMP_CWORD]}") )
-	return 0
-}
-_comp cb
+# dirs, eval style
+cdnames=( cb          cn               cly           )
+cdpaths=( /web/carbon /web/carbon/node /web/catalyst )
 
-cn () {
-	cd /web/carbon/node/$(defarg "$*" 0 '')
-}
-_cn () {
-	COMPREPLY=( $(genpath /web/carbon/node/ "${COMP_WORDS[COMP_CWORD]}") )
-	return 0
-}
-_comp cn
-
-cly () {
-	cd /web/catalyst/$(defarg "$*" 0 '')
-}
-_cly () {
-	COMPREPLY=( $(genpath /web/catalyst/ "${COMP_WORDS[COMP_CWORD]}") )
-	return 0
-}
-_comp cly
+for i in {0..2}
+do
+	aliascd ${cdnames[$i]} ${cdpaths[$i]}
+done
 
 # remote
 alias kris7="rdesktop -g $rd_res -u kris 10.10.0.15"
