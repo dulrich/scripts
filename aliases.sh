@@ -41,16 +41,13 @@ _comp $1
 }
 
 # cd aliases, eval style
-cdnames=( .. code  web  down        scripts   )
-cdpaths=( .. /code /web ~/Downloads ~/scripts )
+cdnames=( .. code  web  down        scripts   hh                    )
+cdpaths=( .. /code /web ~/Downloads ~/scripts /code/heirs-of-avalon )
 
-for i in {0..4}
+for i in {0..5}
 do
 	aliascd ${cdnames[$i]} ${cdpaths[$i]}
 done
-
-# helpful shortcuts
-alias hh="cd /code/heirs-of-avalon"
 
 # Remote Desktop Shortcuts
 rd_res="1440x1080"
