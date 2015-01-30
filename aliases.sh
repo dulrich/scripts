@@ -27,7 +27,6 @@ debug () {
 }
 
 aliascd () {
-	debug "$1 $2"
 	eval "
 $1 () {
 	cd $2/\$(defarg \"\$*\" 0 '')
@@ -128,23 +127,31 @@ ff () {
 }
 alias subcount="find . -type f | wc -l"
 
+# grep shortcuts 
+grep_options=( -iIR --exclude={*.min.js,*.min.css,*~} --exclude-dir={.git,node_modules,uploads} )
+
 # What I want grep to do 99% of the time
 gr () {
 	local path=$(defarg "$*" 1 './')
 	
-	grep -EiIR --exclude={*.min.js,*.min.css,*~} --exclude-dir={.git,node_modules,uploads} $1 $path ;
+	grep -E ${grep_options[@]} $1 $path 
 }
 # Sometimes I just want an overview from grep
 grc () {
 	local path=$(defarg "$*" 1 './')
-
-	grep -EiIRc --exclude={*.min.js,*.min.css,*~} --exclude-dir={.git,node_modules,uploads} $1 $path | grep -E ':[^0]';
+	
+	grep -Ec ${grep_options[@]} $1 $path | grep -E ':[^0]'
 }
 # POSIX character classes can be a pain, especially if you forget egrep uses them
 gp () {
 	local path=$(defarg "$*" 1 './')
-
-	grep -PiIR --exclude={*.min.js,*.min.css,*~} --exclude-dir={.git,node_modules,uploads} $1 $path ;
+	
+	grep -P ${grep_options[@]} $1 $path
+}
+gpc () {
+	local path=$(defarg "$*" 1 './')
+	
+	grep -Pc ${grep_options[@]} $1 $path | grep -E ':[^0]'
 }
 
 # shortcut for mass rewrites
