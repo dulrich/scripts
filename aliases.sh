@@ -134,14 +134,27 @@ grep_options=( -iIR --exclude={*.min.js,*.min.css,*~} --exclude-dir={.git,node_m
 gr () {
 	local path=$(defarg "$*" 1 './')
 	
-	grep -E ${grep_options[@]} $1 $path 
+	grep ${grep_options[@]} $1 $path
 }
 # Sometimes I just want an overview from grep
 grc () {
 	local path=$(defarg "$*" 1 './')
 	
+	grep -c ${grep_options[@]} $1 $path | grep -E ':[^0]'
+}
+
+# old gr / grc
+ge () {
+	local path=$(defarg "$*" 1 './')
+	
+	grep -E ${grep_options[@]} $1 $path
+}
+gec () {
+	local path=$(defarg "$*" 1 './')
+	
 	grep -Ec ${grep_options[@]} $1 $path | grep -E ':[^0]'
 }
+
 # POSIX character classes can be a pain, especially if you forget egrep uses them
 gp () {
 	local path=$(defarg "$*" 1 './')
@@ -153,6 +166,7 @@ gpc () {
 	
 	grep -Pc ${grep_options[@]} $1 $path | grep -E ':[^0]'
 }
+
 
 # shortcut for mass rewrites
 rall () {
