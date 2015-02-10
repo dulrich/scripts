@@ -49,6 +49,36 @@ z () {
 	git push
 }
 
+blameline () {
+	local author blame line inv
+	
+	IFS=:
+	inv=($1)	
+	unset IFS
+	
+	IFS=$'\n'
+	blame=( $(git blame -pw -L${inv[1]},${inv[1]} ${inv[0]}) )
+	unset IFS
+	
+	author=$(echo ${blame[1]} | cut -d" " -f2-)
+	
+	line="${blame[${#blame[@]} - 1]}"
+	
+	echo "$1 ($author) $line"
+}
+blamepipe () {
+	while read data; do
+		blameline $data
+	done
+}
+
+# grep and blame at the same time
+gb () {
+	local path=$(defarg "$*" 1 './')
+	
+	grep -Pn ${grep_options[@]} $1 $path | blamepipe
+}
+
 # http://stackoverflow.com/questions/342969/how-do-i-get-bash-completion-to-work-with-aliases
 # git completion functions don't exist until this file is executed,
 # which would normally be the first time a full git command is tab-completed
