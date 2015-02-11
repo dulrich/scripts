@@ -127,6 +127,10 @@ ff () {
 }
 alias subcount="find . -type f | wc -l"
 
+# different approach to finding files
+alias lg="ll | grep -iP"
+alias lgr="ll -R | grep -iP"
+
 # grep shortcuts 
 grep_options=( -iIR --exclude={*.min.js,*.min.css,*~} --exclude-dir={.git,node_modules,uploads} )
 
