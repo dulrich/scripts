@@ -197,6 +197,7 @@ fileperm () {
 
 
 ## assorted
+alias cl="clear"
 alias eject_fix="sudo eject -i off"
 alias fli="forever list"
 alias flo="forever logs"
@@ -211,10 +212,23 @@ n() {
 
 	nodemon $path
 }
+
 trackfix () {
 	rename s/Track\ // *
 	rename -v 's/^(\d)\./0$1./' *
 }
+trackconv () {
+	local tracks=( $(ls) )
+	
+	for t in "${tracks[@]}"; do
+		avconv -i "$t" "$t.mp3"
+	done
+}
+mp3dir () {
+	mkdir -p "$1-mp3"
+	mv $1/*.mp3 $1-mp3/.
+}
+
 imgcp () {
 	scp $* ulrichdev.com:/web/ulrichdev/static/img/.
 }
