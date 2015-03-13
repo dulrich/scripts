@@ -28,6 +28,15 @@ c () {
 }
 alias d="git diff"
 alias f="git fetch upstream"
+gc () {
+	local repo="$1"
+
+	if [ ${repo: -4} != ".git" ]; then
+		repo="$repo.git"
+	fi
+
+	git clone "git@github.com:/$repo"
+}
 alias gls="git log --stat"
 alias glt="git ls-tree --abbrev HEAD"
 alias gmv="git mv"
@@ -39,6 +48,7 @@ gx () {
 m () {
 	git merge $(defarg "$*" 0 'master')
 }
+alias o="git checkout"
 alias r="git reset HEAD"
 alias u="git pull"
 alias p="git push"
@@ -91,6 +101,7 @@ if [ -f /usr/share/bash-completion/completions/git ]; then
 	__git_complete gmv _git_mv
 	__git_complete grm _git_rm
 	__git_complete m _git_merge
+	__git_complete o _git_checkout
 	__git_complete p _git_push
 	__git_complete u _git_pull
 fi
