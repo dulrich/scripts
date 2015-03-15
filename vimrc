@@ -123,8 +123,8 @@ set number
 set notimeout ttimeout ttimeoutlen=200
 
 " Use <F11> to toggle between 'paste' and 'nopaste'
-set pastetoggle=<F11>
-
+set pastetoggle=<F5>
+set clipboard=unnamed,unnamedplus
 
 "------------------------------------------------------------
 " Indentation options {{{1
