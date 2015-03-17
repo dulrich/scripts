@@ -118,6 +118,7 @@ set cmdheight=2
 
 " Display line numbers on the left
 set number
+set wrap
 
 " Quickly time out on keycodes, but never time out on mappings
 set notimeout ttimeout ttimeoutlen=200
@@ -159,4 +160,14 @@ nnoremap <C-L> :nohl<CR><C-L>
 
 "------------------------------------------------------------
 
+let mapleader = ","
+
+nnoremap <leader>ev :edit $MYVIMRC<cr>
+nnoremap <leader>sv :source $MYVIMRC<cr>
+
 execute pathogen#infect()
+
+
+
+
+
