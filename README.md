@@ -31,6 +31,14 @@ sudo apt-get install gmrun htop kate suckless-tools i3
 Edit `/usr/share/mysql-workbench/data/main_menu.xml` to update shortcut keys.
 
 
+## git config
+```bash
+git config --global core.filemode false
+git config --global push.default upstream
+git config --global ui.color true
+```
+
+
 ## Working with forked projects
 
 `git clone git@github.com:/you/your-fork` or `git remote set-url origin git@github.com:/you/your-fork`
