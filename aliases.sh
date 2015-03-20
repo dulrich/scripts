@@ -198,11 +198,16 @@ fileperm () {
 
 ## assorted
 alias cl="clear"
+alias cvim="cb ; vim -c vs"
 alias eject_fix="sudo eject -i off"
 alias fli="forever list"
 alias flo="forever logs"
 alias fr="forever restart"
 alias fra="forever restartall"
+kt () {
+	eval `ssh-agent`
+	ssh-add
+}
 alias webstack="service apache2 restart && service nginx restart"
 alias a2log="tail -n 50 -f /var/log/apache2/error.log"
 alias phplog="tail -n 50 -f /var/log/php/php_errors.log"
@@ -239,6 +244,7 @@ gigs () {
 }
 
 alias pow="sudo poweroff now"
+alias agi="sudo apt-get install"
 alias upd="sudo apt-get update"
 alias upg="sudo apt-get upgrade"
 alias aar="sudo apt-add-repository"
