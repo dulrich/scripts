@@ -133,7 +133,7 @@ alias lgr="ll -R | grep -iP"
 alias llr="ll -R"
 
 # grep shortcuts 
-grep_options=( -iIR --exclude={*.min.js,*.min.css,*~} --exclude-dir={.git,node_modules,uploads} )
+grep_options=( -iIR --exclude={*.min.js,*.min.css,*~} --exclude-dir={.git,node_modules,uploads,src-min-noconflict} )
 
 # What I want grep to do 99% of the time
 gr () {
