@@ -115,6 +115,16 @@ genpath () {
 	echo "${reply[@]}"
 }
 
+ajoin () {
+	local out="$2"
+
+	for item in "${@:3}"; do
+		out="${out}${1}${item}"
+	done
+
+	echo "$out"
+}
+
 alias my="mysql -A -u root -p"
 alias mykill="pkill mysql-workbench" #lol
 
