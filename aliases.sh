@@ -301,6 +301,11 @@ hashwords () {
 	echo "...done"
 	echo "=============================="
 }
+commits () {
+	local terms=$( ajoin "|" "$@" )
+
+	git log --pretty=format:"(%aN) %s" | grep -iE "($terms)"
+}
 
 
 # load git aliases
