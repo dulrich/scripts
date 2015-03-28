@@ -71,7 +71,7 @@ See also in [irssi_startup](./irssi_startup)
 
 # license
 
-Copyright 2013 - 2015 David Ulrich
+Copyright 2013 - 2015  David Ulrich (http://github.com/dulrich)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
