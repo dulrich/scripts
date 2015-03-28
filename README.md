@@ -52,7 +52,7 @@ m
 ```
 
 
-# irc commands #
+# irc commands
 
 See also in [irssi_startup](./irssi_startup)
 
@@ -62,14 +62,14 @@ See also in [irssi_startup](./irssi_startup)
 * hide activity: `/set activity_hide_targets #channel`
 
 
-# assorted #
+# assorted
 
 * multiple wine desktops `wine explorer /desktop=_NAME_,resolution=1920x1080 "/path/to/_NAME_.exe"`
 * command line network swapping `nmcli con up uuid XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX`
 * using ssh-find-agent.sh, add `source ~/scripts/ssh-find-agent.sh` and `set_ssh_agent_socket` to `~/.bashrc`
 
 
-# license / copying #
+# license
 
 Copyright 2013 - 2015 David Ulrich
 
