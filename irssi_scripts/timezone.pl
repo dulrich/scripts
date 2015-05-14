@@ -1,2 +1,2 @@
 use strict;
-$ENV{'TZ'}='CST6CDT'l
+$ENV{'TZ'}='CST6CDT';
