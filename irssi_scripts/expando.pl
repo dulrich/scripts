@@ -45,8 +45,23 @@ sub do_expansion () {
 	
 	foreach $r ( keys %replacements ) {
 		$rr = $replacements{$r};
-		$line =~ s/\b$r\b/$rr/;
+		$line =~ s/\b$r\b/$rr/g;
 	}
+	
+	my ($vn) = $line =~ /^:(\d+):/;
+	my $repl = "\$1.\$2";
+	
+	if ($vn) {
+		$line =~ s/^:(\d+):\s*//;
+		
+		for(my $i=0;$i<$vn;$i++) {
+			$repl = "$repl.\$3";
+		}
+		
+# 		$repl = qr/$repl/;
+		$line =~ s/\b([b-df-hj-np-tv-z0-9]*)([aeiou]*)([aeiou])/$repl/giee;
+	}
+	
 	
 	Irssi::signal_continue($line, $server_rec, $wi_item_rec);
 }
