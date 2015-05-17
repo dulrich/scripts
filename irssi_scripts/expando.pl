@@ -1,5 +1,5 @@
 # expando.pl: turn short sequences into longer statments
-# Copyright 2013 - 2015 David Ulrich
+# Copyright (C) 2014 - 2015  David Ulrich
 # 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@ use strict;
 
 use vars qw($VERSION %IRSSI);
 
-$VERSION = '0.0.1';
+$VERSION = '0.0.2';
 %IRSSI = (
 	authors		=> 'David Ulrich',
 	contact		=> 'david@ulrichdev.com',
@@ -58,10 +58,8 @@ sub do_expansion () {
 			$repl = "$repl.\$3";
 		}
 		
-# 		$repl = qr/$repl/;
 		$line =~ s/\b([b-df-hj-np-tv-z0-9]*)([aeiou]*)([aeiou])/$repl/giee;
 	}
-	
 	
 	Irssi::signal_continue($line, $server_rec, $wi_item_rec);
 }
