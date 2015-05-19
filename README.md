@@ -31,6 +31,12 @@ sudo apt-get install gmrun htop kate suckless-tools i3
 Edit `/usr/share/mysql-workbench/data/main_menu.xml` to update shortcut keys.
 
 
+## program-user.sh
+
+quickly create mysql user for a program with full rights, but only to its own db
+`./program-user.sh program_db program_pass`
+
+
 ## git config
 ```bash
 git config --global core.filemode false
