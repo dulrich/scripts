@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 # lifi.sh: easily manage license and copyright headers
 # Copyright 2013 - 2015 David Ulrich
@@ -16,18 +16,29 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-author="author"
+author=""
+tagline=""
+
 lipath="licenses"
 license="agplv3"
 filename=""
 extension="c"
 mode="new"
+
+here=$(pwd)
 year=$(date +%Y)
 
-while getopts ":a:f:l:t:nu" opt; do
+while getopts ":a:f:l:t:cnu" opt; do
 	case $opt in
 		a)
 			author="$OPTARG"
+			;;
+		c)
+			if [ -f $here/config.lifi ] ; then
+				source $here/config.lifi
+			elif [ -f $here/config/config.lifi ] ; then
+				source $here/config/config.lifi
+			fi
 			;;
 		f)
 			filename="$OPTARG"
@@ -66,7 +77,9 @@ if [ "$filename" = "" ] ; then
 fi
 
 if [ "$mode" = "new" ] ; then
-	echo "// $tagline" > $filename
+	if [ "$tagline" != "" ] ; then
+		echo "// $tagline" > $filename
+	fi
 	echo "// Copyright $year  $author" >> $filename
 	echo "//" >> $filename
 	cat $lipath/$license >> $filename
