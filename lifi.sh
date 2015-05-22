@@ -23,6 +23,7 @@ lipath="licenses"
 license="agplv3"
 filename=""
 extension="c"
+prefix="//"
 mode="new"
 
 here=$(pwd)
@@ -77,12 +78,15 @@ if [ "$filename" = "" ] ; then
 fi
 
 if [ "$mode" = "new" ] ; then
+	echo "" > $filename
 	if [ "$tagline" != "" ] ; then
-		echo "// $tagline" > $filename
+		echo "$prefix $tagline" >> $filename
 	fi
-	echo "// Copyright $year  $author" >> $filename
-	echo "//" >> $filename
-	cat $lipath/$license >> $filename
+	echo "$prefix Copyright $year  $author" >> $filename
+	echo "$prefix" >> $filename
+	while read line ; do
+		echo "$prefix $line" >> $filename
+	done < $lipath/$license
 else
 	echo "STUB: update mode"
 fi
