@@ -58,6 +58,9 @@ alias dl="~/scripts/daylog.sh"
 alias life="~/scripts/daylog.sh -f life"
 alias food="~/scripts/daylog.sh -f food"
 
+# typing ./ is hard
+alias lifi="~/scripts/lifi.sh"
+
 # defarg args which default
 defarg () {
 	local all=0
