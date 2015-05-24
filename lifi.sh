@@ -29,7 +29,7 @@ mode="new"
 here=$(pwd)
 year=$(date +%Y)
 
-while getopts ":a:f:l:t:cnu" opt; do
+while getopts ":a:f:l:p:t:cnu" opt; do
 	case $opt in
 		a)
 			author="$OPTARG"
@@ -49,6 +49,9 @@ while getopts ":a:f:l:t:cnu" opt; do
 			;;
 		n)
 			mode="new" # default
+			;;
+		p)
+			prefix="$OPTARG"
 			;;
 		t)
 			tagline="$OPTARG"
@@ -78,16 +81,16 @@ if [ "$filename" = "" ] ; then
 fi
 
 if [ "$mode" = "new" ] ; then
-	echo "" > $filename
 	if [ "$tagline" != "" ] ; then
 		echo "$prefix $tagline" >> $filename
 	fi
+	
 	echo "$prefix Copyright $year  $author" >> $filename
 	echo "$prefix" >> $filename
+	
 	while read line ; do
 		echo "$prefix $line" >> $filename
 	done < $lipath/$license
 else
 	echo "STUB: update mode"
 fi
-
