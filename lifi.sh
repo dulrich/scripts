@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # lifi.sh: easily manage license and copyright headers
-# Copyright 2013 - 2015 David Ulrich
+# Copyright (C) 2015 David Ulrich
 # 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -85,7 +85,7 @@ if [ "$mode" = "new" ] ; then
 		echo "$prefix $tagline" >> $filename
 	fi
 	
-	echo "$prefix Copyright $year  $author" >> $filename
+	echo "$prefix Copyright (C) $year  $author" >> $filename
 	echo "$prefix" >> $filename
 	
 	while read line ; do
