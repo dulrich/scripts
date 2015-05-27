@@ -16,6 +16,38 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+extensions=()
+prefixes=()
+shebangs=()
+
+filetype () {
+	local ext="$1"
+	local pre="$2"
+	local sbg="$3"
+
+	if [ "$ext" = "" ]; then
+		return 1
+	fi
+	
+	if [ "$pre" = "" ]; then
+		return 2
+	fi
+	
+	extensions+=($ext)
+	prefixes+=($pre)
+	shebangs+=($sbg)
+}
+
+### File types for detection
+filetype "c"   "//" ""
+filetype "cc"  "//" ""
+filetype "js"  "//" ""
+filetype "lua" "--" ""
+filetype "php" "//" ""
+filetype "sh"  "#"  "#/bin/sh"
+filetype "sql" "--" ""
+### End file types
+
 author=""
 tagline=""
 
