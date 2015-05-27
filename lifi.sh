@@ -41,9 +41,16 @@ filetype () {
 ### File types for detection
 filetype "c"   "//" ""
 filetype "cc"  "//" ""
+filetype "cxx" "//" ""
+filetype "coffee" "#" ""
+filetype "h"   "//" ""
+filetype "hh"  "//" ""
+filetype "hs"  "--" ""
 filetype "js"  "//" ""
 filetype "lua" "--" ""
 filetype "php" "//" ""
+filetype "pl"  "#"  ""
+filetype "py"  "#"  ""
 filetype "sh"  "#"  "#/bin/sh"
 filetype "sql" "--" ""
 ### End file types
