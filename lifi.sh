@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # lifi.sh: easily manage license and copyright headers
-# Copyright 2013 - 2015 David Ulrich
+# Copyright (C) 2015 David Ulrich
 # 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -16,6 +16,45 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+extensions=()
+prefixes=()
+shebangs=()
+
+filetype () {
+	local ext="$1"
+	local pre="$2"
+	local sbg="$3"
+
+	if [ "$ext" = "" ]; then
+		return 1
+	fi
+	
+	if [ "$pre" = "" ]; then
+		return 2
+	fi
+	
+	extensions+=($ext)
+	prefixes+=($pre)
+	shebangs+=($sbg)
+}
+
+### File types for detection
+filetype "c"   "//" ""
+filetype "cc"  "//" ""
+filetype "cxx" "//" ""
+filetype "coffee" "#" ""
+filetype "h"   "//" ""
+filetype "hh"  "//" ""
+filetype "hs"  "--" ""
+filetype "js"  "//" ""
+filetype "lua" "--" ""
+filetype "php" "//" ""
+filetype "pl"  "#"  ""
+filetype "py"  "#"  ""
+filetype "sh"  "#"  "#/bin/sh"
+filetype "sql" "--" ""
+### End file types
+
 author=""
 tagline=""
 
@@ -29,7 +68,7 @@ mode="new"
 here=$(pwd)
 year=$(date +%Y)
 
-while getopts ":a:f:l:t:cnu" opt; do
+while getopts ":a:f:l:p:t:cnu" opt; do
 	case $opt in
 		a)
 			author="$OPTARG"
@@ -49,6 +88,9 @@ while getopts ":a:f:l:t:cnu" opt; do
 			;;
 		n)
 			mode="new" # default
+			;;
+		p)
+			prefix="$OPTARG"
 			;;
 		t)
 			tagline="$OPTARG"
@@ -78,16 +120,16 @@ if [ "$filename" = "" ] ; then
 fi
 
 if [ "$mode" = "new" ] ; then
-	echo "" > $filename
 	if [ "$tagline" != "" ] ; then
 		echo "$prefix $tagline" >> $filename
 	fi
-	echo "$prefix Copyright $year  $author" >> $filename
+	
+	echo "$prefix Copyright (C) $year  $author" >> $filename
 	echo "$prefix" >> $filename
+	
 	while read line ; do
 		echo "$prefix $line" >> $filename
 	done < $lipath/$license
 else
 	echo "STUB: update mode"
 fi
-
