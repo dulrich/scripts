@@ -18,7 +18,6 @@
 
 # CONFIG VARIABLES
 rd_res="1440x1080"
-scpath="~/scripts"
 
 here=$(pwd)
 
@@ -62,13 +61,13 @@ done
 alias rdesktop="rdesktop -g $rd_res"
 
 # time tracking script
-alias daylog="~/scripts/daylog.sh"
-alias dl="~/scripts/daylog.sh"
-alias life="~/scripts/daylog.sh -f life"
-alias food="~/scripts/daylog.sh -f food"
+alias daylog="$here/daylog.sh"
+alias dl="$here/daylog.sh"
+alias life="$here/daylog.sh -f life"
+alias food="$here/daylog.sh -f food"
 
 # typing ./ is hard
-alias lifi="~/scripts/lifi.sh"
+alias lifi="$here/lifi.sh"
 
 # defarg args which default
 defarg () {
@@ -321,7 +320,7 @@ commits () {
 
 
 # load git aliases
-source ~/scripts/git-aliases.sh
+source $here/git-aliases.sh
 
 # load work aliases
-source ~/scripts/work-aliases.sh
+source $here/work-aliases.sh
