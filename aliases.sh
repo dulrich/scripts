@@ -16,6 +16,16 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+# CONFIG VARIABLES
+rd_res="1440x1080"
+scpath="~/scripts"
+
+here=$(pwd)
+
+if [ -f $here/config.sh ] ; then
+	source $here/config.sh
+fi
+
 # typing out the options everytime gets old
 _comp () {
 	complete -o nospace -F "_$1" "$1"
@@ -49,7 +59,6 @@ do
 done
 
 # Remote Desktop Shortcuts
-rd_res="1440x1080"
 alias rdesktop="rdesktop -g $rd_res"
 
 # time tracking script
