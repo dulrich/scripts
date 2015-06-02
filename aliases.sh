@@ -19,7 +19,7 @@
 # CONFIG VARIABLES
 rd_res="1440x1080"
 
-here=$(pwd)
+here=$HOME/scripts
 
 if [ -f $here/config.sh ] ; then
 	source $here/config.sh
