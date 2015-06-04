@@ -58,6 +58,11 @@ z () {
 	git commit -m "$*"
 	git push
 }
+zz () {
+	git pull
+	git commit -m "$*"
+	git push
+}
 
 blameline () {
 	local author blame line inv
