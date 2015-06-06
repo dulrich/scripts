@@ -120,6 +120,8 @@ if [ "$filename" = "" ] ; then
 fi
 
 if [ "$mode" = "new" ] ; then
+	cat /dev/null > $filename
+	
 	if [ "$tagline" != "" ] ; then
 		echo "$prefix $tagline" >> $filename
 	fi
@@ -132,4 +134,13 @@ if [ "$mode" = "new" ] ; then
 	done < $lipath/$license
 else
 	echo "STUB: update mode"
+	
+	# check for shebang, if any [S]
+	# check for tagline match, if any [T]
+	# check for copyright line [C]
+	# check for a valid license block [L]
+	
+	# preserve [S] if present
+	# update or add [T] before [C] if [C]
+	# leave [L] if valid, else add [L]
 fi
