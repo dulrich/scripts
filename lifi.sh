@@ -53,13 +53,15 @@ filetype "pl"  "#"  ""
 filetype "py"  "#"  ""
 filetype "sh"  "#"  "#/bin/sh"
 filetype "sql" "--" ""
+filetype "yaml" "#" ""
 ### End file types
 
 author=""
 tagline=""
 
-lipath="licenses"
+lipath=~/scripts/licenses
 license="agplv3"
+
 filename=""
 extension="c"
 prefix="//"
