@@ -20,6 +20,10 @@ alias s="git status"
 a () {
 	git add $(defarg "$*" '@' '.')
 }
+as () {
+	git add $(defarg "$*" '@' '.')
+	git status
+}
 b () {
 	git checkout $(defarg "$*" 0 'master')
 }
@@ -51,6 +55,10 @@ m () {
 alias o="git checkout"
 alias r="git reset HEAD"
 alias u="git pull"
+um () {
+	git pull
+	git merge $(defarg "$*" 0 'master')
+}
 alias p="git push"
 alias pp="git push production master"
 alias up="git pull;git push"
@@ -101,11 +109,13 @@ if [ -f /usr/share/bash-completion/completions/git ]; then
 	source /usr/share/bash-completion/completions/git
 
 	__git_complete a _git_add
+	__git_complete as _git_add
 	__git_complete b _git_checkout
 	__git_complete d _git_diff
 	__git_complete gmv _git_mv
 	__git_complete grm _git_rm
 	__git_complete m _git_merge
+	__git_complete um _git_merge
 	__git_complete o _git_checkout
 	__git_complete p _git_push
 	__git_complete u _git_pull
