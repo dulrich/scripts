@@ -165,6 +165,9 @@ let mapleader = ","
 nnoremap <leader>ev :edit $MYVIMRC<cr>
 nnoremap <leader>sv :source $MYVIMRC<cr>
 
+nnoremap y "+y
+nnoremap p "+p
+
 execute pathogen#infect()
 
 
