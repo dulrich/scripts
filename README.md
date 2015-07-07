@@ -7,8 +7,10 @@ Simple utility scripts and helpful bash aliases
 
 Defines A number of aliases and functions.
 
-Recommended usage: add the line `source ~/scripts/aliases.sh` to `~/.bash_aliases` or `~/.bashrc` so that `aliases.sh` will be loaded along with whatever other local aliases you use.
-Alternately: run `./links.sh`, which is the same as `ln -s ~/scripts/aliases.sh ~/.bash_aliases`
+Recommended usage: add the line `source ~/scripts/aliases.sh` to `~/.bash_aliases`
+or `~/.bashrc` so that `aliases.sh` will be loaded along with whatever other
+local aliases you use. Alternately: run `./links.sh`, which is the same as
+`ln -s ~/scripts/aliases.sh ~/.bash_aliases`
 
 Chain-loads `git-aliases.sh` and `work-aliases.sh`
 
@@ -22,7 +24,10 @@ from previous days.
 ## setting up a new machine
 
 ```bash
-sudo apt-get install gmrun htop kate suckless-tools i3
+sudo apt-get install gmrun htop kate suckless-tools i3 vim-gtk
+
+rm -f .vimrc && ln -s ~/scripts/vimrc .vimrc
+rm -rf .vim && ln -s ~/scripts/vim .vim
 ```
 
 
