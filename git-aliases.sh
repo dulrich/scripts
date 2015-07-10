@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # git-aliases.sh: shorten common git tasks
-# Copyright 2013 - 2015 David Ulrich
+# Copyright 2013 - 2015  David Ulrich
 # 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -60,8 +60,13 @@ um () {
 	git merge $(defarg "$*" 0 'master')
 }
 alias p="git push"
-alias pp="git push production master"
-alias up="git pull;git push"
+pp() {
+	git push production $(defarg "$*" 0 'master')
+}
+up() {
+	git pull production $(defarg "$*" 0 'master')
+}
+
 z () {
 	git commit -m "$*"
 	git push
@@ -118,5 +123,6 @@ if [ -f /usr/share/bash-completion/completions/git ]; then
 	__git_complete um _git_merge
 	__git_complete o _git_checkout
 	__git_complete p _git_push
+	__git_complete r _git_reset
 	__git_complete u _git_pull
 fi
