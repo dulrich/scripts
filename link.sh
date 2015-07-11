@@ -15,8 +15,12 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 # link .bash_aliases to the repo aliases file
-rm ~/.bash_aliases
+rm -f ~/.bash_aliases
 ln -s ~/scripts/aliases.sh ~/.bash_aliases
+
+# link vim config and plugins folder
+rm -f .vimrc && ln -s ~/scripts/vimrc .vimrc
+rm -rf .vim && ln -s ~/scripts/vim .vim
 
 # link irssi scripts into the repo
 mkdir -p ~/.irssi
