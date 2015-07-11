@@ -169,6 +169,18 @@ grc () {
 	grep -c ${grep_options[@]} $1 $path | grep -E ':[^0]'
 }
 
+# raw grep (no excludes)
+ga () {
+	local path=$(defarg "$*" 1 './')
+	
+	grep -iIRP ${grep_options[@]} $1 $path
+}
+gac () {
+	local path=$(defarg "$*" 1 './')
+	
+	grep -iIRPc ${grep_options[@]} $1 $path
+}
+
 # old gr / grc
 ge () {
 	local path=$(defarg "$*" 1 './')
