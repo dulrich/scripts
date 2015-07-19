@@ -35,6 +35,9 @@ bc () {
 	git clone "git@atomicinfotech.git.beanstalkapp.com:/atomicinfotech/$ending"
 }
 
+alias cnn="cn ; n"
+alias clyn="cly ; n"
+
 # remote
 alias kris7="rdesktop -g $rd_res -u kris 10.10.0.15"
 alias ssh1="rdesktop -g $rd_res -u Administrator -d PAWN1 10.0.1.11"
