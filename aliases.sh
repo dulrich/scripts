@@ -59,6 +59,7 @@ done
 
 # Remote Desktop Shortcuts
 alias rdesktop="rdesktop -g $rd_res"
+alias xx="screen -x"
 
 # time tracking script
 alias daylog="$here/daylog.sh"
