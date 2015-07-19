@@ -5,7 +5,7 @@ Simple utility scripts and helpful bash aliases
 
 ## aliases.sh
 
-Defines A number of aliases and functions.
+Defines a number of aliases and functions.
 
 Recommended usage: add the line `source ~/scripts/aliases.sh` to `~/.bash_aliases`
 or `~/.bashrc` so that `aliases.sh` will be loaded along with whatever other
@@ -31,7 +31,7 @@ rm -rf .vim && ln -s ~/scripts/vim .vim
 ```
 
 
-## mysql-workbench Hotkey Fix
+## mysql-workbench hotkey fix
 
 Edit `/usr/share/mysql-workbench/data/main_menu.xml` to update shortcut keys.
 
