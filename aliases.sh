@@ -245,7 +245,9 @@ kt () {
 alias webstack="service apache2 restart && service nginx restart"
 alias a2log="tail -n 50 -f /var/log/apache2/error.log"
 alias phplog="tail -n 50 -f /var/log/php/php_errors.log"
-alias t="tail -n 100 -f"
+alias tn="tail -n 100 -f"
+alias tnn="tail -n 1000 -f"
+
 n() {
 	local path=$(defarg "$*" 0 "server.js")
 
