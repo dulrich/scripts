@@ -121,6 +121,13 @@ if [ "$filename" = "" ] ; then
 	fi
 fi
 
+extension="${filename#*.}"
+for i in "${!extensions[@]}" ; do
+	if [ "${extensions[$i]}" = "$extension" ] ; then
+		prefix=${prefixes[$i]}
+	fi
+done
+
 if [ "$mode" = "new" ] ; then
 	cat /dev/null > $filename
 	
