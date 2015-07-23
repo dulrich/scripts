@@ -54,6 +54,7 @@ m () {
 }
 alias o="git checkout"
 alias r="git reset HEAD"
+alias rh="git reset --hard HEAD"
 alias u="git pull"
 um () {
 	git pull
@@ -124,5 +125,6 @@ if [ -f /usr/share/bash-completion/completions/git ]; then
 	__git_complete o _git_checkout
 	__git_complete p _git_push
 	__git_complete r _git_reset
+	__git_complete rh _git_reset
 	__git_complete u _git_pull
 fi
