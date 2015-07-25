@@ -32,15 +32,16 @@ filetype () {
 	if [ "$pre" = "" ]; then
 		return 2
 	fi
-	
-	extensions+=($ext)
-	prefixes+=($pre)
-	shebangs+=($sbg)
+
+	extensions+=("$ext")
+	prefixes+=("$pre")
+	shebangs+=("$sbg")
 }
 
 ### File types for detection
 filetype "c"   "//" ""
 filetype "cc"  "//" ""
+filetype "cpp" "//" ""
 filetype "cxx" "//" ""
 filetype "coffee" "#" ""
 filetype "h"   "//" ""
@@ -51,7 +52,7 @@ filetype "lua" "--" ""
 filetype "php" "//" ""
 filetype "pl"  "#"  ""
 filetype "py"  "#"  ""
-filetype "sh"  "#"  "#/bin/sh"
+filetype "sh"  "#"  "#!/bin/bash"
 filetype "sql" "--" ""
 filetype "yaml" "#" ""
 ### End file types
@@ -65,6 +66,7 @@ license="agplv3"
 filename=""
 extension="c"
 prefix="//"
+shebang=""
 mode="new"
 
 here=$(pwd)
@@ -122,15 +124,23 @@ if [ "$filename" = "" ] ; then
 fi
 
 extension="${filename#*.}"
+shopt -s nocasematch
 for i in "${!extensions[@]}" ; do
 	if [ "${extensions[$i]}" = "$extension" ] ; then
 		prefix=${prefixes[$i]}
+		shebang=${shebangs[$i]}
 	fi
 done
+shopt -u nocasematch
 
 if [ "$mode" = "new" ] ; then
 	cat /dev/null > $filename
 	
+	if [ "$shebang" != "" ] ; then
+		echo "$shebang" >> $filename
+		echo "$prefix" >> $filename
+	fi
+
 	if [ "$tagline" != "" ] ; then
 		echo "$prefix $tagline" >> $filename
 	fi
