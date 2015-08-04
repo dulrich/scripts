@@ -235,9 +235,13 @@ alias cl="clear"
 alias cvim="cb ; vim -c vs"
 alias eject_fix="sudo eject -i off"
 alias fli="forever list"
-alias flo="forever logs"
+flo() {
+	proc=$(defarg "$*" 0 0)
+	forever logs "$proc" -f
+}
 alias fr="forever restart"
 alias fra="forever restartall"
+alias fs="forever stop"
 kt () {
 	eval `ssh-agent`
 	ssh-add
