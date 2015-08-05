@@ -45,6 +45,8 @@ alias gls="git log --stat"
 alias glt="git ls-tree --abbrev HEAD"
 alias gmv="git mv"
 alias grm="git rm"
+alias gss="git stash"
+alias gsa="git stash apply"
 gx () {
 	chmod 755 $1
 	git update-index --chmod=+x $1
@@ -120,6 +122,7 @@ if [ -f /usr/share/bash-completion/completions/git ]; then
 	__git_complete d _git_diff
 	__git_complete gmv _git_mv
 	__git_complete grm _git_rm
+	__git_complete gss _git_stash
 	__git_complete m _git_merge
 	__git_complete um _git_merge
 	__git_complete o _git_checkout
