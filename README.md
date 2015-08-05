@@ -28,6 +28,10 @@ sudo apt-get install gmrun htop kate suckless-tools i3 vim-gtk
 
 rm -f .vimrc && ln -s ~/scripts/vimrc .vimrc
 rm -rf .vim && ln -s ~/scripts/vim .vim
+
+cd ~/.vim/bundle
+git clone https://github.com/othree/html5.vim
+git clone https://github.com/scrooloose/nerdcommenter.git
 ```
 
 
