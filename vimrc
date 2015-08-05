@@ -22,7 +22,7 @@ filetype indent plugin on
 
 " Enable syntax highlighting
 syntax on
-
+filetype plugin on
 
 "------------------------------------------------------------
 " Must have options {{{1
