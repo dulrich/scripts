@@ -21,6 +21,17 @@ Program for tracking what was going on at a certain time, and viewing logs
 from previous days.
 
 
+## crouton setup commands
+```bash
+ctrl+alt+t
+shell
+sh ~/Downloads/crouton
+sudo sh ~/Downloads/crouton -r trusty -t lxde cli-extra extension keyboard
+sudo enter-chroot
+xinit
+```
+
+
 ## setting up a new machine
 
 ```bash
