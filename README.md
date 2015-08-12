@@ -35,7 +35,9 @@ xinit
 ## setting up a new machine
 
 ```bash
-sudo apt-get install gmrun htop kate suckless-tools i3 vim-gtk
+sudo apt-get install gmrun htop kate ssh suckless-tools i3 vim-gtk
+
+#clone scripts repo
 
 rm -f .vimrc && ln -s ~/scripts/vimrc .vimrc
 rm -rf .vim && ln -s ~/scripts/vim .vim
@@ -43,6 +45,12 @@ rm -rf .vim && ln -s ~/scripts/vim .vim
 cd ~/.vim/bundle
 git clone https://github.com/othree/html5.vim
 git clone https://github.com/scrooloose/nerdcommenter.git
+
+ln -s ~/scripts/aliases.sh ~/.bash_aliases
+
+#crouton, remap search key to mod4
+ln -s ~/scripts/xinitrc ~/.xinitrc
+ln -s ~/script/Xmodmap ~/.Xmodmap
 ```
 
 
