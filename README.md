@@ -48,6 +48,9 @@ git clone https://github.com/scrooloose/nerdcommenter.git
 
 ln -s ~/scripts/aliases.sh ~/.bash_aliases
 
+#crouton, alternate aliases
+ln -s ~/scripts/crouton_aliases.sh ~/.bash_aliases
+
 #crouton, remap search key to mod4
 ln -s ~/scripts/xinitrc ~/.xinitrc
 ln -s ~/script/Xmodmap ~/.Xmodmap
