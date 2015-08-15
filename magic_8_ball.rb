@@ -23,50 +23,70 @@ exit_responses = {
 }
 
 def do_magic(q)
-	answers_general = [
-		"no",
-		"yep",
-		"nope",
-		"maybe",
-		"cloudy",
-		"unclear",
-		"certainly",
-		"indubitably",
-		"so it will be",
-		"definitely not",
-		"the mists of time are shrouded"
-	]
-	
-	answers_value = [
-		42,
-		"your mom",
-		"your data",
-		"a very large sheep",
-		"10 lords a-leaping",
-		"Voldemort",
-		"Cthulu"
-	]
+	answers = {
+		"probability" => [
+			"no",
+			"yep",
+			"nope",
+			"maybe",
+			"cloudy",
+			"unclear",
+			"certainly",
+			"indubitably",
+			"so it will be",
+			"definitely not",
+			"the mists of time are shrouded"
+		],
+		
+		"reason" => [
+			"for fun",
+			"for the children",
+			"just because",
+			"no reason"
+		],
+		
+		"temporal" => [
+			"immediately",
+			"long, long ago",
+			"once upon a time",
+			"never",
+			"right now",
+			"yesterday"
+		],
+		
+		"value" => [
+			42,
+			"your mom",
+			"your data",
+			"a very large sheep",
+			"10 lords a-leaping",
+			"Voldemort",
+			"Cthulu"
+		]
+	}
 	
 	letters = q.split("")
 	sum = 0
 	
+	# who, what, where, why, when, how, how many|much
 	if q.slice(0,4) == "what" || q.slice(0,3) == "wat"
 		answer_type = "value"
+	elsif q.slice(0,4) == "when"
+		answer_type = "temporal"
+	elsif q.slice(0,3) == "why"
+		answer_type = "reason"
 	end
 	
 	letters.each {|l| sum += l.ord}
 	
-	answer_type ||= "general"
-	if answer_type == "value"
-		return answers_value[sum % answers_value.length]
-	else
-		return answers_general[sum % answers_general.length]
-	end
+	answer_type ||= "probability"
+	answer_list = answers[answer_type]
+	return answer_list[sum % answer_list.length]
 end
 
 while true
 	print "What would you like to know? "
-	question = gets.chomp
+	question = gets.chomp.downcase
 	
 	if exit_responses[question]
 		break
