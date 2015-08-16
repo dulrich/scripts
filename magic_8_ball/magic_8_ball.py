@@ -1,5 +1,5 @@
-# daylog.sh: track what happens at a certain time, and view previous logs
-# Copyright 2013 - 2015 David Ulrich
+# Magic 8 Ball: A silly script to "answer" questions
+# Copyright 2015  David Ulrich
 # 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -15,16 +15,16 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 exit_responses = {
-	'end' => true,
-	'exit' => true,
-	'no' => true,
-	'nothing' => true,
-	'quit' => true
+        'end':  True,
+        'exit':  True,
+        'no': True,
+        'nothing': True,
+        'quit': True
 }
 
-def do_magic(q)
+def do_magic(q):
 	answers = {
-		"probability" => [
+                "probability": [
 			"no",
 			"yep",
 			"nope",
@@ -38,14 +38,14 @@ def do_magic(q)
 			"the mists of time are shrouded"
 		],
 		
-		"reason" => [
+                "reason": [
 			"for fun",
 			"for the children",
 			"just because",
 			"no reason"
 		],
 		
-		"temporal" => [
+                "temporal": [
 			"immediately",
 			"long, long ago",
 			"once upon a time",
@@ -54,7 +54,7 @@ def do_magic(q)
 			"yesterday"
 		],
 		
-		"value" => [
+                "value": [
 			42,
 			"your mom",
 			"your data",
@@ -65,32 +65,30 @@ def do_magic(q)
 		]
 	}
 	
-	letters = q.split("")
+	#letters = q.split("")
 	sum = 0
 	
 	# who, what, where, why, when, how, how many|much
-	if q.slice(0,4) == "what" || q.slice(0,3) == "wat"
+        answer_type = "probability"
+        if q.find("what") == 0 or q.find("wat") == 0:
 		answer_type = "value"
-	elsif q.slice(0,4) == "when"
+        elif q.find("when") == 0:
 		answer_type = "temporal"
-	elsif q.slice(0,3) == "why"
+        elif q.find("why") == 0:
 		answer_type = "reason"
-	end
 	
-	letters.each {|l| sum += l.ord}
+        for l in q:
+            sum += ord(l)
 	
-	answer_type ||= "probability"
 	answer_list = answers[answer_type]
-	return answer_list[sum % answer_list.length]
-end
+	return answer_list[sum % len(answer_list)]
 
-while true
-	print "What would you like to know? "
-	question = gets.chomp.downcase
+while True:
+	question = raw_input("What would you like to know? ")
+	question = question.lower()
 	
-	if exit_responses[question]
+        if question in exit_responses:
 		break
-	else
-		puts do_magic(question)
-	end
-end
+        else:
+		print do_magic(question)
+
