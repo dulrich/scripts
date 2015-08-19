@@ -14,6 +14,11 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import json
+
+with open("answers.json") as answers_data:
+	answers = json.load(answers_data)
+
 exit_responses = {
         'end':  True,
         'exit':  True,
@@ -23,49 +28,6 @@ exit_responses = {
 }
 
 def do_magic(q):
-	answers = {
-                "probability": [
-			"no",
-			"yep",
-			"nope",
-			"maybe",
-			"cloudy",
-			"unclear",
-			"certainly",
-			"indubitably",
-			"so it will be",
-			"definitely not",
-			"the mists of time are shrouded"
-		],
-		
-                "reason": [
-			"for fun",
-			"for the children",
-			"just because",
-			"no reason"
-		],
-		
-                "temporal": [
-			"immediately",
-			"long, long ago",
-			"once upon a time",
-			"never",
-			"right now",
-			"yesterday"
-		],
-		
-                "value": [
-			42,
-			"your mom",
-			"your data",
-			"a very large sheep",
-			"10 lords a-leaping",
-			"Voldemort",
-			"Cthulu"
-		]
-	}
-	
-	#letters = q.split("")
 	sum = 0
 	
 	# who, what, where, why, when, how, how many|much

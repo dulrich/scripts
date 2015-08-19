@@ -1,0 +1,41 @@
+{
+	"probability": [
+		"no",
+		"yep",
+		"nope",
+		"maybe",
+		"cloudy",
+		"unclear",
+		"certainly",
+		"indubitably",
+		"so it will be",
+		"definitely not",
+		"the mists of time are shrouded"
+	],
+	
+	"reason": [
+		"for fun",
+		"for the children",
+		"just because",
+		"no reason"
+	],
+	
+	"temporal": [
+		"immediately",
+		"long, long ago",
+		"once upon a time",
+		"never",
+		"right now",
+		"yesterday"
+	],
+	
+	"value": [
+		42,
+		"your mom",
+		"your data",
+		"a very large sheep",
+		"10 lords a-leaping",
+		"Voldemort",
+		"Cthulu"
+	]
+}
