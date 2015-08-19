@@ -17,6 +17,8 @@
 process.stdin.resume();
 process.stdin.setEncoding('utf8');
 
+var answers = require("./answers");
+
 var exit_responses = {
 	end:  true,
 	exit:  true,
@@ -26,48 +28,6 @@ var exit_responses = {
 };
 
 function do_magic(q) {
-	var answers = {
-		"probability": [
-			"no",
-			"yep",
-			"nope",
-			"maybe",
-			"cloudy",
-			"unclear",
-			"certainly",
-			"indubitably",
-			"so it will be",
-			"definitely not",
-			"the mists of time are shrouded"
-		],
-		
-		"reason": [
-			"for fun",
-			"for the children",
-			"just because",
-			"no reason"
-		],
-		
-		"temporal": [
-			"immediately",
-			"long, long ago",
-			"once upon a time",
-			"never",
-			"right now",
-			"yesterday"
-		],
-		
-		"value": [
-			42,
-			"your mom",
-			"your data",
-			"a very large sheep",
-			"10 lords a-leaping",
-			"Voldemort",
-			"Cthulu"
-		]
-	};
-	
 	var sum = 0;
 	
 	// who, what, where, why, when, how, how many|much
