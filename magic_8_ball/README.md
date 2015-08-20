@@ -4,11 +4,13 @@ A "fortune telling" program written in various languages. It takes questions
 from stdin and tries to answer them in a sensible manner. Upcoming versions will
 read the exit codes and answer lists from a shared file.
 
+
 # Running
 
 If you have the appropriate interpreter or compiler installed, simply use the
 command `./run lang`, where lang is the language/extension of the desired 
-version [js|node|nodejs,py|python,rb|ruby].
+version [js|node|nodejs,lua,py|python,rb|ruby].
+
 
 # License
 

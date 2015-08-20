@@ -35,6 +35,8 @@ bc () {
 	git clone "git@atomicinfotech.git.beanstalkapp.com:/atomicinfotech/$ending"
 }
 
+alias bb="git checkout corebeta"
+
 alias cnn="cn ; n"
 alias clyn="cly ; n"
 
