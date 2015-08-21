@@ -20,7 +20,7 @@ version="$1"
 cmd=""
 ext=""
 
-if [ "$version" = "lua" ]; then
+if [ "$version" = "lua" ] || [ "$version" = "luajit" ] ; then
 	cmd="lua"
 	ext="lua"
 elif [ "$version" = "node" ] || [ "$version" = "nodejs" ] || [ "$version" = "js" ]; then
