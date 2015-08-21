@@ -14,7 +14,7 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-json = require "JSON"
+json = require "lib/JSON"
 
 local answer_file = io.open("answers.json")
 answers = json:decode(answer_file:read("*all"))
