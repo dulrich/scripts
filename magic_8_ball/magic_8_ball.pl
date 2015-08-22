@@ -43,39 +43,30 @@ sub do_magic {
 	
 	# who, what, where, why, when, how, how many|much
 	my $answer_type = "probability";
-	if (substr($q,0,4) == "what" || substr($q,0,3) == "wat") {
+	if (index($q,"what") == 0 || index($q,"wat") == 0) {
 		$answer_type = "value";
 	}
-	elsif (substr($q,0,4) == "when") {
+	elsif (index($q,"when") == 0) {
 		$answer_type = "temporal";
 	}
-	elsif (substr($q,0,3) == "why") {
+	elsif (index($q,"why") == 0) {
 		$answer_type = "reason";
 	}
 	
-	my $q_len = length($q);
-	my %letters = unpack("w*",$q);
-	for(my $l=0;$l<$q_len;$l++) {
-		$sum += $letters{$l};
+	my $char;
+	foreach $char (split(//,$q)) {
+		$sum += ord($char);
 	}
 	
 	my $answer_list = $answers{$answer_type};
-	#my $ans;
-	#print $answer_list;
-	#foreach $ans ( @$answer_list ) {
-		#print "ans $ans";
-		#}
-	#my $index = scalar @(answers{$answer_type});
-	my $length = length(@$answer_list);
+	my $length = scalar(@$answer_list);
 	my $index = $sum % $length;
 
-	print "len $index";
-	return @$answer_list{$index};
-	#return "hello";
+	return $answers{$answer_type}[$index];
 }
 
 while (1) {
-	print "WHat would you like to know? ";
+	print "What would you like to know? ";
 	my $question = <>;
 	chomp($question);
 
