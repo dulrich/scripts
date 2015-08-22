@@ -26,6 +26,9 @@ if [ "$version" = "lua" ] || [ "$version" = "luajit" ] ; then
 elif [ "$version" = "node" ] || [ "$version" = "nodejs" ] || [ "$version" = "js" ]; then
 	cmd="node"
 	ext="js"
+elif [ "$version" = "perl" ] || [ "$version" = "pl" ]; then
+	cmd="perl"
+	ext="pl"
 elif [ "$version" = "python" ] || [ "$version" = "py" ]; then
 	cmd="python"
 	ext="py"
