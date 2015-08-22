@@ -9,7 +9,7 @@ read the exit codes and answer lists from a shared file.
 
 If you have the appropriate interpreter or compiler installed, simply use the
 command `./run lang`, where lang is the language/extension of the desired 
-version [js|node|nodejs,lua,py|python,rb|ruby].
+version [js|node|nodejs,lua,pl|perl,py|python,rb|ruby].
 
 
 # License
