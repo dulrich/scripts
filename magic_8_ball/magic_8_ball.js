@@ -19,13 +19,7 @@ process.stdin.setEncoding('utf8');
 
 var answers = require("./answers");
 
-var exit_responses = {
-	end:  true,
-	exit:  true,
-	no: true,
-	nothing: true,
-	quit: true
-};
+var exit_codes = require("./exit_codes");
 
 function do_magic(q) {
 	var sum = 0;
@@ -56,7 +50,7 @@ process.stdout.write(prompt);
 process.stdin.on("data", function (question) {
 	question = question.toLowerCase().replace(/\n/g,"");
 	
-	if (exit_responses[question]) {
+	if (exit_codes[question]) {
 		process.exit();
 	}
 	

@@ -20,22 +20,22 @@ use lib qw(..);
 use JSON qw( );
 
 my $answers_data = do {
-   open(my $json_fh, "<:encoding(UTF-8)", "answers.json")
-      or die("Can't open \$filename\": $!\n");
-   local $/;
-   <$json_fh>
+	open(my $json_fh, "<:encoding(UTF-8)", "answers.json")
+		or die("Can't open \$filename\": $!\n");
+	local $/;
+<$json_fh>
+};
+
+my $exit_codes_data = do {
+	open(my $json_fh, "<:encoding(UTF-8)", "exit_codes.json")
+		or die("Can't open \$filename\": $!\n");
+	local $/;
+<$json_fh>
 };
 
 my $json = JSON->new;
 my %answers = %{ $json->decode($answers_data) };
-
-my %exit_responses = (
-	end => 1,
-	exit => 1,
-	no => 1,
-	nothing => 1,
-	quit => 1
-);
+my %exit_codes = %{ $json->decode($exit_codes_data) };
 
 sub do_magic {
 	my ($q) = @_;
@@ -72,7 +72,7 @@ while (1) {
 
 	$question = lc($question);
 	
-	if ($exit_responses{$question}) {
+	if ($exit_codes{$question}) {
 		last;
 	}
 	else {
