@@ -19,28 +19,23 @@ import json
 with open("answers.json") as answers_data:
 	answers = json.load(answers_data)
 
-exit_responses = {
-        'end':  True,
-        'exit':  True,
-        'no': True,
-        'nothing': True,
-        'quit': True
-}
+with open("exit_codes.json") as exit_codes_data:
+	exit_codes = json.load(exit_codes_data)
 
 def do_magic(q):
 	sum = 0
 	
 	# who, what, where, why, when, how, how many|much
-        answer_type = "probability"
-        if q.find("what") == 0 or q.find("wat") == 0:
+	answer_type = "probability"
+	if q.find("what") == 0 or q.find("wat") == 0:
 		answer_type = "value"
-        elif q.find("when") == 0:
+	elif q.find("when") == 0:
 		answer_type = "temporal"
-        elif q.find("why") == 0:
+	elif q.find("why") == 0:
 		answer_type = "reason"
-	
-        for l in q:
-            sum += ord(l)
+
+	for l in q:
+		sum += ord(l)
 	
 	answer_list = answers[answer_type]
 	return answer_list[sum % len(answer_list)]
@@ -49,8 +44,8 @@ while True:
 	question = raw_input("What would you like to know? ")
 	question = question.lower()
 	
-        if question in exit_responses:
+	if question in exit_codes:
 		break
-        else:
+	else:
 		print do_magic(question)
 
