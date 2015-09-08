@@ -154,6 +154,8 @@ alias lg="ll | grep -iP"
 alias lgr="ll -R | grep -iP"
 alias llr="ll -R"
 
+alias lh="ls -ahlFB"
+
 # grep shortcuts 
 grep_options=( -iIR --exclude={*.min.js,*.min.css,*~} --exclude-dir={.git,node_modules,uploads,src-min-noconflict} )
 
@@ -251,6 +253,14 @@ alias a2log="tail -n 50 -f /var/log/apache2/error.log"
 alias phplog="tail -n 50 -f /var/log/php/php_errors.log"
 alias tn="tail -n 100 -f"
 alias tnn="tail -n 1000 -f"
+
+tarc () {
+	tar -zcvf "$1.tar.gz" "$1"
+}
+tarx () {
+	tar -zxvf "$1"
+}
+complete -o nospace -F "_tar" "tar"
 
 n() {
 	local path=$(defarg "$*" 0 "server.js")
