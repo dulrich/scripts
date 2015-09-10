@@ -28,7 +28,7 @@ ruser="root"
 host=""
 suser=""
 
-while getopts ":bgh:iIrs:u:U:" opt; do
+while getopts ":bgh:iIL:rs:u:U:" opt; do
 	case $opt in
 		b) # bzip compression
 			zip="bzip2"
@@ -48,6 +48,9 @@ while getopts ":bgh:iIrs:u:U:" opt; do
 			;;
 		I) # import only mode
 			import=2
+			;;
+		L)
+			link="$OPTARG"
 			;;
 		r) # no compression
 			zip="cat"
@@ -85,6 +88,8 @@ dump="mysqldump -u \"$ruser\" -p \"$1\" | \"$zip\""
 
 if [ "$host" != "" ] && [ "$suser" != "" ]; then
 	ssh $suser@$host "eval $dump"  > $1.sql$ext
+elif [ "$link" != "" ]; then
+	wget "$link" -O $1.sql$ext
 elif [ $import -ne 2 ]; then
 	eval $dump > $1.sql$ext
 fi
