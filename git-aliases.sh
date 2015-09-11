@@ -86,18 +86,19 @@ blameline () {
 	local author blame line inv
 	
 	IFS=:
-	inv=($1)	
+	inv=($1)
 	unset IFS
 	
 	IFS=$'\n'
 	blame=( $(git blame -pw -L${inv[1]},${inv[1]} ${inv[0]}) )
 	unset IFS
 	
+	hash=${blame[0]:0:10}
 	author=$(echo ${blame[1]} | cut -d" " -f2-)
 	
 	line="${blame[${#blame[@]} - 1]}"
 	
-	echo "$1 ($author) $line"
+	echo "$1 ($author $hash) $line"
 }
 blamepipe () {
 	while read data; do
