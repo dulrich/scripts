@@ -47,6 +47,8 @@ alias gmv="git mv"
 alias grm="git rm"
 alias gss="git stash"
 alias gsa="git stash apply"
+alias gsl="git stash list"
+alias gsp="git stash pop"
 gx () {
 	chmod 755 $1
 	git update-index --chmod=+x $1
