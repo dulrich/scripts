@@ -49,8 +49,8 @@ _comp $1
 }
 
 # cd aliases, eval style
-cdnames=( .. code  web  down        scripts   hh                    )
-cdpaths=( .. /code /web ~/Downloads ~/scripts /code/heirs-of-avalon )
+cdnames=( .. code  web  data down        scripts   hh                    )
+cdpaths=( .. /code /web /data ~/Downloads ~/scripts /code/heirs-of-avalon )
 
 for i in {0..5}
 do
@@ -253,6 +253,13 @@ alias a2log="tail -n 50 -f /var/log/apache2/error.log"
 alias phplog="tail -n 50 -f /var/log/php/php_errors.log"
 alias tn="tail -n 100 -f"
 alias tnn="tail -n 1000 -f"
+
+mydir () {
+    group=$( id -g -n $USER )
+    
+    sudo mkdir "$1"
+    sudo chown "$USER":"$group" "$1"
+}
 
 tarc () {
 	tar -zcvf "$1.tar.gz" "$1"
