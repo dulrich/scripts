@@ -16,7 +16,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-alias s="git status"
+alias s="git status -bs"
 a () {
 	git add $(defarg "$*" '@' '.')
 }
