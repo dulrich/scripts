@@ -47,6 +47,7 @@ git clone https://github.com/othree/html5.vim
 git clone https://github.com/scrooloose/nerdcommenter.git
 
 ln -s ~/scripts/aliases.sh ~/.bash_aliases
+ln -s ~/scripts/i3 .i3
 
 #crouton, alternate aliases
 ln -s ~/scripts/crouton_aliases.sh ~/.bash_aliases
