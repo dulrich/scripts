@@ -1,3 +1,4 @@
 config.lifi
 config.sh
 *.swp
+*-swp

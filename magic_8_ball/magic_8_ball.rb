@@ -18,13 +18,7 @@ require 'json'
 
 $answers = JSON.parse(IO.read("answers.json"))
 
-exit_responses = {
-	'end' => true,
-	'exit' => true,
-	'no' => true,
-	'nothing' => true,
-	'quit' => true
-}
+exit_codes = JSON.parse(IO.read("exit_codes.json"))
 
 def do_magic(q)
 	letters = q.split("")
@@ -50,7 +44,7 @@ while true
 	print "What would you like to know? "
 	question = gets.chomp.downcase
 	
-	if exit_responses[question]
+	if exit_codes[question]
 		break
 	else
 		puts do_magic(question)

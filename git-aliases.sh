@@ -16,7 +16,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-alias s="git status"
+alias s="git status -bs"
 a () {
 	git add $(defarg "$*" '@' '.')
 }
@@ -47,6 +47,8 @@ alias gmv="git mv"
 alias grm="git rm"
 alias gss="git stash"
 alias gsa="git stash apply"
+alias gsl="git stash list"
+alias gsp="git stash pop"
 gx () {
 	chmod 755 $1
 	git update-index --chmod=+x $1
@@ -84,18 +86,19 @@ blameline () {
 	local author blame line inv
 	
 	IFS=:
-	inv=($1)	
+	inv=($1)
 	unset IFS
 	
 	IFS=$'\n'
 	blame=( $(git blame -pw -L${inv[1]},${inv[1]} ${inv[0]}) )
 	unset IFS
 	
+	hash=${blame[0]:0:10}
 	author=$(echo ${blame[1]} | cut -d" " -f2-)
 	
 	line="${blame[${#blame[@]} - 1]}"
 	
-	echo "$1 ($author) $line"
+	echo "$1 ($author $hash) $line"
 }
 blamepipe () {
 	while read data; do
