@@ -20,13 +20,9 @@ local answer_file = io.open("answers.json")
 answers = json:decode(answer_file:read("*all"))
 answer_file:close()
 
-exit_responses = {
-	exit =  true,
-	no = true,
-	nothing = true,
-	quit = true
-}
-exit_responses["end"] = true -- lua keyword, prohibited in literal notation
+local exit_codes_file = io.open("exit_codes.json")
+exit_codes = json:decode(exit_codes_file:read("*all"))
+exit_codes_file:close()
 
 function do_magic(q)
 	local sum = 0
@@ -54,7 +50,7 @@ while true do
 	question = io.read()
 	question = string.lower(question)
 	
-	if exit_responses[question] then
+	if exit_codes[question] then
 		break
 	else
 		print(do_magic(question))
