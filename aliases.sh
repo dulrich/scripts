@@ -52,7 +52,7 @@ _comp $1
 cdnames=( .. code  web  data down        scripts   hh                    )
 cdpaths=( .. /code /web /data ~/Downloads ~/scripts /code/heirs-of-avalon )
 
-for i in {0..5}
+for i in {0..6}
 do
 	aliascd ${cdnames[$i]} ${cdpaths[$i]}
 done
