@@ -1,0 +1,6 @@
+'.platform-darwin, .platform-win32, .platform-linux':
+  'ctrl-g': 'find-and-replace:find-next'
+  'ctrl-shift-g': 'find-and-replace:find-previous'
+  'ctrl-k': 'editor:delete-line'
+  'ctrl-d': 'editor:toggle-line-comments'
+  
