@@ -1,0 +1,31 @@
+'.source.js':
+    'core rendertemplate':
+        'prefix': 'corerender'
+        'body': 'core.renderTemplate("${1:template-data}",${2:data},"${3:#container-main}");'
+    'jQuery event':
+        'prefix': 'event'
+        'body': """$("${1:.tag}").${2:click}(function(e) {
+            e.preventDefault();
+            
+            
+        });"""
+    'M.request':
+        'prefix': 'mrequest'
+        'body': """M.request.${1:fn_name} = function(server,data) {
+        \t
+        };"""
+    'M.both':
+        'prefix': 'mboth'
+        'body': """M.request.${1:fn_name} = function(server,data) {
+        \tvar opt;
+        \t
+        \tif (!tools.requireParam_i(data,["${2:param}"])) return;
+        \t
+        \topt = extract_i(data.param,["${2:param}"]);
+        \t
+        \tM.internal.${1:fn_name}(opt,stdjson(server));
+        };
+        
+        M.internal.${1:fn_name} = function(opt,cb) {
+        \tif (!opt.${2:param}) return cb(new Error("missing required opt ${2:param}"));
+        };"""
