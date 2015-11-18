@@ -5,6 +5,8 @@
     autoHideMenuBar: true
     disabledPackages: [
       "whitespace"
+      "jshint"
+      "atom-jshint"
     ]
     packagesWithKeymapsDisabled: [
       "tree-view"
@@ -44,3 +46,17 @@
   "autocomplete-plus": {}
   "exception-reporting":
     userId: "c2534162-1992-fab9-5886-f28e255e051f"
+  "atom-jshint": {}
+  aligner:
+    ",-rightSpace": false
+    ":-alignment": "left"
+    ":-leftSpace": true
+  linter:
+    showErrorTabLine: true
+  "linter-jscs":
+    preset: "node-style-guide"
+    onlyConfig: true
+    configPath: ".jscs.json"
+    fixOnSave: true
+  "linter-jshint":
+    lintInlineJavaScript: true
