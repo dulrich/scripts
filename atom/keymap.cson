@@ -2,5 +2,6 @@
   'ctrl-g': 'find-and-replace:find-next'
   'ctrl-shift-g': 'find-and-replace:find-previous'
   'ctrl-k': 'editor:delete-line'
-  'ctrl-d': 'editor:toggle-line-comments'
+'.editor:not([mini])':
+  'ctrl-d': 'aligner:align'
   

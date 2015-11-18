@@ -21,7 +21,7 @@
         \t
         \tif (!tools.requireParam_i(data,["${2:param}"])) return;
         \t
-        \topt = extract_i(data.param,["${2:param}"]);
+        \topt = stdopt(data,["${2:param}"]);
         \t
         \tM.internal.${1:fn_name}(opt,stdjson(server));
         };
