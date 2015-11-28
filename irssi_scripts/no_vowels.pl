@@ -18,12 +18,12 @@ use strict;
 
 use vars qw($VERSION %IRSSI);
 
-$VERSION = '0.0.1';
+$VERSION = '0.0.2';
 %IRSSI = (
 	authors		=> 'David Ulrich',
-	contact		=> 'david@ulrichdev.com',
-	name		=> 'expando',
-	description	=> 'Strips vowels out of messages started with $$.',
+	contact		=> 'dvulrich47@gmail.com',
+	name		=> 'no_vowels',
+	description	=> 'Strips vowels out of messages started with $$, consonants with $_.',
 	license		=> 'BSD',
 	url		=> 'none',
 );
@@ -33,12 +33,19 @@ sub do_expansion () {
 	
 	
 	my ($vn) = $line =~ /^\$\$/;
+	my ($cn) = $line =~ /^\$\_/;
 	
 	if ($vn) {
 		$line =~ s/^\$\$(\s+)?//;
 		
 		$line =~ s/(?:[aeiou]+)([b-z^aeiou])/$1/gi;
-        $line =~ s/([b-z^aeiou])(?:[aeiou]+)/$1/gi;
+        	$line =~ s/([b-z^aeiou])(?:[aeiou]+)/$1/gi;
+	}
+	else if ($cn) {
+		$line =~ s/^\$\_(\s+)?//;
+		
+		$line =~ s/(?:[b-z]+)([aeiou^b-z])/$1/gi;
+        	$line =~ s/([aeiou^b-z])(?:[b-z]+)/$1/gi;
 	}
 	
 	Irssi::signal_continue($line, $server_rec, $wi_item_rec);
