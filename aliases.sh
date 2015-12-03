@@ -127,6 +127,22 @@ genpath () {
 	echo "${reply[@]}"
 }
 
+highfile () {
+	IFS=$'\n'
+	local arr=( $(ls | grep -oP "^\d+") )
+	unset IFS
+	
+	local max=0
+	
+	for n in "${arr[@]}"; do
+		((n > max)) && max=$n
+	done
+	
+	echo "High: $max"
+	max=$((max + 1))
+	echo "Next: $max"
+}
+
 ajoin () {
 	local out="$2"
 
