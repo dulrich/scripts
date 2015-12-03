@@ -128,11 +128,12 @@ genpath () {
 }
 
 highfile () {
-	IFS=$'\n'
-	local arr=( $(ls | grep -oP "^\d+") )
-	unset IFS
-	
 	local max=0
+	local path=$(defarg "$*" 0 './')
+	
+	IFS=$'\n'
+	local arr=( $(ls $path | grep -oP "^\d+") )
+	unset IFS
 	
 	for n in "${arr[@]}"; do
 		((n > max)) && max=$n
