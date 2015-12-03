@@ -24,6 +24,7 @@
   "git-blame": {}
   "atom-beautify":
     _analyticsUserId: "5e59d25f-4cba-44ca-955b-340734c92e88"
+    js_space_in_paren: true
   "find-and-replace":
     scrollToResultOnLiveSearch: true
     liveSearchMinimumCharacters: 2
@@ -57,6 +58,5 @@
     preset: "node-style-guide"
     onlyConfig: true
     configPath: ".jscs.json"
-    fixOnSave: true
   "linter-jshint":
     lintInlineJavaScript: true
