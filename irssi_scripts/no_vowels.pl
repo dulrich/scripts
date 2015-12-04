@@ -38,14 +38,14 @@ sub do_expansion () {
 	if ($vn) {
 		$line =~ s/^\$\$(\s+)?//;
 		
-		$line =~ s/(?:[aeiou]+)([b-z^aeiou])/$1/gi;
-        	$line =~ s/([b-z^aeiou])(?:[aeiou]+)/$1/gi;
+		$line =~ s/(?:[aeiou]+)([b-df-hj-np-tv-z])/$1/gi;
+		$line =~ s/([b-df-hj-np-tv-z])(?:[aeiou]+)/$1/gi;
 	}
-	else if ($cn) {
+	elsif ($cn) {
 		$line =~ s/^\$\_(\s+)?//;
 		
-		$line =~ s/(?:[b-z]+)([aeiou^b-z])/$1/gi;
-        	$line =~ s/([aeiou^b-z])(?:[b-z]+)/$1/gi;
+		$line =~ s/(?:[b-df-hj-np-tv-z]+)([aeiou])/$1/gi;
+		$line =~ s/([aeiou])(?:[b-df-hj-np-tv-z]+)/$1/gi;
 	}
 	
 	Irssi::signal_continue($line, $server_rec, $wi_item_rec);
