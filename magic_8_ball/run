@@ -18,9 +18,16 @@
 
 version="$1"
 cmd=""
+cmp=""
 ext=""
+sep="."
 
-if [ "$version" = "lua" ] || [ "$version" = "luajit" ] ; then
+if [ "$version" = "java" ] || [ "$version" = "javac" ] ; then
+	cmd="java"
+	cmp="javac magic_8_ball.java"
+	ext=""
+	sep=""
+elif [ "$version" = "lua" ] || [ "$version" = "luajit" ] ; then
 	cmd="lua"
 	ext="lua"
 elif [ "$version" = "node" ] || [ "$version" = "nodejs" ] || [ "$version" = "js" ]; then
@@ -40,4 +47,7 @@ else
 	exit 1
 fi
 
-$cmd "magic_8_ball.$ext"
+if [ "$cmp" != "" ] ; then
+	$cmp
+fi
+$cmd "magic_8_ball${sep}${ext}"
