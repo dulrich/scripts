@@ -16,6 +16,12 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+if [ $# -eq 0 ]; then
+	echo "USAGE: ./mysql-dump.sh -h SSH_HOST -s SSH_USER -[bgr] [-[iI]] CLIENT"
+	echo "LINK : ./mysql-dump.sh -[bgr] [-[iI]] -L URL"
+	exit 2
+fi
+
 zip=""
 unzip=""
 ext=""
