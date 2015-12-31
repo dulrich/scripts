@@ -19,6 +19,11 @@
 # CONFIG VARIABLES
 rd_res="1440x1080"
 
+code_path="/code"
+data_path="/data"
+script_path="~/scripts"
+web_path="/web"
+
 here=$HOME/scripts
 
 if [ -f $here/config.sh ] ; then
@@ -49,10 +54,10 @@ _comp $1
 }
 
 # cd aliases, eval style
-cdnames=( .. code  web  data down        scripts   hh                    )
-cdpaths=( .. /code /web /data ~/Downloads ~/scripts /code/heirs-of-avalon )
+cdnames=( .. code  web  data down scripts )
+cdpaths=( .. "$code_path" "$web_path" "$data_path" ~/Downloads "$script_path" )
 
-for i in {0..6}
+for i in {0..5}
 do
 	aliascd ${cdnames[$i]} ${cdpaths[$i]}
 done
