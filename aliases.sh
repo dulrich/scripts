@@ -229,6 +229,11 @@ gpc () {
 	
 	grep -Pc ${grep_options[@]} $1 $path | grep -E ':[^0]'
 }
+gpw () {
+	local path=$(defarg "$*" 1 './')
+	
+	grep -P ${grep_options[@]} "\b$1\b" $path
+}
 
 
 # shortcut for mass rewrites
