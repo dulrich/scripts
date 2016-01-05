@@ -93,11 +93,11 @@ fi
 dump="mysqldump -u \"$ruser\" -p \"$1\" | \"$zip\""
 
 if [ "$host" != "" ] && [ "$suser" != "" ]; then
-	ssh $suser@$host "eval $dump"  > $1.sql$ext
+	ssh $suser@$host "eval $dump"  > "$1.sql$ext"
 elif [ "$link" != "" ]; then
-	wget "$link" -O $1.sql$ext
+	wget "$link" -O "$1.sql$ext"
 elif [ $import -ne 2 ]; then
-	eval $dump > $1.sql$ext
+	eval $dump > "$1.sql$ext"
 fi
 
 if [ $import -gt 0 ]; then
