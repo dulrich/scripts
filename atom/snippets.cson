@@ -28,4 +28,6 @@
         
         M.internal.${1:fn_name} = function(opt,cb) {
         \tif (!opt.${2:param}) return cb(new Error("missing required opt ${2:param}"));
+        \t
+        \t$3
         };"""

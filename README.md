@@ -108,9 +108,25 @@ See also in [irssi_startup](./irssi_startup)
 * etherpad config file: `/opt/etherpad/local/etherpad/etherpad-lite/settings.json`
 
 
+# /etc/network/interfaces new style
+```
+iface lo inet loopback
+auto lo
+
+auto ens160
+iface ens160 inet static
+address 172.168.1.47
+netmask 255.255.255.0
+up route add default gw 172.168.1.1
+dns-nameservers 8.8.8.8 8.8.4.4
+
+up ip addr add 172.168.2.47/24 dev ens160
+up ip addr add 172.168.3.47/24 dev ens160
+```
+
 # license
 
-Copyright 2013 - 2015  David Ulrich (http://github.com/dulrich)
+Copyright 2013 - 2016  David Ulrich (http://github.com/dulrich)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
