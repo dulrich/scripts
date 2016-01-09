@@ -38,15 +38,13 @@ bc () {
 alias bb="git checkout corebeta"
 alias mm="git merge corebeta"
 
-alias cnn="cn ; n"
-alias clyn="cly ; n"
-
 # remote
 alias kris7="rdesktop -g $rd_res -u kris 10.10.0.15"
 alias ssh1="rdesktop -g $rd_res -u Administrator -d PAWN1 10.0.1.11"
 alias ssh2="rdesktop -g $rd_res -u Administrator -d PAWN1 10.0.1.12"
 alias ssh3="rdesktop -g $rd_res -u Administrator -d SSH3 10.0.1.13"
 
+alias prodproxy="ssh atomic@10.10.10.101"
 alias prodweb="ssh atomic@10.10.10.104"
 alias devweb="ssh atomic@10.10.10.105"
 alias proddb="ssh atomic@10.10.10.100"
