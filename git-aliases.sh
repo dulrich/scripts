@@ -54,7 +54,7 @@ gx () {
 	git update-index --chmod=+x $1
 }
 m () {
-	git merge $(defarg "$*" 0 'master')
+	git merge --no-edit $(defarg "$*" 0 'master')
 }
 alias o="git checkout"
 alias r="git reset HEAD"
@@ -62,7 +62,7 @@ alias rh="git reset --hard HEAD"
 alias u="git pull"
 um () {
 	git pull
-	git merge $(defarg "$*" 0 'master')
+	git merge --no-edit $(defarg "$*" 0 'master')
 }
 alias p="git push"
 pp() {
