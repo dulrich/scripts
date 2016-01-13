@@ -258,19 +258,30 @@ fileperm () {
 	find $path -type f -exec chmod 644 {} +
 }
 
-
-## assorted
-alias cl="clear"
-alias cvim="cb ; vim -c vs"
-alias eject_fix="sudo eject -i off"
+## forever
 alias fli="forever list"
-flo() {
+flo () {
 	proc=$(defarg "$*" 0 0)
 	forever logs "$proc" -f
 }
 alias fr="forever restart"
 alias fra="forever restartall"
 alias fs="forever stop"
+
+## pm2
+alias pli="pm2 list"
+plo () {
+	proc=$(defarg "$*" 0 0)
+	pm2 logs "$proc"
+}
+alias pr="pm2 restart"
+alias pra="pm2 restart all"
+alias pst="pm2 stop all ; pm2 kill"
+
+## assorted
+alias cl="clear"
+alias cvim="cb ; vim -c vs"
+alias eject_fix="sudo eject -i off"
 kt () {
 	eval `ssh-agent`
 	ssh-add
