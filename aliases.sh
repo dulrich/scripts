@@ -293,11 +293,13 @@ alias tn="tail -n 100 -f"
 alias tnn="tail -n 1000 -f"
 
 mydir () {
-    group=$( id -g -n $USER )
-    
-    sudo mkdir "$1"
-    sudo chown "$USER":"$group" "$1"
+	group=$( id -g -n $USER )
+
+	sudo mkdir "$1"
+	sudo chown "$USER":"$group" "$1"
 }
+
+alias myips="hostname -I"
 
 tarc () {
 	tar -zcvf "$1.tar.gz" "$1"
