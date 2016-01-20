@@ -8,6 +8,13 @@ namespace Magic.Eight.Ball {
 		public List<string> ReasonList;
 		public List<string> TemporalList;
 		public List<string> ValueList;
+		
+		public AnswerLists() {
+			ProbabilityList = new List<string>();
+			ReasonList = new List<string>();
+			TemporalList = new List<string>();
+			ValueList = new List<string>();
+		}
 	}
 	
 	public class magic_8_ball {
@@ -38,7 +45,8 @@ namespace Magic.Eight.Ball {
 			return answer_list[sum % answer_list.Count];
 		}
 		
-		private static void LoadAnswerLists(string path) {
+		private static AnswerLists LoadAnswerLists(string path) {
+			AnswerLists answer_list = new AnswerLists();
 			List<string> current_list = null;
 			string current_token;
 			string answer_list_data = System.IO.File.ReadAllText("answers.json");
@@ -50,15 +58,25 @@ namespace Magic.Eight.Ball {
 				if (reader.TokenType == JsonToken.PropertyName) {
 					current_token = reader.Value.ToString();
 					
-					if (current_token == "probability") current_list = answers.ProbabilityList;
-					else if (current_token == "reason") current_list = answers.ReasonList;
-					else if (current_token == "temporal") current_list = answers.TemporalList;
-					else if (current_token == "value") current_list = answers.ValueList;
+					if (current_token == "probability") {
+						current_list = answer_list.ProbabilityList;
+					}
+					else if (current_token == "reason") {
+						current_list = answer_list.ReasonList;
+					}
+					else if (current_token == "temporal") {
+						current_list = answer_list.TemporalList;
+					}
+					else if (current_token == "value") {
+						current_list = answer_list.ValueList;
+					}
 				}
 				else if (reader.TokenType == JsonToken.String && current_list != null) {
 					current_list.Add(reader.Value.ToString());
 				}
 			}
+			
+			return answer_list;
 		}
 		
 		private static List<string> LoadExitCodes(string path) {
@@ -77,13 +95,7 @@ namespace Magic.Eight.Ball {
 		}
 		
 		public static void Main(string[] args) {
-			answers = new AnswerLists();
-			answers.ProbabilityList = new List<string>();
-			answers.ReasonList = new List<string>();
-			answers.TemporalList = new List<string>();
-			answers.ValueList = new List<string>();
-			
-			LoadAnswerLists("answers.json");
+			answers = LoadAnswerLists("answers.json");
 			
 			exit_codes = LoadExitCodes("exit_codes.json");
 			
