@@ -22,7 +22,11 @@ cmp=""
 ext=""
 sep="."
 
-if [ "$version" = "java" ] || [ "$version" = "javac" ] ; then
+if [ "$version" = "cs" ] ; then
+	cmd="mono magic_8_ball.exe"
+	cmp="mcs -r:/usr/lib/mono/gac/Newtonsoft.Json/5.0.0.0__b9a188c8922137c6/Newtonsoft.Json.dll magic_8_ball.cs"
+	ext="cs"
+elif [ "$version" = "java" ] || [ "$version" = "javac" ] ; then
 	cmd="java"
 	cmp="javac magic_8_ball.java"
 	ext=""
