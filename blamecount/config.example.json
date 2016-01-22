@@ -1,0 +1,8 @@
+{
+	"basepath" : "/var/www/your/website",
+	"stopdirs" : [
+		"bin",
+		"build",
+		"node_modules"
+	]
+}
