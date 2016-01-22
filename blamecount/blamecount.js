@@ -32,10 +32,15 @@ var stop = {
 var user_lines = {
 	c    : 0,
 	css  : 0,
+	h    : 0,
 	html : 0,
 	js   : 0,
+	less : 0,
 	lua  : 0,
 	php  : 0,
+	py   : 0,
+	rb   : 0,
+	sh   : 0,
 	sql  : 0
 };
 
