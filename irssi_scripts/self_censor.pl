@@ -1,5 +1,5 @@
 # expando.pl: turn short sequences into longer statments
-# Copyright (C) 2014 - 2015  David Ulrich
+# Copyright (C) 2016  David Ulrich
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -22,45 +22,44 @@ $VERSION = '0.0.2';
 %IRSSI = (
 	authors     => 'David Ulrich',
 	contact     => 'david@ulrichdev.com',
-	name        => 'expando',
-	description => 'Expands given character sequences into other sequences. Originally for giving simple things ridiculously long, formal names.',
+	name        => 'self_censor',
+	description => 'Calls unnecessay attention to certain words by replacing letters with special characters.',
 	license     => 'BSD',
-	url         => 'none',
+	url         => 'none'
 );
 
 my %replacements = (
-	_A_ => "Modern Web App(tm)",
-	_C_ => "the arcane language known only as 'C'",
-	_H_ => "the inevitable heat death of the universe",
-	_I_ => "I, for one, welcome our Reptilian overlords",
-	_M_ => "that other mining game, whose name we do not mention",
-	_MMM_ => "Frederick P. Brooks' classic, the mythical man month",
-	_S_ => "in 'Soviet Amerika',",
-	_U_ => "University Shaped Place",
-	_W_ => "the infallible wikipedia",
+	'ass'   => [ '@ss', ['es'] ],
+	'bitch' => [ 'b!tch', ['es'] ],
+	'damn'  => [ 'd@mn', ['it'] ],
+	'dick'  => [ 'd!ck', ['s'] ],
+	'fuck'  => [ 'f*ck', ['er','ers','ing','s'] ],
+	'hell'  => [ 'he!!', ['s'] ],
+	'shit'  => [ 'sh!t', ['s','ting'] ],
+	'whore' => [ 'wh*r3', ['s'] ]
 );
 
 sub do_expansion () {
 	my ($line, $server_rec, $wi_item_rec) = @_;
 	my $r;
 	my $rr;
+	my $rs;
+	my $sfx;
+	
+	$line = $line . " ";
 	
 	foreach $r ( keys %replacements ) {
-		$rr = $replacements{$r};
-		$line =~ s/\b$r\b/$rr/g;
-	}
-	
-	my ($vn) = $line =~ /^:(\d+):/;
-	my $repl = "\$1.\$2";
-	
-	if ($vn) {
-		$line =~ s/^:(\d+):\s*//;
+		$rr = $replacements{$r}[0];
+		$rs = $replacements{$r}[1];
 		
-		for(my $i=0;$i<$vn;$i++) {
-			$repl = "$repl.\$3";
+		if (scalar(@$rs) == 0) {
+			$line =~ s/(\b$r|$r\b)/$rr/g;
 		}
-		
-		$line =~ s/\b([b-df-hj-np-tv-z0-9]*)([aeiou]*)([aeiou])/$repl/giee;
+		else {
+			$sfx = join("|",@$rs);
+			
+			$line =~ s/(\b$r|$r($sfx)?\b)/$rr\2/g;
+		}
 	}
 	
 	Irssi::signal_continue($line, $server_rec, $wi_item_rec);
