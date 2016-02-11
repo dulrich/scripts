@@ -1,62 +1,79 @@
 "*":
-  welcome:
-    showOnStartup: false
-  core:
-    autoHideMenuBar: true
-    disabledPackages: [
-      "whitespace"
-      "jshint"
-      "atom-jshint"
-    ]
-    packagesWithKeymapsDisabled: [
-      "tree-view"
-    ]
-  editor:
-    invisibles:
-      eol: " "
-    showInvisibles: true
-    tabLength: 4
-    scrollPastEnd: true
-    nonWordCharacters: "/\\()\"':,.;<>~!@#$%^&*|+=[]{}`?…"
-    tabType: "hard"
-    scrollSensitivity: 50
-    lineHeight: 1.25
-  "git-blame": {}
-  "atom-beautify":
-    _analyticsUserId: "5e59d25f-4cba-44ca-955b-340734c92e88"
-    js_space_in_paren: true
-  "find-and-replace":
-    scrollToResultOnLiveSearch: true
-    liveSearchMinimumCharacters: 2
-  "one-dark-ui":
-    layoutMode: "Compact"
-  "bracket-matcher":
-    autocompleteSmartQuotes: false
-    autocompleteBrackets: false
-  "disable-keybindings":
-    prefixKeys: [
-      "ctrl-k"
-    ]
-  "highlight-selected":
-    ignoreCase: true
-  "tree-view":
-    hideVcsIgnoredFiles: true
-  "tree-view-open-files":
-    maxHeight: 540
-  "status-bar": {}
-  "autocomplete-plus": {}
-  "exception-reporting":
-    userId: "c2534162-1992-fab9-5886-f28e255e051f"
-  "atom-jshint": {}
   aligner:
     ",-rightSpace": false
     ":-alignment": "left"
     ":-leftSpace": true
+  "atom-beautify":
+    _analyticsUserId: "5e59d25f-4cba-44ca-955b-340734c92e88"
+    js_space_in_paren: true
+  "atom-jshint": {}
+  "autocomplete-plus": {}
+  blame: {}
+  "bracket-matcher":
+    autocompleteBrackets: false
+    autocompleteSmartQuotes: false
+  core:
+    audioBeep: false
+    autoHideMenuBar: true
+    disabledPackages: [
+      "jshint"
+      "atom-jshint"
+      "quick-query-mssql"
+    ]
+    packagesWithKeymapsDisabled: [
+      "tree-view"
+    ]
+  "disable-keybindings":
+    prefixKeys: [
+      "ctrl-k"
+    ]
+  editor:
+    fontSize: 13
+    invisibles:
+      eol: " "
+    lineHeight: 1.25
+    nonWordCharacters: "/\\()\"':,.;<>~!@#$%^&*|+=[]{}`?…"
+    scrollPastEnd: true
+    scrollSensitivity: 50
+    showInvisibles: true
+    tabLength: 4
+    tabType: "hard"
+  "exception-reporting":
+    userId: "c2534162-1992-fab9-5886-f28e255e051f"
+  "find-and-replace":
+    liveSearchMinimumCharacters: 2
+    scrollToResultOnLiveSearch: true
+  "fuzzy-finder": {}
+  "git-blame":
+    customCommitUrlTemplateString: "https://<%- project -%>.beanstalkapp.com/<%- repo -%>/changesets/<%- revision -%>"
+    ignoreWhiteSpaceDiffs: true
+    useCustomUrlTemplateIfStandardRemotesFail: true
+  "highlight-selected":
+    ignoreCase: true
   linter:
+    errorPanelHeight: 118
     showErrorTabLine: true
   "linter-jscs":
-    preset: "node-style-guide"
-    onlyConfig: true
     configPath: ".jscs.json"
+    lintInlineJavaScript: true
+    onlyConfig: true
+    preset: "<none>"
   "linter-jshint":
     lintInlineJavaScript: true
+  "one-dark-ui":
+    layoutMode: "Compact"
+  "status-bar": {}
+  "tree-view":
+    hideVcsIgnoredFiles: true
+  "tree-view-open-files":
+    maxHeight: 540
+  wakatime: {}
+  welcome:
+    showOnStartup: false
+  whitespace:
+    ensureSingleTrailingNewline: false
+    ignoreWhitespaceOnCurrentLine: false
+    ignoreWhitespaceOnlyLines: true
+".basic.html.text":
+  editor:
+    nonWordCharacters: "/\\()\"':,.;<>~!@#$%^&*|+=[]{}`?…"
