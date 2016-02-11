@@ -14,11 +14,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-var _ = require("lodash");
-var A = require("async");
-var fs = require("fs");
+var _   = require("lodash");
+var A   = require("async");
+var fs  = require("fs");
 var git = require("nodegit");
-var P = require("path");
+var P   = require("path");
 
 var log = console.log;
 
@@ -31,13 +31,18 @@ var stop = {
 
 var user_lines = {
 	c    : 0,
+	cc   : 0,
+	cpp  : 0,
+	cs   : 0,
 	css  : 0,
 	h    : 0,
+	htm  : 0,
 	html : 0,
 	js   : 0,
 	less : 0,
 	lua  : 0,
 	php  : 0,
+	pl   : 0,
 	py   : 0,
 	rb   : 0,
 	sh   : 0,
