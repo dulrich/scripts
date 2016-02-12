@@ -46,20 +46,23 @@ sub do_expansion () {
 	my $rs;
 	my $sfx;
 	
-	$line = $line . " ";
-	
-	foreach $r ( keys %replacements ) {
-		$rr = $replacements{$r}[0];
-		$rs = $replacements{$r}[1];
-		
-		if (scalar(@$rs) == 0) {
-			$line =~ s/(\b$r|$r\b)/$rr/g;
-		}
-		else {
-			$sfx = join("|",@$rs);
+	if ($line !~ /^\%raw\s+/) {
+		foreach $r ( keys %replacements ) {
+			$rr = $replacements{$r}[0];
+			$rs = $replacements{$r}[1];
 			
-			$line =~ s/(\b$r|$r($sfx)?\b)/$rr\2/g;
+			if (scalar(@$rs) == 0) {
+				$line =~ s/(\b$r|$r\b)/$rr/g;
+			}
+			else {
+				$sfx = join("|",@$rs);
+				
+				$line =~ s/(\b$r|$r($sfx)?\b)/$rr\2/g;
+			}
 		}
+	}
+	else {
+		$line =~ s/^\%raw\s+//;
 	}
 	
 	Irssi::signal_continue($line, $server_rec, $wi_item_rec);
