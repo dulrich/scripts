@@ -2,17 +2,17 @@
 
 # aliases.sh: shorten common tasks
 # Copyright 2013 - 2016  David Ulrich
-# 
+#
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
-# 
+#
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
-# 
+#
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
@@ -178,7 +178,7 @@ alias llr="ll -R"
 
 alias lh="ls -ahlFB"
 
-# grep shortcuts 
+# grep shortcuts
 grep_options=( -iIR --exclude={*.min.js,*.min.css,*~} --exclude-dir={.git,node_modules,uploads,src-min-noconflict} )
 
 # What I want grep to do 99% of the time
@@ -282,6 +282,7 @@ alias pst="pm2 stop all ; pm2 kill"
 alias cl="clear"
 alias cvim="cb ; vim -c vs"
 alias eject_fix="sudo eject -i off"
+alias glver="glxinfo | grep 'OpenGL version'"
 kt () {
 	eval `ssh-agent`
 	ssh-add
