@@ -50,16 +50,19 @@
     useCustomUrlTemplateIfStandardRemotesFail: true
   "highlight-selected":
     ignoreCase: true
+  "language-babel": {}
   linter:
     errorPanelHeight: 118
     showErrorTabLine: true
   "linter-jscs":
     configPath: ".jscs.json"
+    esnext: true
     lintInlineJavaScript: true
     onlyConfig: true
     preset: "<none>"
   "linter-jshint":
     lintInlineJavaScript: true
+    lintJSXFiles: true
   "one-dark-ui":
     layoutMode: "Compact"
   "status-bar": {}
@@ -74,6 +77,12 @@
     ensureSingleTrailingNewline: false
     ignoreWhitespaceOnCurrentLine: false
     ignoreWhitespaceOnlyLines: true
+".babel.regexp.source":
+  editor:
+    nonWordCharacters: "/\\()\"':,.;<>~!@#$%^&*|+=[]{}`?…"
 ".basic.html.text":
+  editor:
+    nonWordCharacters: "/\\()\"':,.;<>~!@#$%^&*|+=[]{}`?…"
+".js.jsx.source":
   editor:
     nonWordCharacters: "/\\()\"':,.;<>~!@#$%^&*|+=[]{}`?…"
