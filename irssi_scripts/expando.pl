@@ -1,5 +1,5 @@
 # expando.pl: turn short sequences into longer statments
-# Copyright (C) 2014 - 2015  David Ulrich
+# Copyright (C) 2014 - 2016  David Ulrich
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -29,15 +29,16 @@ $VERSION = '0.0.2';
 );
 
 my %replacements = (
-	_A_ => "Modern Web App(tm)",
-	_C_ => "the arcane language known only as 'C'",
-	_H_ => "the inevitable heat death of the universe",
-	_I_ => "I, for one, welcome our Reptilian overlords",
-	_M_ => "that other mining game, whose name we do not mention",
-	_MMM_ => "Frederick P. Brooks' classic, the mythical man month",
-	_S_ => "in 'Soviet Amerika',",
-	_U_ => "University Shaped Place",
-	_W_ => "the infallible wikipedia",
+	_A_   => 'Modern Web App(tm)',
+	_C_   => 'the arcane language known only as \'C\'',
+	_H_   => 'the inevitable heat death of the universe',
+	_I_   => 'I, for one, welcome our Reptilian overlords',
+	_M_   => 'that other mining game, whose name we do not mention',
+	_MMM_ => 'Frederick P. Brooks\' classic, the mythical man month',
+	_R_   => 'the dreaded \'Real Programmer(TM)(R)(C)\'',
+	_S_   => 'in \'Soviet Amerika\',',
+	_U_   => 'University Shaped Place',
+	_W_   => 'the infallible wikipedia',
 );
 
 sub do_expansion () {
@@ -51,13 +52,13 @@ sub do_expansion () {
 	}
 	
 	my ($vn) = $line =~ /^:(\d+):/;
-	my $repl = "\$1.\$2";
+	my $repl = '\$1.\$2';
 	
 	if ($vn) {
 		$line =~ s/^:(\d+):\s*//;
 		
 		for(my $i=0;$i<$vn;$i++) {
-			$repl = "$repl.\$3";
+			$repl = '$repl.\$3';
 		}
 		
 		$line =~ s/\b([b-df-hj-np-tv-z0-9]*)([aeiou]*)([aeiou])/$repl/giee;
@@ -66,4 +67,4 @@ sub do_expansion () {
 	Irssi::signal_continue($line, $server_rec, $wi_item_rec);
 }
 
-Irssi::signal_add_first('send text', "do_expansion");
+Irssi::signal_add_first('send text', 'do_expansion');
