@@ -167,7 +167,7 @@ alias mykill="pkill mysql-workbench" #lol
 ff () {
 # the shell expansion resulted in 'unknown predicate' but the expanded command works manually
 # 	find . -iname \""$1"\" -not\ -path\ \"*/{.git,node_modules,uploads}/*\"
-    find . -iname "$1" -not -path "*/.git/*" -not -path "*/node_modules/*" -not -path "*/uploads/*"
+    find . -iname "$1" -not -path "*/.deps/*" -not -path "*/.git/*" -not -path "*/node_modules/*" -not -path "*/uploads/*"
 }
 alias subcount="find . -type f | wc -l"
 
@@ -179,7 +179,7 @@ alias llr="ll -R"
 alias lh="ls -ahlFB"
 
 # grep shortcuts
-grep_options=( -iIR --exclude={*.min.js,*.min.css,*~} --exclude-dir={.git,node_modules,uploads,src-min-noconflict} )
+grep_options=( -iIR --exclude={*.min.js,*.min.css,*~} --exclude-dir={.deps,.git,node_modules,uploads,src-min-noconflict} )
 
 # What I want grep to do 99% of the time
 gr () {

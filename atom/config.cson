@@ -28,7 +28,7 @@
       "ctrl-k"
     ]
   editor:
-    fontSize: 13
+    fontSize: 12
     invisibles:
       eol: " "
     lineHeight: 1.25
