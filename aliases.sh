@@ -409,6 +409,11 @@ commits () {
 }
 
 
+# fix common typos
+alias bim="vim"
+alias clera="clear"
+
+
 # load git aliases
 source $here/git-aliases.sh
 
