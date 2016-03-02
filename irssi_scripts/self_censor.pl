@@ -29,7 +29,7 @@ $VERSION = '0.0.2';
 );
 
 my %replacements = (
-	'ass'   => [ '@ss', ['es'] ],
+	# 'ass'   => [ '@ss', ['es'] ],
 	'bitch' => [ 'b!tch', ['es'] ],
 	'damn'  => [ 'd@mn', ['it'] ],
 	'dick'  => [ 'd!ck', ['s'] ],
