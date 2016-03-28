@@ -50,11 +50,11 @@ ln -s ~/scripts/aliases.sh ~/.bash_aliases
 ln -s ~/scripts/i3 .i3
 
 #crouton, alternate aliases
-ln -s ~/scripts/crouton_aliases.sh ~/.bash_aliases
+ln -s ~/scripts/crouton/crouton_aliases.sh ~/.bash_aliases
 
 #crouton, remap search key to mod4
-ln -s ~/scripts/xinitrc ~/.xinitrc
-ln -s ~/script/Xmodmap ~/.Xmodmap
+ln -s ~/scripts/crouton/xinitrc ~/.xinitrc
+ln -s ~/script/crouton/Xmodmap ~/.Xmodmap
 ```
 
 
