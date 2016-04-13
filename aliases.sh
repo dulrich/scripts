@@ -171,6 +171,7 @@ ff () {
 		-not -path "*/.deps/*" \
 		-not -path "*/.git/*" \
 		-not -path "*/autom4te.cache/*" \
+		-not -path "*/html/scripts/*" \
 		-not -path "*/node_modules/*" \
 		-not -path "*/uploads/*" \
 		-not -path "*/src-min-noconflict/*"
@@ -185,7 +186,8 @@ alias llr="ll -R"
 alias lh="ls -ahlFB"
 
 # grep shortcuts
-grep_options=( -iIR --exclude={*.min.js,*.min.css,*~} --exclude-dir={\
+grep_options=( -iIR --exclude={*-bundle.js,*.map,.min.js,*.min.css,*~} \
+--exclude-dir={\
 .deps,\
 .git,\
 autom4te.cache,\
