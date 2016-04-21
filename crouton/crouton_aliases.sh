@@ -1,4 +1,4 @@
-. $HOME/scripts/ssh-find-agent.sh
+. $HOME/scripts/crouton/ssh-find-agent.sh
 
 ssh-find-agent -a
 if [ -z "$SSH_AUTH_SOCK" ]; then

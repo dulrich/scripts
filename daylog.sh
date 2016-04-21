@@ -21,6 +21,8 @@ dstring=''
 folder='logs'
 newmsg=true
 
+now_str="=== [NOW]"
+
 while getopts ":b:cd:f:y" opt; do
 	case $opt in
 		b)
@@ -69,6 +71,10 @@ compute_time () {
 		
 		prev=$( date -d "${l:0:8}" +%s )
 	done < $fp
+	
+	diff=$(date -d @$(( $(date +%s) - $prev )) -u +%H:%M)
+	
+	echo "$diff $now_str"
 }
 
 
@@ -89,7 +95,7 @@ if [ -f $logpath$(date -d "$dstring" +%Y-%m-%d).daylog ] ; then
 fi
 
 if [ "$dstring" = '' ] && ! $compute ; then
-	echo $now "=== [NOW]"
+	echo "$now $now_str"
 fi
 
 exit 0
