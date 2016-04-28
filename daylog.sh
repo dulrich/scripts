@@ -64,8 +64,10 @@ compute_time () {
 		if [ $prev -ne 0 ] ; then
 			diff=$(date -d @$(( $(date -d "${l:0:8}" +%s) - $prev )) -u +%H:%M)
 			
-			echo "$diff ${l:9}"
+			echo "$diff"
 		fi
+		
+		echo "${l:9}"
 		
 		prev=$( date -d "${l:0:8}" +%s )
 	done < $fp
