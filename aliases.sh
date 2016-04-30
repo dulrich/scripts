@@ -54,10 +54,10 @@ _comp $1
 }
 
 # cd aliases, eval style
-cdnames=( .. code  web  data down scripts )
-cdpaths=( .. "$code_path" "$web_path" "$data_path" ~/Downloads "$script_path" )
+cdnames=( .. ... code  web  data down scripts )
+cdpaths=( .. ../.. "$code_path" "$web_path" "$data_path" ~/Downloads "$script_path" )
 
-for i in {0..5}
+for i in {0..6}
 do
 	aliascd ${cdnames[$i]} ${cdpaths[$i]}
 done
