@@ -59,6 +59,7 @@ shift $(($OPTIND - 1))
 
 compute_time () {
 	local fp="$1"
+	local dstring=$(date -d "$2" +%Y-%m-%d)
 	local prev=0
 	local diff=0
 	
@@ -72,9 +73,11 @@ compute_time () {
 		prev=$( date -d "${l:0:8}" +%s )
 	done < $fp
 	
-	diff=$(date -d @$(( $(date +%s) - $prev )) -u +%H:%M)
-	
-	echo "$diff $now_str"
+	if [ "$dstring" = "$(date +%Y-%m-%d)" ] ; then
+		diff=$(date -d @$(( $(date +%s) - $prev )) -u +%H:%M)
+		
+		echo "$diff $now_str"
+	fi
 }
 
 
@@ -88,7 +91,7 @@ fi
 echo "[LOG FOR $name]"
 if [ -f $logpath$(date -d "$dstring" +%Y-%m-%d).daylog ] ; then
 	if $compute ; then
-		compute_time $logpath$(date -d "$dstring" +%Y-%m-%d).daylog
+		compute_time $logpath$(date -d "$dstring" +%Y-%m-%d).daylog "$dstring"
 	else
 		cat $logpath$(date -d "$dstring" +%Y-%m-%d).daylog
 	fi
