@@ -64,6 +64,11 @@ um () {
 	git pull --no-edit
 	git merge --no-edit $(defarg "$*" 0 'master')
 }
+ump() {
+	git pull --no-edit
+	git merge --no-edit $(defarg "$*" 0 'master')
+	git push production $(defarg "$*" 0 'master')
+}
 alias p="git push"
 pp() {
 	git push production $(defarg "$*" 0 'master')
