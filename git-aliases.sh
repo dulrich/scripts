@@ -57,23 +57,23 @@ m () {
 	git merge --no-edit $(defarg "$*" 0 'master')
 }
 alias o="git checkout"
+alias p="git push"
 alias r="git reset HEAD"
 alias rh="git reset --hard HEAD"
 alias u="git pull --no-edit"
 um () {
-	git pull --no-edit
-	git merge --no-edit $(defarg "$*" 0 'master')
+	u $*
+	m $*
 }
-ump() {
-	git pull --no-edit
-	git merge --no-edit $(defarg "$*" 0 'master')
+ump () {
+	u $*
+	m $*
+	p $*
+}
+pp () {
 	git push production $(defarg "$*" 0 'master')
 }
-alias p="git push"
-pp() {
-	git push production $(defarg "$*" 0 'master')
-}
-up() {
+up () {
 	git pull --no-edit production $(defarg "$*" 0 'master')
 }
 
