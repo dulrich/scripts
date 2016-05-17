@@ -23,6 +23,7 @@ code_path="/code"
 data_path="/data"
 script_path="~/scripts"
 web_path="/web"
+work_user="username"
 
 here=$HOME/scripts
 
