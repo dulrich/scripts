@@ -312,7 +312,7 @@ alias tnn="tail -n 1000 -f"
 mydir () {
 	group=$( id -g -n $USER )
 
-	sudo mkdir "$1"
+	sudo mkdir -p "$1"
 	sudo chown "$USER":"$group" "$1"
 }
 
