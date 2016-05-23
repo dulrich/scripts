@@ -72,6 +72,13 @@ alias daylog="$here/daylog.sh"
 alias dl="$here/daylog.sh"
 alias life="$here/daylog.sh -f life"
 alias food="$here/daylog.sh -f food"
+wl () {
+	for i in {7..1}
+	do
+		$here/daylog.sh -b $i
+		echo ""
+	done
+}
 
 # typing ./ is hard
 alias lifi="$here/lifi.sh"
