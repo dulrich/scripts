@@ -34,7 +34,7 @@ sub do_expansion () {
 	
 	my $out;
 	if ($line =~ /^%UU\s+/) {
-		$line =~ s/^%RR\s+//;
+		$line =~ s/^%UU\s+//;
 		
 		foreach my $c (split //, $line) {
 			if (rand(1) > 0.6) {
