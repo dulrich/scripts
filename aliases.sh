@@ -194,7 +194,7 @@ alias llr="ll -R"
 alias lh="ls -ahlFB"
 
 # grep shortcuts
-grep_options=( -iIR --exclude={*-bundle.js,*.map,.min.js,*.min.css,*~} \
+grep_options=( -iIR --exclude={*-bundle.js,*.map,*.min.js,*.min.css,*~} \
 --exclude-dir={\
 .deps,\
 .git,\
