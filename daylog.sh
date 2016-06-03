@@ -87,7 +87,7 @@ logpath="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )/$folder/"
 name=$(date -d "$dstring" +%Y-%m-%d)
 now=$(date +%I:%M\ %P)
 if [ $# -gt 0 ] && $newmsg ; then
-	echo $now "===" $@ >> $logpath$name.daylog
+	echo $now "===" "$@" >> $logpath$name.daylog
 fi
 
 echo "[LOG FOR $name]"
