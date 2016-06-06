@@ -73,6 +73,13 @@ alias daylog="$here/daylog.sh"
 alias dl="$here/daylog.sh"
 alias life="$here/daylog.sh -f life"
 alias food="$here/daylog.sh -f food"
+wl () {
+	for i in {7..1}
+	do
+		$here/daylog.sh -b $i
+		echo ""
+	done
+}
 
 # typing ./ is hard
 alias lifi="$here/lifi.sh"
@@ -188,7 +195,7 @@ alias llr="ll -R"
 alias lh="ls -ahlFB"
 
 # grep shortcuts
-grep_options=( -iIR --exclude={*-bundle.js,*.map,.min.js,*.min.css,*~} \
+grep_options=( -iIR --exclude={*-bundle.js,*.map,*.min.js,*.min.css,*~} \
 --exclude-dir={\
 .deps,\
 .git,\
@@ -420,6 +427,9 @@ alias clera="clear"
 
 # load git aliases
 source $here/git-aliases.sh
+
+# load tmux helper
+source $here/tmux.sh
 
 # load work aliases
 source $here/work-aliases.sh
