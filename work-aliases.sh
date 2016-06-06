@@ -39,7 +39,7 @@ alias devweb="ssh $work_user@10.10.10.105"
 alias proddb="ssh $work_user@10.10.10.100"
 alias webweb="ssh $work_user@10.10.10.102"
 alias prodels="ssh $work_user@10.10.10.103"
-alias work="ssh 10.10.0.47"
+alias work="$ssh_cmd 10.10.0.47"
 
 alias prodmysql="mysql -A -u root -p -h 10.10.10.100"
 alias workmysql="mysql -A -u root -p -h 10.10.0.47"
