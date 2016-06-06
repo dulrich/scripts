@@ -30,13 +30,13 @@ $VERSION = '0.0.2';
 
 my %replacements = (
 	# 'ass'   => [ '@ss', ['es'] ],
-	'bitch' => [ 'b!tch', ['es'] ],
-	'damn'  => [ 'd@mn', ['it'] ],
-	'dick'  => [ 'd!ck', ['s'] ],
-	'fuck'  => [ 'f*ck', ['er','ers','ing','s'] ],
-	'hell'  => [ 'he!!', ['s'] ],
-	'shit'  => [ 'sh!t', ['s','ting'] ],
-	'whore' => [ 'wh*r3', ['s'] ]
+	'bi+tch' => [ 'b!tch', ['es'] ],
+	'da+mn'  => [ 'd@mn', ['it'] ],
+	'di+ck'  => [ 'd!ck', ['s'] ],
+	'fu+ck'  => [ 'f*ck', ['er','ers','ing','s'] ],
+	'he+ll'  => [ 'he!!', ['s'] ],
+	'shi+t'  => [ 'sh!t', ['s','ting'] ],
+	'who+re+' => [ 'wh*r3', ['s'] ]
 );
 
 sub do_expansion () {
