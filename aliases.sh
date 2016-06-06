@@ -22,6 +22,7 @@ rd_res="1440x1080"
 code_path="/code"
 data_path="/data"
 script_path="~/scripts"
+ssh_cmd="ssh"
 web_path="/web"
 work_user="username"
 
