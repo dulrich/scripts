@@ -35,7 +35,7 @@ xinit
 ## setting up a new machine
 
 ```bash
-sudo apt-get install gmrun htop kate ssh suckless-tools i3 vim-gtk bash-completion
+sudo apt-get install gmrun htop curl git ssh suckless-tools i3 vim-gtk bash-completion
 
 #clone scripts repo
 

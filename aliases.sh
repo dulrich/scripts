@@ -195,7 +195,7 @@ alias llr="ll -R"
 alias lh="ls -ahlFB"
 
 # grep shortcuts
-grep_options=( -iIR --exclude={*-bundle.js,*.map,*.min.js,*.min.css,*~} \
+grep_options=( -iIR --exclude={*-bundle.js,*.map,*.min.js,*.min.css,*~,*.log} \
 --exclude-dir={\
 .deps,\
 .git,\
@@ -282,26 +282,6 @@ fileperm () {
 	find $path -type f -exec chmod 644 {} +
 }
 
-## forever
-alias fli="forever list"
-flo () {
-	proc=$(defarg "$*" 0 0)
-	forever logs "$proc" -f
-}
-alias fr="forever restart"
-alias fra="forever restartall"
-alias fs="forever stop"
-
-## pm2
-alias pli="pm2 list"
-plo () {
-	proc=$(defarg "$*" 0 0)
-	pm2 logs "$proc"
-}
-alias pr="pm2 restart"
-alias pra="pm2 restart all"
-alias pst="pm2 stop all ; pm2 kill"
-
 ## assorted
 alias cl="clear"
 alias cvim="cb ; vim -c vs"
@@ -365,7 +345,7 @@ gigs () {
 	du -h -t 1G $path 2> /dev/null
 }
 
-alias pow="sudo poweroff now"
+alias pow="sudo poweroff"
 alias agi="sudo apt-get install"
 alias upd="sudo apt-get update"
 alias upg="sudo apt-get upgrade"
