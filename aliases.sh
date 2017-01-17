@@ -71,6 +71,7 @@ alias xx="screen -x"
 # time tracking script
 alias daylog="$here/daylog.sh"
 alias dl="$here/daylog.sh"
+alias dls="$here/daylog.sh -s"
 alias life="$here/daylog.sh -f life"
 alias food="$here/daylog.sh -f food"
 wl () {

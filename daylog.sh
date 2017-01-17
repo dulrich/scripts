@@ -20,10 +20,11 @@ compute=false
 dstring=''
 folder='logs'
 newmsg=true
+silent=false
 
 now_str="=== [NOW]"
 
-while getopts ":b:cd:f:y" opt; do
+while getopts ":b:cd:f:sy" opt; do
 	case $opt in
 		b)
 			dstring="-$OPTARG days"
@@ -38,6 +39,9 @@ while getopts ":b:cd:f:y" opt; do
 			;;
 		f)
 			folder="$OPTARG"
+			;;
+		s)
+			silent=true
 			;;
 		y)
 			dstring='yesterday'
@@ -88,6 +92,10 @@ name=$(date -d "$dstring" +%Y-%m-%d)
 now=$(date +%I:%M\ %P)
 if [ $# -gt 0 ] && $newmsg ; then
 	echo $now "===" "$@" >> $logpath$name.daylog
+fi
+
+if $silent ; then
+	exit 0
 fi
 
 echo "[LOG FOR $name]"
