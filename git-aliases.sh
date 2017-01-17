@@ -31,6 +31,7 @@ c () {
 	git commit -m "$*"
 }
 alias d="git diff -D -M9 -b --ignore-space-at-eol --ignore-blank-lines"
+alias ds="d --staged"
 alias f="git fetch upstream"
 gc () {
 	local repo="$1"
