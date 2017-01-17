@@ -2,44 +2,79 @@
 
 # work-aliases.sh: shorten common work tasks
 # Copyright 2013 - 2016 David Ulrich
-# 
+#
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
-# 
+#
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
-# 
+#
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 # dirs, eval style
-cdnames=( cb          cn               cly           )
-cdpaths=( $web_path/carbon $web_path/carbon/node $web_path/catalyst )
+cdnames=( ca                   cb                   cs                    ct                           cr                              cv )
+cdpaths=( $web_path/beacon-api $web_path/beacon-lib $web_path/beacon-site $web_path/beacon-alert-rules $web_path/beacon-pace-processor $web_path/beacon-devops )
 
-for i in {0..2}
+for i in {0..4}
 do
 	aliascd ${cdnames[$i]} ${cdpaths[$i]}
 done
 
-alias bb="git checkout corebeta"
-alias mm="git merge corebeta"
+fs () {
+	git fetch stabilitas $(defarg "$*" 0 master)
+}
+ms () {
+	git merge stabilitas $(defarg "$*" 0 master)
+}
+us () {
+	u stabilitas $(defarg "$*" 0 master)
+}
 
-# remote
-alias ssh1="rdesktop -g $rd_res -u Administrator -d PAWN1 10.0.1.11"
-alias ssh2="rdesktop -g $rd_res -u Administrator -d PAWN1 10.0.1.12"
-alias ssh3="rdesktop -g $rd_res -u Administrator -d SSH3 10.0.1.13"
+beacon_role="BEACON_ROLE=local"
+api="perl api1.pl daemon"
+alias api="$beacon_role $api"
+alias apikill="pkill -SIGKILL -f '$api'"
 
-alias prodproxy="ssh $work_user@10.10.10.101"
-alias prodweb="ssh $work_user@10.10.10.104"
-alias devweb="ssh $work_user@10.10.10.105"
-alias proddb="ssh $work_user@10.10.10.100"
-alias webweb="ssh $work_user@10.10.10.102"
-alias prodels="ssh $work_user@10.10.10.103"
-alias work="$ssh_cmd 10.10.0.47"
+apitest () {
+	local t="$1"
 
-alias prodmysql="mysql -A -u root -p -h 10.10.10.100"
-alias workmysql="mysql -A -u root -p -h 10.10.0.47"
+	if [ ${t: -2} != ".t" ]; then
+		t="$t.t"
+	fi
+	
+	BEACON_ROLE=local perl api1.pl test t/$t
+}
+
+alerts="perl rules_processor.pl daemon"
+alias alerts="$beacon_role $alerts"
+alias alertskill="pkill -SIGKILL -f '$alerts'"
+
+alertstest () {
+	local t="$1"
+
+	if [ ${t: -2} != ".t" ]; then
+		t="$t.t"
+	fi
+	
+	BEACON_ROLE=local perl t/$t
+}
+
+pace="perl pace_processor.pl"
+alias pace="$beacon_role $pace --role"
+alias pacekill="pkill -SIGKILL -f '$pace'"
+
+alias vpn="sudo openvpn --config client.ovpn --script-security 2"
+
+alias deployapi="perl deploy_package.pl -p sv-api-dev"
+alias deployweb="perl package_site.pl -b dev"
+
+alias sss="ssh -i $web_path/keys/general-dev.pem ubuntu@sync.stabilitas.io"
+
+# generate compare links, like:
+# https://github.com/Stabilitas/beacon-alert-rules/compare/master...dulrich:master
+# gl <from> <to>

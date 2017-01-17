@@ -203,6 +203,7 @@ grep_options=( -iIR --exclude={*-bundle.js,*.map,*.min.js,*.min.css,*~,*.log} \
 autom4te.cache,\
 node_modules,\
 uploads,\
+beacon-api,\
 src-min-noconflict\
 } )
 
