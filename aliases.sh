@@ -411,6 +411,3 @@ source $here/git-aliases.sh
 
 # load tmux helper
 source $here/tmux.sh
-
-# load work aliases
-source $here/work-aliases.sh
