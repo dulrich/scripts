@@ -17,19 +17,27 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 # dirs, eval style
-cdnames=( ca                   cb                   cs                    ct                           cr                              cv )
-cdpaths=( $web_path/beacon-api $web_path/beacon-lib $web_path/beacon-site $web_path/beacon-alert-rules $web_path/beacon-pace-processor $web_path/beacon-devops )
+cdnames=( ca                   cb                   cs                    car                          cr                              cv                      cbn                         ct                     can )
+cdpaths=( $web_path/beacon-api $web_path/beacon-lib $web_path/beacon-site $web_path/beacon-alert-rules $web_path/beacon-pace-processor $web_path/beacon-devops $web_path/beacon-lib-dotnet $web_path/beacon-telco $web_path/beacon-api-dotnet )
 
-for i in {0..4}
+for i in {0..8}
 do
 	aliascd ${cdnames[$i]} ${cdpaths[$i]}
 done
 
+alias aa="a api1.pl Beacon/ sql/"
+alias da="d api1.pl Beacon/ sql/"
 fs () {
 	git fetch stabilitas $(defarg "$*" 0 master)
 }
 ms () {
 	git merge stabilitas $(defarg "$*" 0 master)
+}
+pps () {
+	local branch=$(git rev-parse --abbrev-ref HEAD)
+	
+	git push origin $(defarg "$*" 0 $branch)
+	git push stabilitas $(defarg "$*" 0 $branch)
 }
 us () {
 	u stabilitas $(defarg "$*" 0 master)
@@ -74,7 +82,16 @@ alias deployapi="perl deploy_package.pl -p sv-api-dev"
 alias deployweb="perl package_site.pl -b dev"
 
 alias sss="ssh -i $web_path/keys/general-dev.pem ubuntu@sync.stabilitas.io"
+alias sst="ssh -i $web_path/keys/general-dev.pem ubuntu@notifications.stabilitas.internal"
 
 # generate compare links, like:
 # https://github.com/Stabilitas/beacon-alert-rules/compare/master...dulrich:master
 # gl <from> <to>
+
+synclib () {
+	local beacon_files=( Configuration Magic Modern Notification NotificationResponse PacePlan PushService ShortGuid Twilio )
+	for i in {0..8}
+	do
+		cp Beacon/${beacon_files[$i]}.pm ../beacon-lib/Beacon/.
+	done
+}
