@@ -54,7 +54,7 @@ ln -s ~/scripts/crouton/crouton_aliases.sh ~/.bash_aliases
 
 #crouton, remap search key to mod4
 ln -s ~/scripts/crouton/xinitrc ~/.xinitrc
-ln -s ~/script/crouton/Xmodmap ~/.Xmodmap
+ln -s ~/scripts/Xmodmap ~/.Xmodmap
 ```
 
 
