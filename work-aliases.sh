@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # work-aliases.sh: shorten common work tasks
-# Copyright 2013 - 2016 David Ulrich
+# Copyright 2013 - 2017 David Ulrich
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -17,10 +17,10 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 # dirs, eval style
-cdnames=( ca                   cb                   cs                    car                          cr                              cv                      cbn                         ct                     can )
-cdpaths=( $web_path/beacon-api $web_path/beacon-lib $web_path/beacon-site $web_path/beacon-alert-rules $web_path/beacon-pace-processor $web_path/beacon-devops $web_path/beacon-lib-dotnet $web_path/beacon-telco $web_path/beacon-api-dotnet )
+cdnames=( ca                   cb                   cbb                                  cs                    ci                                  car                          cr                              cv                      cbn                         ct                     can )
+cdpaths=( $web_path/beacon-api $web_path/beacon-lib $web_path/beacon-basic-communication $web_path/beacon-site $web_path/beacon-internal-dashboard $web_path/beacon-alert-rules $web_path/beacon-pace-processor $web_path/beacon-devops $web_path/beacon-lib-dotnet $web_path/beacon-telco $web_path/beacon-api-dotnet )
 
-for i in {0..8}
+for i in {0..10}
 do
 	aliascd ${cdnames[$i]} ${cdpaths[$i]}
 done
@@ -72,6 +72,10 @@ alertstest () {
 	BEACON_ROLE=local perl t/$t
 }
 
+comms="perl basic_communication.pl daemon"
+alias comms="$beacon_role $comms"
+alias commskill="pkill -SIGKILL -f '$comms'"
+
 pace="perl pace_processor.pl"
 alias pace="$beacon_role $pace --role"
 alias pacekill="pkill -SIGKILL -f '$pace'"
@@ -81,8 +85,28 @@ alias vpn="sudo openvpn --config client.ovpn --script-security 2"
 alias deployapi="perl deploy_package.pl -p sv-api-dev"
 alias deployweb="perl package_site.pl -b dev"
 
+alias ssr="ssh -i $web_path/keys/general-dev.pem ubuntu@172.31.72.102"
 alias sss="ssh -i $web_path/keys/general-dev.pem ubuntu@sync.stabilitas.io"
 alias sst="ssh -i $web_path/keys/general-dev.pem ubuntu@notifications.stabilitas.internal"
+
+
+# data
+alias sswa="ssh -i $web_path/keys/SeanMadayStabilitas.pem ubuntu@34.208.185.199"
+alias sspm="ssh -i $web_path/keys/SeanMadayStabilitas.pem ubuntu@52.43.157.194"
+
+alias ingest="python ingest.py"
+digest () {
+	while true; do
+		python digest.py
+		sleep 1
+	done
+}
+pipeline () {
+	while true; do
+		python pipeline.py
+		sleep 1
+	done
+}
 
 # generate compare links, like:
 # https://github.com/Stabilitas/beacon-alert-rules/compare/master...dulrich:master
