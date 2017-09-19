@@ -54,7 +54,7 @@ apitest () {
 	if [ ${t: -2} != ".t" ]; then
 		t="$t.t"
 	fi
-	
+
 	BEACON_ROLE=local perl api1.pl test t/$t
 }
 
@@ -68,7 +68,7 @@ alertstest () {
 	if [ ${t: -2} != ".t" ]; then
 		t="$t.t"
 	fi
-	
+
 	BEACON_ROLE=local perl t/$t
 }
 
@@ -80,13 +80,14 @@ pace="perl pace_processor.pl"
 alias pace="$beacon_role $pace --role"
 alias pacekill="pkill -SIGKILL -f '$pace'"
 
-alias vpn="sudo openvpn --config client.ovpn --script-security 2"
+alias vpn="cd ~/vpn ; sudo openvpn --config client.ovpn --script-security 2"
 
 alias deployapi="perl deploy_package.pl -p sv-api-dev"
 alias deployweb="perl package_site.pl -b dev"
 
 alias ssn="ssh -i $web_path/keys/general-dev.pem ubuntu@172.31.70.189"
 alias ssr="ssh -i $web_path/keys/general-dev.pem ubuntu@172.31.72.102"
+alias ssp="ssh -i $web_path/keys/general-dev.pem ubuntu@172.31.154.23"
 alias sss="ssh -i $web_path/keys/general-dev.pem ubuntu@sync.stabilitas.io"
 alias sst="ssh -i $web_path/keys/general-dev.pem ubuntu@notifications.stabilitas.internal"
 
@@ -95,19 +96,6 @@ alias sst="ssh -i $web_path/keys/general-dev.pem ubuntu@notifications.stabilitas
 alias sswa="ssh -i $web_path/keys/SeanMadayStabilitas.pem ubuntu@34.208.185.199"
 alias sspm="ssh -i $web_path/keys/SeanMadayStabilitas.pem ubuntu@52.43.157.194"
 
-alias ingest="python ingest.py"
-digest () {
-	while true; do
-		python digest.py
-		sleep 1
-	done
-}
-pipeline () {
-	while true; do
-		python pipeline.py
-		sleep 1
-	done
-}
 
 # generate compare links, like:
 # https://github.com/Stabilitas/beacon-alert-rules/compare/master...dulrich:master
