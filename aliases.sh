@@ -81,6 +81,10 @@ wl () {
 		echo ""
 	done
 }
+dc () {
+	local battery_level=$( acpi )
+	$here/daylog.sh -f acpi "$battery_level"
+}
 
 # typing ./ is hard
 alias lifi="$here/lifi.sh"
@@ -284,7 +288,6 @@ fileperm () {
 }
 
 ## assorted
-alias cl="clear"
 alias cvim="cb ; vim -c vs"
 alias eject_fix="sudo eject -i off"
 alias glver="glxinfo | grep 'OpenGL version'"
