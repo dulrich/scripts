@@ -23,21 +23,25 @@
     packagesWithKeymapsDisabled: [
       "tree-view"
     ]
+    telemetryConsent: "limited"
+    themes: [
+      "one-light-ui"
+      "one-light-syntax"
+    ]
   "disable-keybindings":
     prefixKeys: [
       "ctrl-k"
     ]
   editor:
-    fontSize: 12
     invisibles:
       eol: " "
     lineHeight: 1.25
     nonWordCharacters: "/\\()\"':,.;<>~!@#$%^&*|+=[]{}`?…"
     scrollPastEnd: true
     scrollSensitivity: 50
-    showInvisibles: true
+    showIndentGuide: true
     tabLength: 4
-    tabType: "hard"
+    tabType: "soft"
   "exception-reporting":
     userId: "c2534162-1992-fab9-5886-f28e255e051f"
   "find-and-replace":
@@ -63,8 +67,7 @@
   "linter-jshint":
     lintInlineJavaScript: true
     lintJSXFiles: true
-  "one-dark-ui":
-    layoutMode: "Compact"
+  "one-dark-ui": {}
   "status-bar": {}
   "tree-view":
     hideVcsIgnoredFiles: true
