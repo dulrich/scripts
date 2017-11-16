@@ -17,10 +17,10 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 # dirs, eval style
-cdnames=( ca                   cb                   cbb                                  cs                    ci                                  car                          cr                              cv                      cbn                         ct                     can )
-cdpaths=( $web_path/beacon-api $web_path/beacon-lib $web_path/beacon-basic-communication $web_path/beacon-site $web_path/beacon-internal-dashboard $web_path/beacon-alert-rules $web_path/beacon-pace-processor $web_path/beacon-devops $web_path/beacon-lib-dotnet $web_path/beacon-telco $web_path/beacon-api-dotnet )
+cdnames=( ca                   cb                   cbb                                  cs                    ci                                  car                          cr                              cv                      cl )
+cdpaths=( $web_path/beacon-api $web_path/beacon-lib $web_path/beacon-basic-communication $web_path/beacon-site $web_path/beacon-internal-dashboard $web_path/beacon-alert-rules $web_path/beacon-pace-processor $web_path/beacon-devops $web_path/beacon-pipeline )
 
-for i in {0..10}
+for i in {0..8}
 do
 	aliascd ${cdnames[$i]} ${cdpaths[$i]}
 done
@@ -58,7 +58,7 @@ apitest () {
 	BEACON_ROLE=local perl api1.pl test t/$t
 }
 
-alerts="perl rules_processor.pl daemon"
+alerts="perl triggers.pl daemon"
 alias alerts="$beacon_role $alerts"
 alias alertskill="pkill -SIGKILL -f '$alerts'"
 
@@ -84,7 +84,9 @@ alias vpn="cd ~/vpn ; sudo openvpn --config client.ovpn --script-security 2"
 
 alias deployapi="perl deploy_package.pl -p sv-api-dev"
 alias deployweb="perl package_site.pl -b dev"
+alias deployidb="perl package_internal_dashboard.pl -b dev"
 
+alias ssc="ssh -i $web_path/keys/general-dev.pem ubuntu@pace.stabilitas.internal"
 alias ssn="ssh -i $web_path/keys/general-dev.pem ubuntu@172.31.70.189"
 alias ssr="ssh -i $web_path/keys/general-dev.pem ubuntu@172.31.72.102"
 alias ssp="ssh -i $web_path/keys/general-dev.pem ubuntu@172.31.154.23"
