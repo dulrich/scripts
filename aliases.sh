@@ -95,12 +95,12 @@ defarg () {
 	local args=($1)
 	local which=$2
 	local def=$3
-	
+
 	if [ "$which" == '@' ]; then
 		all=1
 		which=0
 	fi
-	
+
 	if [ ${#args[@]} -gt $which ]; then
 		if [ $all -eq 1 ]; then echo "${args[@]}"
 		else echo "${args[$which]}"; fi
@@ -116,48 +116,48 @@ genpath () {
 	cpath="$1"
 	opath=""
 	cur="$2"
-	
+
 	IFS=/
 	path=($cur)
 	unset IFS
-	
+
 	if [ "${cur: -1}" == '/' ]; then
 		path[${#path[@]}]=""
 	fi
-	
+
 	file=''
 	if [ ${#path[@]} -gt 0 ]; then
 		file=${path[${#path[@]}-1]}
 		unset path[${#path[@]}-1]
 	fi
-	
+
 	for p in "${path[@]}"; do
 		cpath="$cpath/$p"
 		if [ "$opath" == "" ]; then opath="$p"
 		else opath="$opath/$p"; fi
 	done
-	
+
 	reply=( $(compgen -W "$(find $cpath -mindepth 1 -maxdepth 1 -type d -printf '%f/\t')" $file ) )
-	
+
 	if [ ${#reply[@]} -eq 1 ] && [ "$opath" != "" ]; then
 		reply=( "$opath/${reply[0]}" )
 	fi
-	
+
 	echo "${reply[@]}"
 }
 
 highfile () {
 	local max=0
 	local path=$(defarg "$*" 0 './')
-	
+
 	IFS=$'\n'
 	local arr=( $(ls $path | grep -oP "^\d+") )
 	unset IFS
-	
+
 	for n in "${arr[@]}"; do
 		((n > max)) && max=$n
 	done
-	
+
 	echo "High: $max"
 	max=$((max + 1))
 	echo "Next: $max"
@@ -213,55 +213,60 @@ src-min-noconflict\
 # What I want grep to do 99% of the time
 gr () {
 	local path=$(defarg "$*" 1 './')
-	
+
 	grep ${grep_options[@]} $1 $path
 }
 # Sometimes I just want an overview from grep
 grc () {
 	local path=$(defarg "$*" 1 './')
-	
+
 	grep -c ${grep_options[@]} $1 $path | grep -E ':[^0]'
 }
 
 # raw grep (no excludes)
 ga () {
 	local path=$(defarg "$*" 1 './')
-	
+
 	grep -iIRP ${grep_options[@]} $1 $path
 }
 gac () {
 	local path=$(defarg "$*" 1 './')
-	
+
 	grep -iIRPc ${grep_options[@]} $1 $path
 }
 
 # old gr / grc
 ge () {
 	local path=$(defarg "$*" 1 './')
-	
+
 	grep -E ${grep_options[@]} $1 $path
 }
 gec () {
 	local path=$(defarg "$*" 1 './')
-	
+
 	grep -Ec ${grep_options[@]} $1 $path | grep -E ':[^0]'
 }
 
 # POSIX character classes can be a pain, especially if you forget egrep uses them
 gp () {
 	local path=$(defarg "$*" 1 './')
-	
+
 	grep -P ${grep_options[@]} $1 $path
 }
 gpc () {
 	local path=$(defarg "$*" 1 './')
-	
+
 	grep -Pc ${grep_options[@]} $1 $path | grep -E ':[^0]'
 }
 gpw () {
 	local path=$(defarg "$*" 1 './')
-	
+
 	grep -P ${grep_options[@]} "\b$1\b" $path
+}
+
+
+pc () {
+	perlcritic $1 2>/dev/null
 }
 
 
@@ -270,7 +275,7 @@ rall () {
 	if [ $# -lt 2 ]; then
 		$2=''
 	fi
-	
+
 	find . -type f | grep -Ev '.git|node_modules|uploads|.png|.jpg|.jpeg' | xargs -d '\n' sed -i -r -e "s/$1/$2/g"
 }
 
@@ -288,6 +293,7 @@ fileperm () {
 }
 
 ## assorted
+alias clim="fortune /usr/share/games/fortunes/off/limerick | cowsay -n"
 alias cvim="cb ; vim -c vs"
 alias eject_fix="sudo eject -i off"
 alias glver="glxinfo | grep 'OpenGL version'"
@@ -330,7 +336,7 @@ trackfix () {
 }
 trackconv () {
 	local tracks=( $(ls) )
-	
+
 	for t in "${tracks[@]}"; do
 		avconv -i "$t" "$t.mp3"
 	done
@@ -345,7 +351,7 @@ imgcp () {
 }
 gigs () {
 	local path=$(defarg "$*" 0 "/")
-	
+
 	du -h -t 1G $path 2> /dev/null
 }
 
@@ -359,7 +365,7 @@ alias en="setxkbmap us"
 
 timer () {
 	local MIN=$(defarg "$*" 0 1)
-	
+
 	for ((i=MIN*60;i>=0;i--)); do
 		echo -ne "\r$(date -d"0+$i sec" +%H:%M:%S)"
 		sleep 1
@@ -370,28 +376,28 @@ timer () {
 # a totally irrelevant curiosities
 hashalen () {
 	local len=$(defarg "$*" 0 4)
-	
+
 	printf -- '%s\n' $(git log --pretty=format:'%H' | grep -i --color=always "[[:alpha:]]\{$len\}")
 }
 hashstr () {
 	local str=$(defarg "$*" 0 "dead")
-	
+
 	printf -- '%s\n' $(git log --pretty=format:'%H' | grep -i --color=always "$str")
 }
 hashwords () {
 	len=$(defarg "$*" 0 4)
 
 	dwords=$(grep "^[a-fA-F]\{$len\}$" /etc/dictionaries-common/words)
-	
+
 	echo "=============================="
 	echo "searching $len letter words..."
 	echo "=============================="
-	
+
 	for w in $dwords; do
 		printf "\nword: $w"
 		printf -- '\n\t%s' $(git log --pretty=format:'%H' | grep -i --color=always "$w")
 	done
-	
+
 	echo ""
 	echo "=============================="
 	echo "...done"
@@ -401,6 +407,19 @@ commits () {
 	local terms=$( ajoin "|" "$@" )
 
 	git log --pretty=format:"(%aN) %s" | grep -iE "($terms)"
+}
+
+
+EXTERNAL_OUTPUT="DP-1-3"
+INTERNAL_OUTPUT="eDP-1-1"
+external () {
+    xrandr --output $EXTERNAL_OUTPUT --auto --output $INTERNAL_OUTPUT --off
+}
+internal () {
+    xrandr --output $INTERNAL_OUTPUT --auto --output $EXTERNAL_OUTPUT --off
+    xrandr --newmode "2560x1400_60.0" 312.25  2560 2752 3024 3488  1440 1443 1448 1493 -hsync +vsync 2> /dev/null || true
+    xrandr --addmode eDP-1-1 2560x1400_60.0
+    xrandr --output $INTERNAL_OUTPUT --mode "2560x1400_60.0"
 }
 
 
