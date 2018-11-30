@@ -17,10 +17,10 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 # dirs, eval style
-cdnames=( ca                   cb                   cbb                                  cs                    ci                                  car                          cr                              cv                      cl )
-cdpaths=( $web_path/beacon-api $web_path/beacon-lib $web_path/beacon-basic-communication $web_path/beacon-site $web_path/beacon-internal-dashboard $web_path/beacon-alert-rules $web_path/beacon-pace-processor $web_path/beacon-devops $web_path/beacon-pipeline )
+cdnames=( ca                   cb                   cbb                                  cs                    ci                                  car                          cr                              cv                      cdp                       cdl                          cda                       cva )
+cdpaths=( $web_path/beacon-api $web_path/beacon-lib $web_path/beacon-basic-communication $web_path/beacon-site $web_path/beacon-internal-dashboard $web_path/beacon-alert-rules $web_path/beacon-pace-processor $web_path/beacon-devops $web_path/beacon-pipeline $web_path/beacon-data-loader $web_path/beacon-data-api $web_path/beacon-travel-api )
 
-for i in {0..8}
+for i in {0..11}
 do
 	aliascd ${cdnames[$i]} ${cdpaths[$i]}
 done
@@ -35,7 +35,7 @@ ms () {
 }
 pps () {
 	local branch=$(git rev-parse --abbrev-ref HEAD)
-	
+
 	git push origin $(defarg "$*" 0 $branch)
 	git push stabilitas $(defarg "$*" 0 $branch)
 }
@@ -43,10 +43,20 @@ us () {
 	u stabilitas $(defarg "$*" 0 master)
 }
 
-beacon_role="BEACON_ROLE=local"
+beacon_role="BEACON_ROLE=dev"
 api="perl api1.pl daemon"
 alias api="$beacon_role $api"
 alias apikill="pkill -SIGKILL -f '$api'"
+alias pgkill="killall pgadmin3"
+
+apiconfig () {
+	cp beacon.config.dev.$1 beacon.config.dev.json
+}
+_apiconfig () {
+	COMPREPLY=( $(compgen -W "local prod staging" "$2" ) )
+	return 0
+}
+_comp apiconfig
 
 apitest () {
 	local t="$1"
@@ -55,7 +65,7 @@ apitest () {
 		t="$t.t"
 	fi
 
-	BEACON_ROLE=local perl api1.pl test t/$t
+	BEACON_ROLE=dev perl api1.pl test t/$t
 }
 
 alerts="perl triggers.pl daemon"
@@ -81,15 +91,18 @@ alias pace="$beacon_role $pace --role"
 alias pacekill="pkill -SIGKILL -f '$pace'"
 
 alias vpn="cd ~/vpn ; sudo openvpn --config client.ovpn --script-security 2"
+alias vpn_staging="cd ~/vpn ; sudo openvpn --config staging-client.ovpn --script-security 2"
 
 alias deployapi="perl deploy_package.pl -p sv-api-dev"
 alias deployweb="perl package_site.pl -b dev"
 alias deployidb="perl package_internal_dashboard.pl -b dev"
 
+alias ssa="ssh -i $web_path/keys/general-dev.pem ubuntu@54.173.18.178"
+alias ssp="ssh -i $web_path/keys/general-dev.pem ubuntu@172.31.154.23"
+
 alias ssc="ssh -i $web_path/keys/general-dev.pem ubuntu@pace.stabilitas.internal"
 alias ssn="ssh -i $web_path/keys/general-dev.pem ubuntu@172.31.70.189"
 alias ssr="ssh -i $web_path/keys/general-dev.pem ubuntu@172.31.72.102"
-alias ssp="ssh -i $web_path/keys/general-dev.pem ubuntu@172.31.154.23"
 alias sss="ssh -i $web_path/keys/general-dev.pem ubuntu@sync.stabilitas.io"
 alias sst="ssh -i $web_path/keys/general-dev.pem ubuntu@notifications.stabilitas.internal"
 
@@ -109,4 +122,20 @@ synclib () {
 	do
 		cp Beacon/${beacon_files[$i]}.pm ../beacon-lib/Beacon/.
 	done
+}
+
+
+# access psql on staging dbs (inside vpc)
+# kubectl config use-context <your-staging-context>
+# kubectl run psql -it --rm --restart=Never --image=jbergknoff/postgresql-client postgres://<username>:<password>@host/keystore
+
+kubetailf () {
+	keyword=$1
+	command="cat <("
+	for line in $(kubectl get pods | \
+	   grep $keyword | grep Running | awk '{print $1}'); do
+       command="$command (kubectl logs --tail=2 -f $line &) && "
+	done
+	command="$command echo)"
+	eval $command
 }
