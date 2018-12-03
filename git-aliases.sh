@@ -27,6 +27,11 @@ as () {
 b () {
 	git checkout $(defarg "$*" 0 'master')
 }
+bb () {
+	git checkout -b "$1"
+	git branch --set-upstream-to="origin/$1" "$1"
+	git push origin "$1"
+}
 c () {
 	git commit -m "$*"
 }
