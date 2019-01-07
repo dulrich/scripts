@@ -93,10 +93,6 @@ alias pacekill="pkill -SIGKILL -f '$pace'"
 alias vpn="cd ~/vpn ; sudo openvpn --config client.ovpn --script-security 2"
 alias vpn_staging="cd ~/vpn ; sudo openvpn --config staging-client.ovpn --script-security 2"
 
-alias deployapi="perl deploy_package.pl -p sv-api-dev"
-alias deployweb="perl package_site.pl -b dev"
-alias deployidb="perl package_internal_dashboard.pl -b dev"
-
 alias ssa="ssh -i $web_path/keys/general-dev.pem ubuntu@54.173.18.178"
 alias ssp="ssh -i $web_path/keys/general-dev.pem ubuntu@172.31.154.23"
 
@@ -105,11 +101,6 @@ alias ssn="ssh -i $web_path/keys/general-dev.pem ubuntu@172.31.70.189"
 alias ssr="ssh -i $web_path/keys/general-dev.pem ubuntu@172.31.72.102"
 alias sss="ssh -i $web_path/keys/general-dev.pem ubuntu@sync.stabilitas.io"
 alias sst="ssh -i $web_path/keys/general-dev.pem ubuntu@notifications.stabilitas.internal"
-
-
-# data
-alias sswa="ssh -i $web_path/keys/SeanMadayStabilitas.pem ubuntu@34.208.185.199"
-alias sspm="ssh -i $web_path/keys/SeanMadayStabilitas.pem ubuntu@52.43.157.194"
 
 
 # generate compare links, like:
@@ -129,7 +120,8 @@ synclib () {
 # kubectl config use-context <your-staging-context>
 # kubectl run psql -it --rm --restart=Never --image=jbergknoff/postgresql-client postgres://<username>:<password>@host/keystore
 
-kubetailf () {
+alias kkp="kubectl proxy"
+kkt () {
 	keyword=$1
 	command="cat <("
 	for line in $(kubectl get pods | \
@@ -139,3 +131,12 @@ kubetailf () {
 	command="$command echo)"
 	eval $command
 }
+
+kku () {
+	kubectl config use-context ulrich-$1.stabilitas.io
+}
+_kku () {
+	COMPREPLY=( $(compgen -W "production staging" "$2" ) )
+	return 0
+}
+_comp kku
