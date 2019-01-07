@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # aliases.sh: shorten common tasks
-# Copyright 2013 - 2016  David Ulrich
+# Copyright 2013 - 2019  David Ulrich
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -205,6 +205,7 @@ grep_options=( -iIR --exclude={*-bundle.js,*.map,*.min.js,*.min.css,*~,*.log} \
 .deps,\
 .git,\
 autom4te.cache,\
+dist,\
 node_modules,\
 uploads,\
 beacon-api,\

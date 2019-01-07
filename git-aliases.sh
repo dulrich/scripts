@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # git-aliases.sh: shorten common git tasks
-# Copyright 2013 - 2016  David Ulrich
+# Copyright 2013 - 2019  David Ulrich
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -28,9 +28,12 @@ b () {
 	git checkout $(defarg "$*" 0 'master')
 }
 bb () {
-	git checkout -b "$1"
-	git branch --set-upstream-to="origin/$1" "$1"
+	local exists=$( git rev-parse --quiet --verify "$1" )
+	if [ "$exists" == '' ]; then
+		git checkout -b "$1"
+	fi
 	git push origin "$1"
+	git branch --set-upstream-to="origin/$1" "$1"
 }
 c () {
 	git commit -m "$*"
@@ -77,6 +80,11 @@ ump () {
 	m $*
 	p $*
 }
+pgl () {
+	local branch=$(git rev-parse --abbrev-ref HEAD)
+	git push gitlab $branch:$1
+}
+
 pp () {
 	git push production $(defarg "$*" 0 'master')
 }
@@ -96,20 +104,20 @@ zz () {
 
 blameline () {
 	local author blame line inv
-	
+
 	IFS=:
 	inv=($1)
 	unset IFS
-	
+
 	IFS=$'\n'
 	blame=( $(git blame -pw -L${inv[1]},${inv[1]} ${inv[0]}) )
 	unset IFS
-	
+
 	hash=${blame[0]:0:10}
 	author=$(echo ${blame[1]} | cut -d" " -f2-)
-	
+
 	line="${blame[${#blame[@]} - 1]}"
-	
+
 	echo "$1 ($author $hash) $line"
 }
 blamepipe () {
@@ -121,7 +129,7 @@ blamepipe () {
 # grep and blame at the same time
 gb () {
 	local path=$(defarg "$*" 1 './')
-	
+
 	grep -Pn ${grep_options[@]} $1 $path | blamepipe
 }
 
