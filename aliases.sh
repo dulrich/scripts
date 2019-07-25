@@ -155,6 +155,7 @@ highfile () {
 	unset IFS
 
 	for n in "${arr[@]}"; do
+		n=$((10#$n))
 		((n > max)) && max=$n
 	done
 
@@ -202,8 +203,10 @@ alias lh="ls -ahlFB"
 # grep shortcuts
 grep_options=( -iIR --exclude={*-bundle.js,*.map,*.min.js,*.min.css,*~,*.log} \
 --exclude-dir={\
+.apm\
 .deps,\
 .git,\
+.node-gyp\
 autom4te.cache,\
 dist,\
 node_modules,\
