@@ -300,12 +300,27 @@ fileperm () {
 ## assorted
 alias clim="fortune /usr/share/games/fortunes/off/limerick | cowsay -n"
 alias cvim="cb ; vim -c vs"
+days () {
+	local mindate=$(date -d "2019-10-12" +%j)
+	local enddate=$(date -d "2019-10-27" +%j)
+	local maxdate=$(date -d "2019-12-31" +%j)
+	local now=$(date +%j)
+	local mindays=$(($mindate - $now))
+	local enddays=$(($enddate - $now))
+	local maxdays=$(($maxdate - $now))
+	local minwork=$((($mindate - $now) * 5 / 7 ))
+	local endwork=$((($enddate - $now) * 5 / 7 ))
+	local maxwork=$((($maxdate - $now) * 5 / 7 ))
+	echo "$mindays/$enddays/$maxdays days"
+	echo "$minwork/$endwork/$maxwork work"
+}
 alias eject_fix="sudo eject -i off"
 alias glver="glxinfo | grep 'OpenGL version'"
 kt () {
 	eval `ssh-agent`
 	ssh-add
 }
+alias pingg="ping 8.8.8.8"
 alias webstack="service apache2 restart && service nginx restart"
 alias a2log="tail -n 50 -f /var/log/apache2/error.log"
 alias phplog="tail -n 50 -f /var/log/php/php_errors.log"

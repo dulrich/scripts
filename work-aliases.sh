@@ -17,10 +17,10 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 # dirs, eval style
-cdnames=( ca                   cb                   cbb                                  cs                    ci                                  car                          cr                              cv                      cdp                       cdl                          cda                       cva )
-cdpaths=( $web_path/beacon-api $web_path/beacon-lib $web_path/beacon-basic-communication $web_path/beacon-site $web_path/beacon-internal-dashboard $web_path/beacon-alert-rules $web_path/beacon-pace-processor $web_path/beacon-devops $web_path/beacon-pipeline $web_path/beacon-data-loader $web_path/beacon-data-api $web_path/beacon-travel-api )
+cdnames=( ca                   cb                   cbb                                  cby                     cdf                               cs                    ci                                  car                          cr                              cv                      cdp                       cdl                          cda                       cva )
+cdpaths=( $web_path/beacon-api $web_path/beacon-lib $web_path/beacon-basic-communication $web_path/beacon-lib-py $web_path/beacon-realtime-filters $web_path/beacon-site $web_path/beacon-internal-dashboard $web_path/beacon-alert-rules $web_path/beacon-pace-processor $web_path/beacon-devops $web_path/beacon-pipeline $web_path/beacon-data-loader $web_path/beacon-data-api $web_path/beacon-travel-api )
 
-for i in {0..11}
+for i in {0..12}
 do
 	aliascd ${cdnames[$i]} ${cdpaths[$i]}
 done
@@ -48,15 +48,27 @@ api="perl api1.pl daemon"
 alias api="$beacon_role $api"
 alias apikill="pkill -SIGKILL -f '$api'"
 alias pgkill="killall pgadmin3"
+alias site="sudo API_SERVER_URL=http://localhost:3000 yarn start"
 
 apiconfig () {
 	cp beacon.config.dev.$1 beacon.config.dev.json
+	cp beacon.config.dev.$1 beacon.config.local.json
+	cp beacon.config.dev.$1 beacon.config.json
 }
 _apiconfig () {
 	COMPREPLY=( $(compgen -W "local prod staging" "$2" ) )
 	return 0
 }
 _comp apiconfig
+
+penv () {
+	cp .env.$1 .env
+}
+_penv () {
+	COMPREPLY=( $(compgen -W "local prod" "$2" ) )
+	return 0
+}
+_comp penv
 
 apitest () {
 	local t="$1"
@@ -126,6 +138,16 @@ kkt () {
 	command="cat <("
 	for line in $(kubectl get pods | \
 	   grep $keyword | grep Running | awk '{print $1}'); do
+       command="$command (kubectl logs --tail=2 -f $line &) && "
+	done
+	command="$command echo)"
+	eval $command
+}
+kke () {
+	keyword=$1
+	command="cat <("
+	for line in $(kubectl get pods | \
+	   grep "$keyword-[0-9]" | grep Running | awk '{print $1}'); do
        command="$command (kubectl logs --tail=2 -f $line &) && "
 	done
 	command="$command echo)"
