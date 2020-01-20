@@ -20,7 +20,7 @@
 cdnames=( ca                   cb                   cbb                                  cby                     cdf                               cs                    ci                                  car                          cr                              cv                      cdp                       cdl                          cda                       cva )
 cdpaths=( $web_path/beacon-api $web_path/beacon-lib $web_path/beacon-basic-communication $web_path/beacon-lib-py $web_path/beacon-realtime-filters $web_path/beacon-site $web_path/beacon-internal-dashboard $web_path/beacon-alert-rules $web_path/beacon-pace-processor $web_path/beacon-devops $web_path/beacon-pipeline $web_path/beacon-data-loader $web_path/beacon-data-api $web_path/beacon-travel-api )
 
-for i in {0..12}
+for i in {0..13}
 do
 	aliascd ${cdnames[$i]} ${cdpaths[$i]}
 done
@@ -45,30 +45,29 @@ us () {
 
 beacon_role="BEACON_ROLE=dev"
 api="perl api1.pl daemon"
-alias api="$beacon_role $api"
+alias api="$api"
 alias apikill="pkill -SIGKILL -f '$api'"
 alias pgkill="killall pgadmin3"
 alias site="sudo API_SERVER_URL=http://localhost:3000 yarn start"
 
-apiconfig () {
-	cp beacon.config.dev.$1 beacon.config.dev.json
-	cp beacon.config.dev.$1 beacon.config.local.json
-	cp beacon.config.dev.$1 beacon.config.json
+prfig () {
+	export BEACON_ROLE=$1
+	export BEACON_CONFIG=$ENV_PATH/beacon.config.dev.$1
 }
-_apiconfig () {
+_prfig () {
+	COMPREPLY=( $(compgen -W "dev local prod staging" "$2" ) )
+	return 0
+}
+_comp prfig
+
+pyfig () {
+	source $ENV_PATH/python.config.$1
+}
+_pyfig () {
 	COMPREPLY=( $(compgen -W "local prod staging" "$2" ) )
 	return 0
 }
-_comp apiconfig
-
-penv () {
-	cp .env.$1 .env
-}
-_penv () {
-	COMPREPLY=( $(compgen -W "local prod" "$2" ) )
-	return 0
-}
-_comp penv
+_comp pyfig
 
 apitest () {
 	local t="$1"
@@ -111,7 +110,7 @@ alias ssp="ssh -i $web_path/keys/general-dev.pem ubuntu@172.31.154.23"
 alias ssc="ssh -i $web_path/keys/general-dev.pem ubuntu@pace.stabilitas.internal"
 alias ssn="ssh -i $web_path/keys/general-dev.pem ubuntu@172.31.70.189"
 alias ssr="ssh -i $web_path/keys/general-dev.pem ubuntu@172.31.72.102"
-alias sss="ssh -i $web_path/keys/general-dev.pem ubuntu@sync.stabilitas.io"
+alias sss="ssh -i $web_path/keys/general-dev.pem ubuntu@172.31.35.37"
 alias sst="ssh -i $web_path/keys/general-dev.pem ubuntu@notifications.stabilitas.internal"
 
 

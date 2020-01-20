@@ -14,6 +14,8 @@ local aliases you use. Alternately: run `./links.sh`, which is the same as
 
 Chain-loads `git-aliases.sh` and `work-aliases.sh`
 
+Set `ENV_PATH` to wherever ENV secrets are stored
+
 
 ## daylog.sh
 
