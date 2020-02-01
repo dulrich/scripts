@@ -48,6 +48,7 @@ api="perl api1.pl daemon"
 alias api="$api"
 alias apikill="pkill -SIGKILL -f '$api'"
 alias pgkill="killall pgadmin3"
+alias pipeline="cd /web/beacon-pipeline/ && source beacon_pipeline_3_7/bin/activate && pyfig local && cd app"
 alias site="sudo API_SERVER_URL=http://localhost:3000 yarn start"
 
 prfig () {
