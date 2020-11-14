@@ -51,15 +51,25 @@ alias pgkill="killall pgadmin3"
 alias pipeline="cd /web/beacon-pipeline/ && source beacon_pipeline_3_7/bin/activate && pyfig local && cd app"
 alias site="sudo API_SERVER_URL=http://localhost:3000 yarn start"
 
-prfig () {
+plfig () {
 	export BEACON_ROLE=$1
 	export BEACON_CONFIG=$ENV_PATH/beacon.config.dev.$1
+	export INTEL_LAYER_ID_BETA="qkhtuPADEeeZ+AENXM6thw"
+    export INTEL_LAYER_ID_QA="4o2HoKudh0WaFPw5vTJPyw"
 }
-_prfig () {
+_plfig () {
 	COMPREPLY=( $(compgen -W "dev local prod staging" "$2" ) )
 	return 0
 }
-_comp prfig
+pltest () {
+	source $ENV_PATH/beacon.testing.$1
+}
+_pltest () {
+	COMPREPLY=( $(compgen -W "dev local prod staging" "$2" ) )
+	return 0
+}
+_comp plfig
+_comp pltest
 
 pyfig () {
 	source $ENV_PATH/python.config.$1
@@ -162,3 +172,15 @@ _kku () {
 	return 0
 }
 _comp kku
+
+
+# new section for hoa
+hoa () {
+	cd /web/hoa-$1
+}
+
+_hoa () {
+	COMPREPLY=( $(compgen -W "client lib sympathy-server" "$2" ) )
+	return 0
+}
+_comp hoa
