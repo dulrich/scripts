@@ -16,7 +16,7 @@ bindsym $mod+Shift+Return exec i3-sensible-terminal
 
 # kill focused window
 bindsym $mod+Shift+c kill
-bindsym $mod+Shift+l exec slock
+bindsym $mod+Shift+l exec gmrun slock
 
 # launching programs
 #bindsym $mod+d exec dmenu_run
