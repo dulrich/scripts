@@ -20,7 +20,6 @@
 rd_res="1440x1080"
 
 code_path="/code"
-data_path="/data"
 script_path="~/scripts"
 ssh_cmd="ssh"
 web_path="/web"
@@ -32,7 +31,7 @@ if [ -f $here/config.sh ] ; then
 	source $here/config.sh
 fi
 
-# typing out the options everytime gets old
+# typing out the options every time gets old
 _comp () {
 	complete -o nospace -F "_$1" "$1"
 }
@@ -56,10 +55,10 @@ _comp $1
 }
 
 # cd aliases, eval style
-cdnames=( .. ...  web  data down scripts )
-cdpaths=( .. ../.. "$web_path" "$data_path" ~/Downloads "$script_path" )
+cdnames=( .. ...  web down scripts )
+cdpaths=( .. ../.. "$web_path" ~/Downloads "$script_path" )
 
-for i in {0..5}
+for i in {0..4}
 do
 	aliascd ${cdnames[$i]} ${cdpaths[$i]}
 done
