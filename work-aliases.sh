@@ -192,7 +192,7 @@ hoaf () {
 	# header
 	touch "$fname.h"
 	echo -e "// hoa sympathy server" >> "$fname.h"
-	echo -e "// Copyright (C) 2020  David Ulrich\n" >> "$fname.h"
+	echo -e "// Copyright (C) 2020 - 2021  David Ulrich\n" >> "$fname.h"
 	echo -e "#ifndef HOA_${fname^^}_H" >> "$fname.h"
 	echo -e "#define HOA_${fname^^}_H\n" >> "$fname.h"
 	echo -e "#include \"defines.h\"\n\n\n" >> "$fname.h"
@@ -201,7 +201,10 @@ hoaf () {
 	# source
 	touch "$fname.c"
 	echo -e "// hoa sympathy server" >> "$fname.c"
-	echo -e "// Copyright (C) 2020  David Ulrich\n" >> "$fname.c"
-	echo -e "#include \"$fname.h\"\n\n\n" >> "$fname.c"
+	echo -e "// Copyright (C) 2020 - 2021  David Ulrich\n" >> "$fname.c"
+	echo -e "#include \"$fname.h\"\n" >> "$fname.c"
+	echo -e "#define FDEBUG FDEBUG_G" >> "$fname.c"
+	echo -e "// #define FDEBUG(...)\n\n\n" >> "$fname.c"
+	echo -e "#undef FDEBUG" >> "$fname.c"
 	
 }
