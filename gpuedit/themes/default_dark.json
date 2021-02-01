@@ -5,70 +5,73 @@
 		"is_dark": 1,
 	
 		// mainControl.c
-		"bgColor": "#1e1e1eff",
-		"lineNumColor": "#ffffffff",
-		"lineNumBgColor": "#141414ff",
-		"lineNumBookmarkColor": "#32ff32ff",
-		"hl_bgColor": "#264f78ff",
-		"hl_textColor": "#fa0032ff",
-		"find_bgColor": "#115511ff",
-		"find_textColor": "#660022ff",
-		"outlineCurrentLineBorderColor": "#323232ff",
-		"selectedItemTextColor": "#c8c8c8ff",
-		"selectedItemBgColor": "#505050ff",
+		"bgColor":                "#000000ff", // bg
+		"lineNumColor":           "#c5c8c6ff", // color15
+		"lineNumBgColor":         "#000000ff", // bg
+		"lineNumBookmarkColor":   "#8abd68ff", // color10
+		"hl_bgColor":             "#282a2eff", // color0
+		"hl_textColor":           "#ff0000ff",
+		"find_bgColor":           "#373b41ff", // color8
+		"find_textColor":         "#ff0000ff",
+		"outlineCurrentLineBorderColor": "#373b41ff", // color8
+		"selectedItemTextColor":  "#c5c8c6ff", // color15
+		"selectedItemBgColor":    "#282a2eff", // color0
 	},
 	// gui manager defaults
 	GUI_GlobalSettings: {
-		"bgColor": "#1e1e1eff",
-		"lineNumColor": "#ffffffff",
-		"lineNumBgColor": "#1e1e1eff",
-		"lineNumBookmarkColor": "#32ff32ff",
-		"hl_bgColor": "#264f78ff",
-		"hl_textColor": "#fa0032ff",
-		"find_bgColor": "#115511ff",
-		"find_textColor": "#660022ff",
-		"outlineCurrentLineBorderColor": "#323232ff",
-		"selectedItemTextColor": "#c8c8c8ff",
-		"selectedItemBgColor": "#505050ff",
+		"bgColor":                "#000000ff", // bg
+		"lineNumColor":           "#c5c8c6ff", // color15
+		"lineNumBgColor":         "#000000ff", // bg
+		"lineNumBookmarkColor":   "#8abd68ff", // color10
+		"hl_bgColor":             "#282a2eff", // color0
+		"hl_textColor":           "#ff0000ff",
+		"find_bgColor":           "#373b41ff", // color8
+		"find_textColor":         "#ff0000ff",
+		"outlineCurrentLineBorderColor": "#373b41ff", // color8
+		"selectedItemTextColor":  "#c5c8c6ff", // color15
+		"selectedItemBgColor":    "#282a2eff", // color0
 	
-		"textColor": "#c8c8c8ff",
+		"textColor":              "#c5c8c6ff", // color15
 	
-		"buttonTextColor": "#c8c8e1ff",
-		"buttonHoverTextColor": "#c80202ff",
-		"buttonDisTextColor": "#141414ff",
-		"buttonBgColor": "#0202e1ff",
-		"buttonHoverBgColor": "#c8c802ff",
-		"buttonDisBgColor": "#646464ff",
-		"buttonBorderColor": "#c802e1ff",
-		"buttonHoverBorderColor": "#02c8e1ff",
-		"buttonDisBorderColor": "#14147dff",
+		"buttonTextColor":        "#282a2eff", // color0
+		"buttonHoverTextColor":   "#373b41ff", // color8
+		"buttonDisTextColor":     "#c5c8c6ff", // color15
+		"buttonBgColor":          "#5f819dff", // color4
+		"buttonHoverBgColor":     "#81a2beff", // color12
+		"buttonDisBgColor":       "#282a2eff", // color0
+		"buttonBorderColor":      "#707880ff", // color7
+		"buttonHoverBorderColor": "#707880ff", // color7
+		"buttonDisBorderColor":   "#707880ff", // color7
 	
-		"editBorderColor": "#19f519ff",
-		"editBgColor": "#143219ff",
+		"editBorderColor":        "#707880ff", // color7
+		"editBgColor":            "#000000ff", // bg
+		"editTextColor":          "#c5c8c6ff", // color15
 	
-		"cursorColor": "#f0f0f0ff",
+		"cursorColor":            "#c5c8c6ff", // color15
 	
-		"tabBorderColor": "#787878ff",
-		"tabActiveBgColor": "#505050ff",
-		"tabHoverBgColor": "#282828ff",
-		"tabBgColor": "#0a0a0aff",
-		"tabTextColor": "#c8c8c8ff",
+		"tabBorderColor":         "#707880ff", // color7
+		"tabActiveBgColor":       "#373b41ff", // color8
+		"tabHoverBgColor":        "#282a2eff", // color0
+		"tabBgColor":             "#000000ff", // bg
+		"tabTextColor":           "#c5c8c6ff", // color15
 	
-		"windowBgBorderColor": "#b4b400ff",
+		"windowBgBorderColor":    "#ff00ffff",
 	
-		"windowBgColor": "#1e1e1eff",
-		"windowTitleBorderColor": "#b4b400ff",
+		"windowBgColor":          "#000000ff", // bg
+		"windowTitleBorderColor": "#ff00ffff",
 	
-		"windowTitleColor": "#282828ff",
-		"windowTitleTextColor": "#d2d200ff",
+		"windowTitleColor":       "#ff00ffff",
+		"windowTitleTextColor":   "#ff00ffff",
 		"windowCloseBtnBorderColor": "#d22800ff",
 	
-		"windowCloseBtnColor": "#b43c00ff",
-		"windowScrollbarColor": "#969600ff",
-		"windowScrollbarBorderColor": "#969600ff",
+		"windowCloseBtnColor":    "#ff00ffff",
+		"windowScrollbarColor":   "#ff00ffff",
+		"windowScrollbarBorderColor": "#ff00ffff",
 	
-		"selectBgColor": "#140f03ff",
-		"selectBorderColor": "#64961eff",
-		"selectTextColor": "#96be3cff",
+		"selectBgColor":          "#ff00ffff",
+		"selectBorderColor":      "#ff00ffff",
+		"selectTextColor":        "#ff00ffff",
+		
+		"trayBgColor":            "#373b41ff", // color8
 	},
 }
