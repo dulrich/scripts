@@ -12,7 +12,7 @@ font -misc-fixed-medium-r-normal--13-120-75-75-C-70-iso10646-1
 floating_modifier $mod
 
 # start a terminal
-bindsym $mod+Shift+Return exec i3-sensible-terminal
+bindsym $mod+Shift+Return exec urxvt
 
 # kill focused window
 bindsym $mod+Shift+c kill
@@ -83,9 +83,11 @@ bindsym $mod+Ctrl+Shift+Right resize grow width 10 px or 4 ppt
 bindsym $mod+Left move workspace to output left
 bindsym $mod+Right move workspace to output right
 
-bindsym $mod+t floating toggle
-bindsym $mod+Shift t layout toggle
+bindsym $mod+t layout tabbed
+bindsym $mod+Shift t layout default
 
 # change language modes
 bindsym $mod+e exec setxkbmap us
+bindsym $mod+period exec setxkbmap us
 bindsym $mod+s exec setxkbmap es
+bindsym $mod+comma exec setxkbmap ru
