@@ -1,22 +1,22 @@
 # dark theme colors
-d Normal = #888888
-d Comma = #888888
-d Semicolon = #888888
-d Identifier = #22aabb
-d ControlFlow = #55ff00
-d DataType = #eeee22
-d Operator = #ff0000
-d Number = #ff8811
-d CharLiteral = #aaaaee
-d String = #bbbbdd
-d CommentSingle = #bb0000
-d CommentMulti = #bb0000
-d Preprocessor = #5555ff
-d Keyword = #33FF11
-d LineContinuation = #ff00ff
-d Brackets = #ffffff
-d Braces = #ffffff
-d Parenthesis = #ffffff
+d Normal =           #c5c8c6 # color15
+d Comma =            #c5c8c6 # color15
+d Semicolon =        #c5c8c6 # color15
+d Identifier =       #81a2be # color12
+d ControlFlow =      #8abd68 # color10
+d DataType =         #f0c674 # color11
+d Operator =         #cc6666 # color9
+d Number =           #de935f # color3
+d CharLiteral =      #5e8d87 # color6
+d String =           #5e8d87 # color6
+d CommentSingle =    #707880 # color7
+d CommentMulti =     #707880 # color7
+d Preprocessor =     #85678f # color5
+d Keyword =          #8abd68 # color10
+d LineContinuation = #b294bb # color13
+d Brackets =         #c5c8c6 # color15
+d Braces =           #c5c8c6 # color15
+d Parenthesis =      #c5c8c6 # color15
 
 # light theme colors
 l Normal = #000000
