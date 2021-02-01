@@ -1,4 +1,8 @@
 [
+// true main commands
+{cmd: "MainCmd_QuitWithoutSave",  mods: "C",  key: "q",     amt: 0},
+
+// tabset commands
 {cmd: "MainCmd_NextTab", mods: "A", key: "XK_Right", amt: 1},
 {cmd: "MainCmd_PrevTab", mods: "A", key: "XK_Left",  amt: 1},
 
@@ -13,29 +17,26 @@
 {cmd: "MainCmd_GoToTab", mods: "A", key: "9", amt: 8},
 {cmd: "MainCmd_GoToTab", mods: "A", key: "0", amt: 9},
 
-
-{cmd: "MainCmd_QuitWithoutSave",  mods: "C",  key: "q",     amt: 0},
 {cmd: "MainCmd_OpenFileBrowser",  mods: "C",  key: "o",     amt: 0},
 {cmd: "MainCmd_FuzzyOpener",      mods: "C",  key: "p",     amt: 0},
 {cmd: "MainCmd_GrepOpen",         mods: "CS", key: "p",     amt: 0},
 // {cmd: "MainCmd_MainMenu",         mods: "A",  key: "m",     amt: 0},
 // {cmd: "MainCmd_SimpleWindowTest", mods: "C",  key: "u",     amt: 0},
-{cmd: "MainCmd_CloseTab",         mods: "C",  key: "w",     amt: 0},
-
-
-{cmd: "BufferCmd_ToggleGDBBreakpoint", mods: "A", key: "b", amt: 0},
+// {cmd: "MainCmd_CloseTab",         mods: "C",  key: "w",     amt: 0},
 
 
 {cmd: "FuzzyMatcherCmd_Exit",       mods: "",  key: "XK_Escape",    amt: 0},
+{cmd: "FuzzyMatcherCmd_Exit",       mods: "C", key: "w",            amt: 0},
 {cmd: "FuzzyMatcherCmd_CursorMove", mods: "",  key: "XK_Up",        amt: -1},
 {cmd: "FuzzyMatcherCmd_CursorMove", mods: "",  key: "XK_Down",      amt: 1},
 {cmd: "FuzzyMatcherCmd_OpenFile",   mods: "",  key: "XK_Return",    amt: 0},
 
 
-{cmd: "GrepOpenCmd_Exit",       mods: "", key: "XK_Escape", amt: 0},
-{cmd: "GrepOpenCmd_CursorMove", mods: "", key: "XK_Up",     amt: -1},
-{cmd: "GrepOpenCmd_CursorMove", mods: "", key: "XK_Down",   amt: 1},
-{cmd: "GrepOpenCmd_OpenFile",   mods: "", key: "XK_Return", amt: 0},
+{cmd: "GrepOpenCmd_Exit",       mods: "",  key: "XK_Escape", amt: 0},
+{cmd: "GrepOpenCmd_Exit",       mods: "C", key: "w",        amt: 0},
+{cmd: "GrepOpenCmd_CursorMove", mods: "",  key: "XK_Up",     amt: -1},
+{cmd: "GrepOpenCmd_CursorMove", mods: "",  key: "XK_Down",   amt: 1},
+{cmd: "GrepOpenCmd_OpenFile",   mods: "",  key: "XK_Return", amt: 0},
 
 
 {cmd: "FileBrowserCmd_CursorMoveNoWrap", mods: "",  key: "XK_Up",        amt: -1},
@@ -45,8 +46,10 @@
 {cmd: "FileBrowserCmd_UpDir",            mods: "",  key: "XK_BackSpace", amt: 0},
 {cmd: "FileBrowserCmd_SmartOpen",        mods: "",  key: "XK_Return",    amt: 0},
 {cmd: "FileBrowserCmd_ToggleSelect",     mods: "",  key: "XK_space",     amt: 0},
-/*{cmd: "FileBrowserCmd_JumpToLetter", mods: "", key: "", amt: 0}, */
+//{cmd: "FileBrowserCmd_JumpToLetter", mods: "", key: "", amt: 0},
 
+
+{cmd: "BufferCmd_ToggleGDBBreakpoint", mods: "A", key: "b", amt: 0},
 
 {cmd: "BufferCmd_MoveCursorH",                  mods: "",   key: "XK_Left",         amt: -1, flags: ["scrollToCursor", "resetCursorBlink", "undoSeqBreak"]},
 {cmd: "BufferCmd_MoveCursorH",                  mods: "",   key: "XK_Right",        amt: 1,  flags: ["scrollToCursor", "resetCursorBlink", "undoSeqBreak"]},
@@ -54,6 +57,7 @@
 {cmd: "BufferCmd_MoveCursorV",                  mods: "",   key: "XK_Down",         amt: 1,  flags: ["scrollToCursor", "resetCursorBlink", "undoSeqBreak"]},
 
 {cmd: "BufferCmd_Backspace",                    mods: "",   key: "XK_BackSpace",    amt: 0,  flags: ["scrollToCursor", "resetCursorBlink", "rehighlight"]},
+{cmd: "BufferCmd_Backspace",                    mods: "S",  key: "XK_BackSpace",    amt: 0,  flags: ["scrollToCursor", "resetCursorBlink", "rehighlight"]},
 {cmd: "BufferCmd_Delete",                       mods: "",   key: "XK_Delete",       amt: 0,  flags: ["scrollToCursor", "resetCursorBlink", "rehighlight"]},
 {cmd: "BufferCmd_SplitLineIndent",              mods: "",   key: "XK_Return",       amt: 0,  flags: ["scrollToCursor", "resetCursorBlink", "rehighlight", "undoSeqBreak"]},
 {cmd: "BufferCmd_SplitLineIndent",              mods: "S",  key: "XK_Return",       amt: 0,  flags: ["scrollToCursor", "resetCursorBlink", "rehighlight", "undoSeqBreak"]},
@@ -106,9 +110,12 @@
 {cmd: "BufferCmd_Undo",                         mods: "C",   key: "z",              amt: 0, flags: ["scrollToCursor", "rehighlight"]},
 {cmd: "BufferCmd_Redo",                         mods: "CS",  key: "z",              amt: 0, flags: ["scrollToCursor", "rehighlight"]},
 {cmd: "BufferCmd_Save",                         mods: "C",   key: "s",              amt: 0, },
+// {cmd: "BufferCmd_SaveAndClose",                 mods: "C",   key: "w",              amt: 0, },
+{cmd: "BufferCmd_PromptAndClose",               mods: "C",   key: "w",              amt: 0, },
 {cmd: "BufferCmd_Reload",                       mods: "",    key: "XK_F5",          amt: 0, flags: ["rehighlight"]},
 // {cmd: "BufferCmd_Debug",                        mods: "C",   key: "q",              amt: 0, flags: ["scrollToCursor"]},
 // {cmd: "BufferCmd_Debug",                        mods: "C",   key: "w",              amt: 1, flags: ["scrollToCursor"]},
+{cmd: "BufferCmd_Debug",                        mods: "CA",  key: "XK_Return",      amt: 1, flags: ["scrollToCursor"]},
 {cmd: "BufferCmd_RehilightWholeBuffer",         mods: "CS",  key: "r",              amt: 0, flags: ["rehighlight"]},
 {cmd: "BufferCmd_SetBookmark",                  mods: "CA",  key: "b",              amt: 0, flags: ["scrollToCursor"]},
 {cmd: "BufferCmd_RemoveBookmark",               mods: "CS",  key: "b",              amt: 0, flags: ["scrollToCursor"]},
@@ -130,14 +137,14 @@
 {cmd: "BufferCmd_ShowDictComplete",             mods: "T",   key: "m",              amt: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_", flags: ["scrollToCursor", "resetCursorBlink"]},
 
 
-{mode: 0, cmd: "BufferCmd_FindStartSequenceUnderCursor", mods: "CA",  key: "f",              amt: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_", flags: []},
-{mode: 0, cmd: "BufferCmd_FindStartFromSelection",       mods: "CS",  key: "f",              amt: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_", flags: []},
-{mode: 0, cmd: "BufferCmd_FindResume"    mods: "C", key: "f",         amt: 0, flags: ["centerOnCursor"]},
-{mode: 1, cmd: "BufferCmd_FindNext",     mods: "C", key: "f",         amt: 0, flags: ["centerOnCursor"]},
-{mode: 2, cmd: "BufferCmd_FindResume",   mods: "C", key: "f",         amt: 0, flags: ["centerOnCursor"]},
-{mode: 3, cmd: "BufferCmd_FindResume",   mods: "C", key: "f",         amt: 0, flags: ["centerOnCursor"]},
-{mode: 1, cmd: "BufferCmd_FindNext",     mods: "",  key: "XK_F3",     amt: 0, flags: ["centerOnCursor"]},
-{mode: 1, cmd: "BufferCmd_FindPrev",     mods: "S", key: "XK_F3",     amt: 0, flags: ["centerOnCursor"]},
+//{mode: 0, cmd: "BufferCmd_FindStartSequenceUnderCursor", mods: "CA",  key: "f",              amt: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_", flags: []},
+//{mode: 0, cmd: "BufferCmd_FindStartFromSelection",       mods: "CS",  key: "f",              amt: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_", flags: []},
+{mode: 0, cmd: "BufferCmd_SmartFind",    mods: "C", key: "f",         amt: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_", flags: ["centerOnCursor"]},
+// {mode: 1, cmd: "BufferCmd_FindNext",     mods: "C", key: "f",         amt: 0, flags: ["centerOnCursor"]},
+{mode: 2, cmd: "BufferCmd_SmartFind",    mods: "C", key: "f",         amt: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_", flags: ["centerOnCursor"]},
+{mode: 3, cmd: "BufferCmd_SmartFind",    mods: "C", key: "f",         amt: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_", flags: ["centerOnCursor"]},
+//{mode: 1, cmd: "BufferCmd_FindNext",     mods: "",  key: "XK_F3",     amt: 0, flags: ["centerOnCursor"]},
+//{mode: 1, cmd: "BufferCmd_FindPrev",     mods: "S", key: "XK_F3",     amt: 0, flags: ["centerOnCursor"]},
 {mode: 1, cmd: "BufferCmd_FindNext",     mods: "",  key: "XK_Return", amt: 0, flags: ["centerOnCursor"]},
 {mode: 1, cmd: "BufferCmd_FindPrev",     mods: "S", key: "XK_Return", amt: 0, flags: ["centerOnCursor"]},
 {mode: 1, cmd: "BufferCmd_CloseTray",    mods: "",  key: "XK_Escape", amt: 0, },
@@ -159,6 +166,6 @@
 {mode: 1, cmd: "BufferCmd_GoToLineLaunch", mods: "C", key: "g",         amt: 0, flags: ["resetCursorBlink"]},
 {mode: 2, cmd: "BufferCmd_GoToLineLaunch", mods: "C", key: "g",         amt: 0, flags: ["resetCursorBlink"]},
 {mode: 3, cmd: "BufferCmd_GoToLineSubmit", mods: "",  key: "XK_Return", amt: 0, flags: ["centerOnCursor", "resetCursorBlink"]},
-{mode: 3, cmd: "BufferCmd_CloseTray",      mods: "",  key: "XK_Escape", amt: 0, flags: ["centerOnCursor", "resetCursorBlink"]},
+{mode: 3, cmd: "BufferCmd_CloseTray",      mods: "",  key: "XK_Escape", amt: 0, flags: ["centerOnCursor", "resetCursorBlink"]}
 ]
 
