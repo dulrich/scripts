@@ -73,5 +73,8 @@
 		"selectTextColor":        "#ff00ffff",
 		
 		"trayBgColor":            "#373b41ff", // color8
+		
+		"statusBarBgColor":       "#282a2eff", // color0
+		"statusBarTextColor":     "#c5c8c6ff", // color15
 	},
 }
