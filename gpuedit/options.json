@@ -4,7 +4,8 @@
 		"/web/c_json",
 		"/web/c3dlas",
 		"/web/gpuedit",
-		"/web/sti"
+		"/web/sti",
+		"/web/fibs"
 	],
 
 	"MainControl_startupTabs": [
@@ -30,6 +31,8 @@
 	"Buffer_outlineCurrentLine": 2,
 	// "Buffer_lineNumExtraWidth": 10,
 	// "Buffer_showLineNums": 1,
+	"Buffer_lineNumBase": 10, // 2-35
+	"Buffer_lineNumCharset": "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ",
 	// "Buffer_charWidth": 10,
 	// "Buffer_lineHeight": 20,
 	// "Buffer_tabWidth": 4,
@@ -50,16 +53,27 @@
 			"\n"
 		]
 	},
+	
+	
+	"MainControl_statusWidgets": [
+//		{ type: "hello_world", size: 15, },
+		{ type: "clock",       size: 8,  align: "r", format: "%H:%M:%S" }, // "%H:%M:%S"
+//		{ type: "ping",        size: 10, },
+//		{ type: "battery",     size: 15, },
+		{ type: "linecol",     size: 30, align: "l", format: "line %L:%C  [%T lines]" },
+	],
+	
 	GUI_GlobalSettings: {
 // 		"maxInstances": 16384,
 // 		"linesPerScrollWheel": 5,
 		"hideScrollbar": 1,
-		"hideStatusBar": 1,
+		"hideStatusBar": 0,
 		
 		"fontList": [
 			"Arial",
 			"DejaVu Sans Mono",
 			"Liberation Mono",
-		]
+		],
+		"font_fw": "DejaVu Sans Mono"
 	},
 }
