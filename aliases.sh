@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # aliases.sh: shorten common tasks
-# Copyright 2013 - 2019  David Ulrich
+# Copyright 2013 - 2021  David Ulrich
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -17,15 +17,14 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 # CONFIG VARIABLES
-rd_res="1440x1080"
-
-code_path="/code"
-script_path="~/scripts"
+code_path="~/code/"
+down_path="~/Downloads"
 ssh_cmd="ssh"
-web_path="/web"
 work_user="username"
+EXTERNAL_OUTPUT="DP-1-3"
+INTERNAL_OUTPUT="eDP-1-1"
 
-here=$HOME/scripts
+here=$(dirname "$BASH_SOURCE")
 
 if [ -f $here/config.sh ] ; then
 	source $here/config.sh
@@ -55,24 +54,20 @@ _comp $1
 }
 
 # cd aliases, eval style
-cdnames=( .. ...  web down scripts )
-cdpaths=( .. ../.. "$web_path" ~/Downloads "$script_path" )
+cdnames=( .. ... down code )
+cdpaths=( .. ../.. "$down_path" "$code_path" )
 
-for i in {0..4}
+for i in {0..3}
 do
 	aliascd ${cdnames[$i]} ${cdpaths[$i]}
 done
 
-# Remote Desktop Shortcuts
-alias rdesktop="rdesktop -g $rd_res"
-alias xx="screen -x"
+
 
 # time tracking script
 alias daylog="$here/daylog.sh"
 alias dl="$here/daylog.sh"
 alias dls="$here/daylog.sh -s"
-alias life="$here/daylog.sh -f life"
-alias food="$here/daylog.sh -f food"
 wl () {
 	for i in {7..1}
 	do
@@ -173,31 +168,11 @@ ajoin () {
 	echo "$out"
 }
 
-alias my="mysql -A -u root -p"
-alias mykill="pkill mysql-workbench" #lol
 
-# what find should usually do
-# quote name as necessary to avoid unexpected shell-expansions
-ff () {
-	# the shell expansion resulted in 'unknown predicate' but the expanded command works manually
-	# find . -iname \""$1"\" -not\ -path\ \"*/{.git,node_modules,uploads}/*\"
-	find . -iname "$1" \
-		-not -path "*/.deps/*" \
-		-not -path "*/.git/*" \
-		-not -path "*/autom4te.cache/*" \
-		-not -path "*/html/scripts/*" \
-		-not -path "*/node_modules/*" \
-		-not -path "*/uploads/*" \
-		-not -path "*/src-min-noconflict/*"
-}
-alias subcount="find . -type f | wc -l"
+alias ll="ls -alF"
+alias llr="ls -alFR"
 
-# different approach to finding files
-alias lg="ll | grep -iP"
-alias lgr="ll -R | grep -iP"
-alias llr="ll -R"
 
-alias lh="ls -ahlFB"
 
 # grep shortcuts
 grep_options=( -iIR --exclude={*-bundle.js,*.map,*.min.js,*.min.css,*~,*.log} \
@@ -213,18 +188,7 @@ uploads,\
 src-min-noconflict\
 } )
 
-# What I want grep to do 99% of the time
-gr () {
-	local path=$(defarg "$*" 1 './')
 
-	grep ${grep_options[@]} $1 $path
-}
-# Sometimes I just want an overview from grep
-grc () {
-	local path=$(defarg "$*" 1 './')
-
-	grep -c ${grep_options[@]} $1 $path | grep -E ':[^0]'
-}
 
 # raw grep (no excludes)
 ga () {
@@ -238,17 +202,6 @@ gac () {
 	grep -iIRPc ${grep_options[@]} $1 $path
 }
 
-# old gr / grc
-ge () {
-	local path=$(defarg "$*" 1 './')
-
-	grep -E ${grep_options[@]} $1 $path
-}
-gec () {
-	local path=$(defarg "$*" 1 './')
-
-	grep -Ec ${grep_options[@]} $1 $path | grep -E ':[^0]'
-}
 
 # POSIX character classes can be a pain, especially if you forget egrep uses them
 gp () {
@@ -265,11 +218,6 @@ gpw () {
 	local path=$(defarg "$*" 1 './')
 
 	grep -P ${grep_options[@]} "\b$1\b" $path
-}
-
-
-pc () {
-	perlcritic $1 2>/dev/null
 }
 
 
@@ -295,20 +243,6 @@ fileperm () {
 	find $path -type f -exec chmod 644 {} +
 }
 
-## assorted
-alias clim="fortune /usr/share/games/fortunes/off/limerick | cowsay -n"
-alias cvim="cb ; vim -c vs"
-alias eject_fix="sudo eject -i off"
-alias glver="glxinfo | grep 'OpenGL version'"
-kt () {
-	eval `ssh-agent`
-	ssh-add
-}
-alias webstack="service apache2 restart && service nginx restart"
-alias a2log="tail -n 50 -f /var/log/apache2/error.log"
-alias phplog="tail -n 50 -f /var/log/php/php_errors.log"
-alias tn="tail -n 100 -f"
-alias tnn="tail -n 1000 -f"
 
 mydir () {
 	group=$( id -g -n $USER )
@@ -317,7 +251,6 @@ mydir () {
 	sudo chown "$USER":"$group" "$1"
 }
 
-alias myips="hostname -I"
 
 tarc () {
 	tar -zcvf "$1.tar.gz" "$1"
@@ -327,11 +260,6 @@ tarx () {
 }
 complete -o nospace -F "_tar" "tar"
 
-n() {
-	local path=$(defarg "$*" 0 "server.js")
-
-	nodemon $path
-}
 
 trackfix () {
 	rename s/Track\ // *
@@ -349,20 +277,17 @@ mp3dir () {
 	mv $1/*.mp3 $1-mp3/.
 }
 
-imgcp () {
-	scp $* ulrichdev.com:/web/ulrichdev/static/img/.
-}
+
 gigs () {
 	local path=$(defarg "$*" 0 "/")
 
 	du -h -t 1G $path 2> /dev/null
 }
 
+
 alias pow="sudo poweroff"
-alias agi="sudo apt-get install"
-alias upd="sudo apt-get update"
-alias upg="sudo apt-get upgrade"
-alias aar="sudo apt-add-repository"
+
+
 alias es="setxkbmap es"
 alias en="setxkbmap us"
 
@@ -376,45 +301,9 @@ timer () {
 }
 
 
-# a totally irrelevant curiosities
-hashalen () {
-	local len=$(defarg "$*" 0 4)
-
-	printf -- '%s\n' $(git log --pretty=format:'%H' | grep -i --color=always "[[:alpha:]]\{$len\}")
-}
-hashstr () {
-	local str=$(defarg "$*" 0 "dead")
-
-	printf -- '%s\n' $(git log --pretty=format:'%H' | grep -i --color=always "$str")
-}
-hashwords () {
-	len=$(defarg "$*" 0 4)
-
-	dwords=$(grep "^[a-fA-F]\{$len\}$" /etc/dictionaries-common/words)
-
-	echo "=============================="
-	echo "searching $len letter words..."
-	echo "=============================="
-
-	for w in $dwords; do
-		printf "\nword: $w"
-		printf -- '\n\t%s' $(git log --pretty=format:'%H' | grep -i --color=always "$w")
-	done
-
-	echo ""
-	echo "=============================="
-	echo "...done"
-	echo "=============================="
-}
-commits () {
-	local terms=$( ajoin "|" "$@" )
-
-	git log --pretty=format:"(%aN) %s" | grep -iE "($terms)"
-}
+alias xres="xrdb -merge $HOME/.Xresources"
 
 
-EXTERNAL_OUTPUT="DP-1-3"
-INTERNAL_OUTPUT="eDP-1-1"
 external () {
     xrandr --output $EXTERNAL_OUTPUT --auto --output $INTERNAL_OUTPUT --off
 }
@@ -426,13 +315,14 @@ internal () {
 }
 
 
-# fix common typos
-alias bim="vim"
-alias clera="clear"
-
-
 # load git aliases
 source $here/git-aliases.sh
 
-# load tmux helper
-source $here/tmux.sh
+if [ -f /etc/debian_version ]; then
+	source $here/debian-aliases.sh
+fi
+
+if [ -f /etc/gentoo-release ]; then
+	source $here/gentoo-aliases.sh
+fi
+
