@@ -39,10 +39,10 @@
 
 
 !! URxvt Appearance
-*.font:           xft:bitstream vera sans mono:style=Regular:size=10
-*.boldFont:       xft:bitstream vera sans mono:style=Bold:size=10
-*.italicFont:     xft:bitstream vera sans mono:style=Italic:size=10
-*.boldItalicFont: xft:bitstream vera sans mono:style=Bold Italic:size=10
+*.font:           xft:bitstream vera sans mono:style=Regular:size=12
+*.boldFont:       xft:bitstream vera sans mono:style=Bold:size=12
+*.italicFont:     xft:bitstream vera sans mono:style=Italic:size=12
+*.boldItalicFont: xft:bitstream vera sans mono:style=Bold Italic:size=12
 URxvt.letterSpace: 0
 URxvt.lineSpace: 0
 URxvt.geometry: 92x24
@@ -66,25 +66,25 @@ URxvt.keysym.Control-Right: \033[1;5C
 URxvt.keysym.Control-Left: \033[1;5D
 
 
-!! Copy Paste & Other Extensions
-URxvt.perl-ext-common: default,clipboard,url-select,keyboard-select
-URxvt.copyCommand: xclip -i -selection clipboard
-URxvt.pasteCommand: xclip -o -selection clipboard
-URxvt.keysym.M-c: perl:clipboard:copy
-URxvt.keysym.M-v: perl:clipboard:paste
-URxvt.keysym.M-C-v: perl:clipboard:paste_escaped
-URxvt.keysym.M-Escape: perl:keyboard-select:activate
-URxvt.keysym.M-s: perl:keyboard-select:search
-URxvt.keysym.M-u: perl:url-select:select_next
-URxvt.urlLauncher: firefox
-URxvt.underlineURLs: true
-URxvt.urlButton: 1
+URxvt.keysym.Control-Shift-C: eval:selection_to_clipboard
+URxvt.keysym.Control-Shift-V: eval:paste_clipboard
+URxvt.keysym.Control-Meta-c: builtin-string:
+URxvt.keysym.Control-Meta-v: builtin-string:
 
-
-
-
-
-
-
-
+!! x11-misc/urxvt-tabbed
+URxvt.perl-ext: tabbedex
+URxvt.tabbedex.no-tabbedex-keys: yes
+URxvt.keysym.Control-t:    tabbedex:new_tab
+URxvt.keysym.Control-Shift-Left:  tabbedex:move_tab_left
+URxvt.keysym.Control-Shift-Right: tabbedex:move_tab_right
+URxvt.keysym.Meta-1:        tabbedex:goto_tab_1
+URxvt.keysym.Meta-2:        tabbedex:goto_tab_2
+URxvt.keysym.Meta-3:        tabbedex:goto_tab_3
+URxvt.keysym.Meta-4:        tabbedex:goto_tab_4
+URxvt.keysym.Meta-5:        tabbedex:goto_tab_5
+URxvt.keysym.Meta-6:        tabbedex:goto_tab_6
+URxvt.keysym.Meta-7:        tabbedex:goto_tab_7
+URxvt.keysym.Meta-8:        tabbedex:goto_tab_8
+URxvt.keysym.Meta-9:        tabbedex:goto_tab_9
+URxvt.keysym.Meta-0:        tabbedex:goto_tab_10
 
