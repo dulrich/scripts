@@ -14,7 +14,7 @@
 			{elem: "Main", cmd: "PrevTab", mods: "A", key: "XK_Left",  amt: 1},
 			
 			{elem: "Main", cmd: "GoToTab", mods: "A", key: "1", amt: 0},
-			{elem: "Main", cmd: "GoToTab", mods: "A", key: "2", amt: 1},
+			{elem: "Main", cmd: "GoToTab", mods: "A", key: "2", amt: 1},  
 			{elem: "Main", cmd: "GoToTab", mods: "A", key: "3", amt: 2},
 			{elem: "Main", cmd: "GoToTab", mods: "A", key: "4", amt: 3},
 			{elem: "Main", cmd: "GoToTab", mods: "A", key: "5", amt: 4},
@@ -24,29 +24,32 @@
 			{elem: "Main", cmd: "GoToTab", mods: "A", key: "9", amt: 8},
 			{elem: "Main", cmd: "GoToTab", mods: "A", key: "0", amt: 9},
 			
-			{elem: "Main", cmd: "OpenFileBrowser",  mods: "C",  key: "o",     amt: 0},
-			{elem: "Main", cmd: "FuzzyOpener",      mods: "C",  key: "p",     amt: 0},
-			//{elem: "Main", cmd: "GrepOpen",         mods: "CS", key: "p",     amt: 0},
+			{elem: "Main",   cmd: "OpenFileBrowser",      mods: "C",  key: "o", amt: 0},
+			{elem: "Main",   cmd: "FuzzyOpener",          mods: "C",  key: "p", amt: 0},
+			{elem: "Main",   cmd: "GrepOpen",             mods: "CS", key: "p", amt: 0},
+			{elem: "Buffer", cmd: "SmartBubbleSelection", mods: "C",  key: "p", amt: "FuzzyOpen", },
 			{elem: "Buffer", cmd: "SmartBubbleSelection", mods: "CS", key: "p", amt: "GrepOpen", },
 			// {elem: "Main", cmd: "MainMenu",         mods: "A",  key: "m",     amt: 0},
 			// {elem: "Main", cmd: "SimpleWindowTest", mods: "C",  key: "u",     amt: 0},
-			// {elem: "Main", cmd: "CloseTab",         mods: "C",  key: "w",     amt: 0},
+			{elem: "Main", cmd: "CloseTab",         mods: "C",  key: "w",     amt: 0},
 			
 			
 			{elem: "FuzzyMatcher", cmd: "Exit",       mods: "",  key: "XK_Escape",    amt: 0},
-			{elem: "FuzzyMatcher", cmd: "Exit",       mods: "C", key: "w",            amt: 0},
+			// {elem: "FuzzyMatcher", cmd: "Exit",       mods: "C", key: "w",            amt: 0},
 			{elem: "FuzzyMatcher", cmd: "CursorMove", mods: "",  key: "XK_Up",        amt: -1},
 			{elem: "FuzzyMatcher", cmd: "CursorMove", mods: "",  key: "XK_Down",      amt: 1},
 			{elem: "FuzzyMatcher", cmd: "OpenFile",   mods: "",  key: "XK_Return",    amt: 0},
 			
 			
 			{elem: "GrepOpen", cmd: "Exit",       mods: "",  key: "XK_Escape", amt: 0},
-			{elem: "GrepOpen", cmd: "Exit",       mods: "C", key: "w",         amt: 0},
+			// {elem: "GrepOpen", cmd: "Exit",       mods: "C", key: "w",         amt: 0},
 			{elem: "GrepOpen", cmd: "CursorMove", mods: "",  key: "XK_Up",     amt: -1},
 			{elem: "GrepOpen", cmd: "CursorMove", mods: "",  key: "XK_Down",   amt: 1},
 			{elem: "GrepOpen", cmd: "OpenFile",   mods: "",  key: "XK_Return", amt: 0},
 			
 			
+			{elem: "FileBrowser", cmd: "Exit",             mods: "",  key: "XK_Escape",    amt: 0},
+			//{elem: "FileBrowser", cmd: "Exit",             mods: "C", key: "w",    amt: 0},
 			{elem: "FileBrowser", cmd: "CursorMoveNoWrap", mods: "",  key: "XK_Up",        amt: -1},
 			{elem: "FileBrowser", cmd: "CursorMoveNoWrap", mods: "",  key: "XK_Down",      amt: 1},
 			{elem: "FileBrowser", cmd: "CursorMoveNoWrap", mods: "C", key: "XK_Up",        amt: -5},
@@ -175,7 +178,21 @@
 			{mode: 1, elem: "Buffer", cmd: "GoToLineLaunch", mods: "C", key: "g",         amt: 0, flags: ["resetCursorBlink"]},
 			{mode: 2, elem: "Buffer", cmd: "GoToLineLaunch", mods: "C", key: "g",         amt: 0, flags: ["resetCursorBlink"]},
 			{mode: 3, elem: "Buffer", cmd: "GoToLineSubmit", mods: "",  key: "XK_Return", amt: 0, flags: ["centerOnCursor", "resetCursorBlink"]},
-			{mode: 3, elem: "Buffer", cmd: "CloseTray",      mods: "",  key: "XK_Escape", amt: 0, flags: ["resetCursorBlink"]}
+			{mode: 3, elem: "Buffer", cmd: "CloseTray",      mods: "",  key: "XK_Escape", amt: 0, flags: ["resetCursorBlink"]},
+			
+			{elem: "Edit", cmd: "MoveCursorH",    mods: "",  key: "XK_Right",     amt: 1,  flags: ['resetCursorBlink']},
+			{elem: "Edit", cmd: "MoveCursorH",    mods: "",  key: "XK_Left",      amt: -1, flags: ['resetCursorBlink']},
+			{elem: "Edit", cmd: "GrowSelectionH", mods: "S", key: "XK_Right",     amt: 1,  flags: ['resetCursorBlink']},
+			{elem: "Edit", cmd: "GrowSelectionH", mods: "S", key: "XK_Left",      amt: -1, flags: ['resetCursorBlink']},
+			{elem: "Edit", cmd: "GoToStart",      mods: "",  key: "XK_Home",      amt: 0,  flags: ['resetCursorBlink']},
+			{elem: "Edit", cmd: "GoToEnd",        mods: "",  key: "XK_End",       amt: 0,  flags: ['resetCursorBlink']},
+			{elem: "Edit", cmd: "GrowSelToStart", mods: "S", key: "XK_Home",      amt: 0,  flags: ['resetCursorBlink']},
+			{elem: "Edit", cmd: "GrowSelToEnd",   mods: "S", key: "XK_End",       amt: 0,  flags: ['resetCursorBlink']},
+			{elem: "Edit", cmd: "Backspace",      mods: "",  key: "XK_BackSpace", amt: 1,  flags: ['resetCursorBlink']},
+			{elem: "Edit", cmd: "Clear",          mods: "C", key: "XK_BackSpace", amt: 1,  flags: ['resetCursorBlink']},
+			{elem: "Edit", cmd: "Delete",         mods: "",  key: "XK_Delete",    amt: 0,  flags: ['resetCursorBlink']},
+			{elem: "Edit", cmd: "Paste",          mods: "C", key: "v",            amt: 0,  flags: ['resetCursorBlink']},
+			{elem: "Edit", cmd: "Copy",           mods: "C", key: "c",            amt: 0,  flags: ['resetCursorBlink']},
 		],
 	},
 }

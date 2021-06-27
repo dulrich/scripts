@@ -76,5 +76,9 @@
 		
 		"statusBarBgColor":       "#282a2eff", // color0
 		"statusBarTextColor":     "#c5c8c6ff", // color15
+		
+		"fileBrowserHeaderTextColor":   "#c5c8c6ff", // color15
+		"fileBrowserHeaderBgColor":     "#282a2eff", // color0
+		"fileBrowserHeaderBorderColor": "#707880ff", // color7
 	},
 }
