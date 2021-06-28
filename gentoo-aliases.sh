@@ -19,7 +19,7 @@
 alias upd="sudo emerge --sync"
 alias upg="sudo emerge --ask --update --deep --with-bdeps=y @world"
 
-alias em="sudo emerge --ask --tree"
+alias em="time sudo emerge --ask --tree"
 
 alias mod_rebuild="sudo emerge @module-rebuild"
 
