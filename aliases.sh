@@ -24,7 +24,7 @@ work_user="username"
 EXTERNAL_OUTPUT="DP-1-3"
 INTERNAL_OUTPUT="eDP-1-1"
 
-here=$(dirname "$BASH_SOURCE")
+here="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 
 if [ -f $here/config.sh ] ; then
 	source $here/config.sh
