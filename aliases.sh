@@ -315,6 +315,10 @@ internal () {
 }
 
 
+alias gdbr="gdb -ex r"
+alias gdbx="gdb -x $here/gdb.config"
+
+
 # load git aliases
 source $here/git-aliases.sh
 
