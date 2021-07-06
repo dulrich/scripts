@@ -175,7 +175,7 @@ alias llr="ls -alFR"
 
 
 # grep shortcuts
-grep_options=( -iIR --exclude={*-bundle.js,*.map,*.min.js,*.min.css,*~,*.log} \
+grep_options=( -iIR --exclude={*.d,*-bundle.js,*.map,*.min.js,*.min.css,*~,*.log} \
 --exclude-dir={\
 .apm\
 .deps,\
