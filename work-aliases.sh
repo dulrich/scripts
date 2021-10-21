@@ -174,6 +174,11 @@ _kku () {
 _comp kku
 
 
+kbdir() {
+	cd /run/user/1000/keybase/kbfs/private/lariduskonivaich/
+}
+
+
 # new section for hoa
 hoa () {
 	cd /web/hoa-$1
