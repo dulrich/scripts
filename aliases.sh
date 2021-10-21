@@ -340,6 +340,7 @@ if [ -f /etc/gentoo-release ]; then
 	source $here/gentoo-aliases.sh
 fi
 
+echo "$here/work-aliases.sh"
 if [ -f $here/work-aliases.sh ]; then
 	source $here/work-aliases.sh
 fi
