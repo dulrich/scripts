@@ -185,8 +185,8 @@ autom4te.cache,\
 dist,\
 node_modules,\
 uploads,\
-beacon-api,\
-src-min-noconflict\
+src-min-noconflict,\
+venv\
 } )
 
 
