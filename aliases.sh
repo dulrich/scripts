@@ -314,6 +314,9 @@ internal () {
     xrandr --output $INTERNAL_OUTPUT --mode "2560x1400_60.0"
 }
 
+volume() {
+	amixer -q -D pulse sset Master $1%
+}
 
 alias gdbr="gdb -ex r"
 alias gdbx="gdb -x $here/gdb.config"
