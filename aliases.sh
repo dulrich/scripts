@@ -185,7 +185,8 @@ autom4te.cache,\
 dist,\
 node_modules,\
 uploads,\
-src-min-noconflict\
+src-min-noconflict,\
+venv\
 } )
 
 
