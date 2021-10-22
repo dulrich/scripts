@@ -56,9 +56,6 @@ _pyfig () {
 _comp pyfig
 
 
-alias vpn="sudo openvpn --config /home/dulrich/code/xembly/xembly.ovpn"
-
-
 # generate compare links, like:
 # https://github.com/Stabilitas/beacon-alert-rules/compare/master...dulrich:master
 # gl <from> <to>
@@ -100,8 +97,21 @@ _kku () {
 _comp kku
 
 
-kbdir() {
-	cd /run/user/1000/keybase/kbfs/private/lariduskonivaich/
+keybase_dir="/run/user/1000/keybase/kbfs/private/lariduskonivaich"
+up_keybase () {
+	if [ ! -d "$keybase_dir" ]; then
+		run_keybase -g
+	fi
+}
+
+kbdir () {
+	up_keybase
+	cd $keybase_dir
+}
+
+vpn () {
+	up_keybase
+	sudo openvpn --config "$keybase_dir/xembly/xembly.ovpn"
 }
 
 
