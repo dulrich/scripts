@@ -110,8 +110,11 @@ kbdir () {
 }
 
 vpn () {
+	conf_path="/tmp/.xembly.ovpn"
 	up_keybase
-	sudo openvpn --config "$keybase_dir/xembly/xembly.ovpn"
+	cp $keybase_dir/xembly/xembly.ovpn "$conf_path"
+	sudo openvpn --config "$conf_path"
+	rm "$conf_path"
 }
 
 
