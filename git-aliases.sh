@@ -25,7 +25,8 @@ as () {
 	git status
 }
 b () {
-	git checkout $(defarg "$*" 0 'master')
+	bname=$( git branch | grep -oP "\b(main|master)\b" )
+	git checkout $(defarg "$*" 0 "$bname")
 }
 bb () {
 	local exists=$( git rev-parse --quiet --verify "$1" )
@@ -64,7 +65,8 @@ gx () {
 	git update-index --chmod=+x $1
 }
 m () {
-	git merge --no-edit $(defarg "$*" 0 'master')
+	bname=$( git branch | grep -oP "\b(main|master)\b" )
+	git merge --no-edit $(defarg "$*" 0 "$bname")
 }
 alias o="git checkout"
 alias p="git push"
@@ -86,10 +88,12 @@ pgl () {
 }
 
 pp () {
-	git push production $(defarg "$*" 0 'master')
+	bname=$( git branch | grep -oP "\b(main|master)\b" )
+	git push production $(defarg "$*" 0 "$bname")
 }
 up () {
-	git pull --no-edit production $(defarg "$*" 0 'master')
+	bname=$( git branch | grep -oP "\b(main|master)\b" )
+	git pull --no-edit production $(defarg "$*" 0 "$bname")
 }
 
 z () {
