@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # work-aliases.sh: shorten common work tasks
-# Copyright 2013 - 2017 David Ulrich
+# Copyright 2013 - 2021 David Ulrich
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -17,10 +17,10 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 # dirs, eval style
-cdnames=( cdb                       cdp                        )
-cdpaths=( $code_path/xembly-backend $code_path/xembly-pipeline )
+cdnames=( cdb                       cdp                        cdk              )
+cdpaths=( $code_path/xembly-backend $code_path/xembly-pipeline $code_path/trakk )
 
-for i in {0..1}
+for i in {0..2}
 do
 	aliascd ${cdnames[$i]} ${cdpaths[$i]}
 done
@@ -46,15 +46,6 @@ _pltest () {
 _comp plfig
 _comp pltest
 
-pyfig () {
-	source $ENV_PATH/python.config.$1
-}
-_pyfig () {
-	COMPREPLY=( $(compgen -W "local prod staging" "$2" ) )
-	return 0
-}
-_comp pyfig
-
 
 # generate compare links, like:
 # https://github.com/Stabilitas/beacon-alert-rules/compare/master...dulrich:master
@@ -65,13 +56,16 @@ _comp pyfig
 # kubectl config use-context <your-staging-context>
 # kubectl run psql -it --rm --restart=Never --image=jbergknoff/postgresql-client postgres://<username>:<password>@host/keystore
 
-alias kkp="kubectl proxy"
+kube_confpath="--kubeconfig /opt/xembly/kubeconfig.local"
+kube_namespace="-n staging"
+kube_cmd="kubectl $kube_confpath $kube_namespace"
+alias kkp="$kube_cmd proxy"
 kkt () {
 	keyword=$1
 	command="cat <("
-	for line in $(kubectl get pods | \
+	for line in $($kube_cmd get pods | \
 	   grep $keyword | grep Running | awk '{print $1}'); do
-       command="$command (kubectl logs --tail=2 -f $line &) && "
+       command="$command ($kube_cmd logs --tail=2 -f $line &) && "
 	done
 	command="$command echo)"
 	eval $command
@@ -79,9 +73,9 @@ kkt () {
 kke () {
 	keyword=$1
 	command="cat <("
-	for line in $(kubectl get pods | \
+	for line in $($kube_cmd get pods | \
 	   grep "$keyword-[0-9]" | grep Running | awk '{print $1}'); do
-       command="$command (kubectl logs --tail=2 -f $line &) && "
+       command="$command ($kube_cmd logs --tail=2 -f $line &) && "
 	done
 	command="$command echo)"
 	eval $command
@@ -116,6 +110,20 @@ vpn () {
 	sudo openvpn --config "$conf_path"
 	rm "$conf_path"
 }
+
+
+pyfig () {
+	# option to source instead of copying file?
+	env_type="$1"
+	path_parts=( $(echo "$PWD" | sed "s/\// /g") )
+	proj_name="${path_parts[-1]}"
+	cp "$keybase_dir/$proj_name/env.$env_type" .env
+}
+_pyfig () {
+	COMPREPLY=( $(compgen -W "debug prod staging test" "$2" ) )
+	return 0
+}
+_comp pyfig
 
 
 # new section for hoa
