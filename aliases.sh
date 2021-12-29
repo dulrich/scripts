@@ -57,7 +57,9 @@ _comp $1
 cdnames=( .. ... down code )
 cdpaths=( .. ../.. "$down_path" "$code_path" )
 
-for i in {0..3}
+cdmax=$(( ${#cdnames[@]} - 1 ))
+
+for (( i=0; i<=$cdmax; i++ ))
 do
 	aliascd ${cdnames[$i]} ${cdpaths[$i]}
 done
