@@ -17,10 +17,12 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 # dirs, eval style
-cdnames=( cdb                       cdp                        cdk              )
-cdpaths=( $code_path/xembly-backend $code_path/xembly-pipeline $code_path/trakk )
+cdnames=( cdb                       cdp                        cda                        cdk              )
+cdpaths=( $code_path/xembly-backend $code_path/xembly-pipeline $code_path/xembly-data-api $code_path/trakk )
 
-for i in {0..2}
+cdmax=$(( ${#cdnames[@]} - 1 ))
+
+for (( i=0; i<=$cdmax; i++ ))
 do
 	aliascd ${cdnames[$i]} ${cdpaths[$i]}
 done
