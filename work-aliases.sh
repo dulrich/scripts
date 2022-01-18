@@ -17,8 +17,8 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 # dirs, eval style
-cdnames=( cdb                       cdp                        cda                        cdk              )
-cdpaths=( $code_path/xembly-backend $code_path/xembly-pipeline $code_path/xembly-data-api $code_path/trakk )
+cdnames=( cdb                       cdl                      cdp                        cda                        cdk              )
+cdpaths=( $code_path/xembly-backend $code_path/xembly-lib-py $code_path/xembly-pipeline $code_path/xembly-data-api $code_path/trakk )
 
 cdmax=$(( ${#cdnames[@]} - 1 ))
 
@@ -115,6 +115,7 @@ vpn () {
 
 
 pyfig () {
+    up_keybase
 	# option to source instead of copying file?
 	env_type="$1"
 	path_parts=( $(echo "$PWD" | sed "s/\// /g") )
