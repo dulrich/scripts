@@ -61,13 +61,13 @@ _comp pltest
 kube_confpath="--kubeconfig /opt/xembly/kubeconfig.local"
 kube_namespace="-n staging"
 kube_cmd="kubectl $kube_confpath $kube_namespace"
-alias kkp="$kube_cmd proxy"
+# alias kkp="$kube_cmd proxy"
 kkt () {
 	keyword=$1
 	command="cat <("
 	for line in $($kube_cmd get pods | \
 	   grep $keyword | grep Running | awk '{print $1}'); do
-       command="$command ($kube_cmd logs --tail=2 -f $line &) && "
+       command="$command ($kube_cmd logs --tail=10 -f $line &) && "
 	done
 	command="$command echo)"
 	eval $command
@@ -84,7 +84,8 @@ kke () {
 }
 
 kku () {
-	kubectl config use-context ulrich-$1.stabilitas.io
+	# kubectl config use-context ulrich-$1.stabilitas.io
+	kube_namespace="-n $1"
 }
 _kku () {
 	COMPREPLY=( $(compgen -W "production staging" "$2" ) )
@@ -108,8 +109,9 @@ kbdir () {
 vpn () {
 	conf_path="/tmp/.xembly.ovpn"
 	up_keybase
-	cp $keybase_dir/xembly/xembly.ovpn "$conf_path"
+	cp $keybase_dir/xembly/xembly-vpn-03.ovpn "$conf_path"
 	sudo openvpn --config "$conf_path"
+	# sudo /sbin/route add -net 10.0.0.0 $IP_GATEWAY_ASSIGNED 255.0.0.0 # pavel full tunnel fix
 	rm "$conf_path"
 }
 
@@ -123,10 +125,25 @@ pyfig () {
 	cp "$keybase_dir/$proj_name/env.$env_type" .env
 }
 _pyfig () {
-	COMPREPLY=( $(compgen -W "debug prod staging test" "$2" ) )
+	COMPREPLY=( $(compgen -W "debug fake_prod fake_staging prod staging test" "$2" ) )
 	return 0
 }
 _comp pyfig
+
+
+startup() {
+	ssh-add
+	sudo systemctl start kafka
+	vpn
+}
+
+
+team() {
+	TZ='Europe/Prague'       date +"Prague  %_I:%M%p"
+	TZ='Europe/Samara'       date +"Samara  %_I:%M%p"
+	TZ='America/Los_Angeles' date +"Seattle %_I:%M%p"
+	TZ='America/Mexico_City' date +"ZMG     %_I:%M%p"
+}
 
 
 # new section for hoa
