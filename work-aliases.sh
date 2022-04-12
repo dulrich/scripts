@@ -58,9 +58,11 @@ _comp pltest
 # kubectl config use-context <your-staging-context>
 # kubectl run psql -it --rm --restart=Never --image=jbergknoff/postgresql-client postgres://<username>:<password>@host/keystore
 
-kube_confpath="--kubeconfig /opt/xembly/kubeconfig.local"
-kube_namespace="-n staging"
-kube_cmd="kubectl $kube_confpath $kube_namespace"
+# available contexts:
+# production.k8s.xembly.com
+# eks-xembly-development
+
+kube_cmd="kubectl"
 # alias kkp="$kube_cmd proxy"
 kkt () {
 	keyword=$1
@@ -85,7 +87,16 @@ kke () {
 
 kku () {
 	# kubectl config use-context ulrich-$1.stabilitas.io
-	kube_namespace="-n $1"
+	context=""
+	if [ "$1" == "production" ]; then
+		context="production.k8s.xembly.com"
+	elif [ "$1" == "staging" ]; then
+		context="eks-xembly-development"
+	else
+		echo "unknown context '$1'"
+		return 1
+	fi
+	kubectl config use-context "$context"
 }
 _kku () {
 	COMPREPLY=( $(compgen -W "production staging" "$2" ) )
