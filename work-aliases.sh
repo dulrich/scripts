@@ -49,6 +49,10 @@ _comp plfig
 _comp pltest
 
 
+
+# betty="192.168.50.13"
+alias betty="ssh root@192.168.50.13"
+
 # generate compare links, like:
 # https://github.com/Stabilitas/beacon-alert-rules/compare/master...dulrich:master
 # gl <from> <to>
