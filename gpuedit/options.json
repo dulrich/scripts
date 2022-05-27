@@ -1,70 +1,81 @@
 {
-	"MainControl_searchPaths": [
-		"/home/dulrich/scripts",
-		"/web/c_json",
-		"/web/c3dlas",
-		"/web/gpuedit",
-		"/web/sti",
-		"/web/fibs"
-	],
+	"general": {
+		"MainControl_searchPaths": [
+			"/home/dulrich/scripts",
+			"/web/c_json",
+			"/web/c3dlas",
+			"/web/gpuedit",
+			"/web/sti",
+			"/web/fibs"
+		],
+		
+		commandsPath: "/home/dulrich/code/gpuedit/commands.json",
+		highlightersPath: "/home/dulrich/code/gpuedit/src/highlighters/",
+		highlightStylesPath: "/home/dulrich/code/gpuedit/config/",
+		
+		"MainControl_startupTabs": [
+			// { "type": "Edit", "path": "/web/gpuedit/src/commands.c", },
+			// { "type": "Edit", "path": "./testfile.h", },
+			{ "type": "FuzzyOpen", "path": "", },
+			// { "type": "FileOpen", "path": "./", },
+			{ "type": "Edit", "path": "/home/dulrich/scripts/gpuedit/commands.json", },
+			{ "type": "Edit", "path": "/home/dulrich/scripts/gpuedit/options.json", },
+		],
 
-	"MainControl_startupTabs": [
-		// { "type": "Edit", "path": "/web/gpuedit/src/commands.c", },
-		// { "type": "Edit", "path": "./testfile.h", },
-		{ "type": "FuzzyOpen", "path": "", },
-		// { "type": "FileOpen", "path": "./", },
-		{ "type": "Edit", "path": "/home/dulrich/scripts/gpuedit/commands.json", },
-		{ "type": "Edit", "path": "/home/dulrich/scripts/gpuedit/options.json", },
-	],
+		"MainControl_openInPlace": 1,
 
-	"MainControl_openInPlace": 1,
-
-	// Theme Settings
-	"Theme_path": "default_dark.json",
-
-	// "GUIManager_maxInstances": 8192,
-	// "Buffer_linesPerScrollWheel": 3,
-	// "Buffer_cursorBlinkEnable": 1,
-	// "Buffer_cursorBlinkOffTime": 0.600,
-	// "Buffer_cursorBlinkOnTime": 0.600,
-	// "Buffer_highlightCurrentLine": 1,
-	"Buffer_outlineCurrentLine": 2,
-	// "Buffer_lineNumExtraWidth": 10,
-	// "Buffer_showLineNums": 1,
-	"Buffer_lineNumBase": 10, // 2-35
-	"Buffer_lineNumCharset": "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ",
-	// "Buffer_charWidth": 10,
-	// "Buffer_lineHeight": 20,
-	// "Buffer_tabWidth": 4,
-	/*"Buffer_fontList": [
-		"Arial",
-		"DejaVu Sans Mono",
-		"Liberation Mono",
-	],*/
-	"Buffer_font": "DejaVu Sans Mono",
-	// "Buffer_fontSize": 10,
-	"Buffer_invertSelection": 0,
-	// "Buffer_maxUndo": 4096,
-	"Buffer_SequenceSets": {
-		"default": [
-			"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_",
-			" \t",
-			"`~!@#$%^&*()_+-=[]{}|;':\",./<>?", // needs \\
-			"\n"
-		]
+		// Theme Settings
+		"Theme_path": "default_dark.json",
+		
+		"MainControl_statusWidgets": [
+			//		{ type: "hello_world", size: 15, },
+					{ type: "clock",       size: 8,  align: "r", format: "%H:%M:%S" }, // "%H:%M:%S"
+			//		{ type: "ping",        size: 10, },
+			//		{ type: "battery",     size: 15, },
+					{ type: "linecol",     size: 30, align: "l", format: "line %L:%C  [%T lines]" },
+		],
 	},
 	
 	
-	"MainControl_statusWidgets": [
-//		{ type: "hello_world", size: 15, },
-		{ type: "clock",       size: 8,  align: "r", format: "%H:%M:%S" }, // "%H:%M:%S"
-//		{ type: "ping",        size: 10, },
-//		{ type: "battery",     size: 15, },
-		{ type: "linecol",     size: 30, align: "l", format: "line %L:%C  [%T lines]" },
-	],
+	"buffer": {
+		// "GUIManager_maxInstances": 8192,
+		// "linesPerScrollWheel": 3,
+		// "cursorBlinkEnable": 1,
+		// "cursorBlinkOffTime": 0.600,
+		// "cursorBlinkOnTime": 0.600,
+		// "highlightCurrentLine": 1,
+		"outlineCurrentLine": 2,
+		// "lineNumExtraWidth": 10,
+		// "showLineNums": 1,
+		"lineNumBase": 10, // 2-35
+		"lineNumCharset": "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+		// "charWidth": 10,
+		// "lineHeight": 20,
+		// "tabWidth": 4,
+		/*"fontList": [
+			"Arial",
+			"DejaVu Sans Mono",
+			"Liberation Mono",
+		],*/
+		"font": "DejaVu Sans Mono",
+		"fontSize": 16,
+		"invertSelection": 0,
+		// "maxUndo": 4096,
+		"SequenceSets": {
+			"default": [
+				"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_",
+				" \t",
+				"`~!@#$%^&*()_+-=[]{}|;':\",./<>?", // needs \\
+				"\n"
+			]
+		},
+	},
 	
-	GUI_GlobalSettings: {
-// 		"maxInstances": 16384,
+	
+	"gui": {
+		shaderPath: "/home/dulrich/code/gpuedit/src/shaders/guiUnified.glsl",
+		
+		"maxInstances": 16384,
 // 		"linesPerScrollWheel": 5,
 		"hideScrollbar": 1,
 		"hideStatusBar": 0,
