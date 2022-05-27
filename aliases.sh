@@ -177,12 +177,12 @@ alias llr="ls -alFR"
 
 
 # grep shortcuts
-grep_options=( -iIR --exclude={*.d,*-bundle.js,*.map,*.min.js,*.min.css,*~,*.log} \
+grep_options=( -iIR --exclude={*.d,*-bundle.js,*.map,*.min.js,*.min.css,*~,*.log,*.pyhistory} \
 --exclude-dir={\
-.apm\
+.apm,\
 .deps,\
 .git,\
-.node-gyp\
+.node-gyp,\
 autom4te.cache,\
 dist,\
 node_modules,\
