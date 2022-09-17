@@ -17,8 +17,8 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 # dirs, eval style
-cdnames=( cdb                       cdl                      cdp                        cda                        cdk              )
-cdpaths=( $code_path/xembly-backend $code_path/xembly-lib-py $code_path/xembly-pipeline $code_path/xembly-data-api $code_path/trakk )
+cdnames=( cdb                       cdl                      cdp                        cda                        cdk              cdd )
+cdpaths=( $code_path/xembly-backend $code_path/xembly-lib-py $code_path/xembly-pipeline $code_path/xembly-data-api $code_path/trakk $code_path/xembly-delete-meeting-worker )
 
 cdmax=$(( ${#cdnames[@]} - 1 ))
 
@@ -94,8 +94,8 @@ kku () {
 	context=""
 	if [ "$1" == "production" ]; then
 		context="production.k8s.xembly.com"
-	elif [ "$1" == "staging" ]; then
-		context="eks-xembly-development"
+	elif [ "$1" == "develop" ]; then
+		context="dev.k8s.xembly.com"
 	else
 		echo "unknown context '$1'"
 		return 1
