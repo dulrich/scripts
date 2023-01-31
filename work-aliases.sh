@@ -17,8 +17,8 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 # dirs, eval style
-cdnames=( cdb                       cdl                      cdp                        cda                        cdk              cdd )
-cdpaths=( $code_path/xembly-backend $code_path/xembly-lib-py $code_path/xembly-pipeline $code_path/xembly-data-api $code_path/trakk $code_path/xembly-delete-meeting-worker )
+cdnames=( cdb                       cdl                      cdp                        cda                        cdd                                     cdc                        cdk                           cdr                           cdt                             cdx)
+cdpaths=( $code_path/xembly-backend $code_path/xembly-lib-py $code_path/xembly-pipeline $code_path/xembly-data-api $code_path/xembly-delete-meeting-worker $code_path/xembly-chat-api $code_path/keybase-production $code_path/xembly-rasa-server $code_path/xembly-timeparse-api $code_path/xembly-xena-worker )
 
 cdmax=$(( ${#cdnames[@]} - 1 ))
 
@@ -66,14 +66,14 @@ alias betty="ssh root@192.168.50.13"
 # production.k8s.xembly.com
 # eks-xembly-development
 
-kube_cmd="kubectl"
+kube_cmd="kubectl --namespace=staging"
 # alias kkp="$kube_cmd proxy"
 kkt () {
 	keyword=$1
 	command="cat <("
 	for line in $($kube_cmd get pods | \
 	   grep $keyword | grep Running | awk '{print $1}'); do
-       command="$command ($kube_cmd logs --tail=10 -f $line &) && "
+       command="$command ($kube_cmd logs --tail=50 -f $line &) && "
 	done
 	command="$command echo)"
 	eval $command
@@ -103,7 +103,7 @@ kku () {
 	kubectl config use-context "$context"
 }
 _kku () {
-	COMPREPLY=( $(compgen -W "production staging" "$2" ) )
+	COMPREPLY=( $(compgen -W "develop production" "$2" ) )
 	return 0
 }
 _comp kku
@@ -140,7 +140,7 @@ pyfig () {
 	cp "$keybase_dir/$proj_name/env.$env_type" .env
 }
 _pyfig () {
-	COMPREPLY=( $(compgen -W "debug fake_prod fake_staging prod staging test" "$2" ) )
+	COMPREPLY=( $(compgen -W "debug develop fake_prod fake_staging prod staging test" "$2" ) )
 	return 0
 }
 _comp pyfig
