@@ -137,15 +137,21 @@ gb () {
 	grep -Pn ${grep_options[@]} $1 $path | blamepipe
 }
 
+
 # http://stackoverflow.com/questions/342969/how-do-i-get-bash-completion-to-work-with-aliases
 # git completion functions don't exist until this file is executed,
 # which would normally be the first time a full git command is tab-completed
 if [ -f /usr/share/bash-completion/completions/git ]; then
 	source /usr/share/bash-completion/completions/git
 
+	# https://gist.github.com/mmrko/b3ec6da9bea172cdb6bd83bdf95ee817
+	__git_checkout_local() {
+		__gitcomp_nl "$(__git_heads '' $track)"
+	}
+
 	__git_complete a _git_add
 	__git_complete as _git_add
-	__git_complete b _git_checkout
+	__git_complete b __git_checkout_local
 	__git_complete d _git_diff
 	__git_complete gmv _git_mv
 	__git_complete grm _git_rm
