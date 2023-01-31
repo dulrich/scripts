@@ -35,7 +35,7 @@ xinit
 ## setting up a new machine
 
 ```bash
-sudo apt-get install gmrun htop curl git ssh suckless-tools i3 vim-gtk bash-completion
+sudo apt-get install gmrun htop curl git ssh mosh suckless-tools i3 vim-gtk bash-completion xrvt-unicode
 
 #clone scripts repo
 
@@ -48,6 +48,7 @@ git clone https://github.com/scrooloose/nerdcommenter.git
 
 ln -s ~/scripts/aliases.sh ~/.bash_aliases
 ln -s ~/scripts/i3 .i3
+xrdb ~/.Xresources
 
 #crouton, alternate aliases
 ln -s ~/scripts/crouton/crouton_aliases.sh ~/.bash_aliases
@@ -106,6 +107,32 @@ See also in [irssi_startup](./irssi_startup)
 * command line network swapping `nmcli con up uuid XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX`
 * using ssh-find-agent.sh, add `source ~/scripts/crouton/ssh-find-agent.sh` and `set_ssh_agent_socket` to `~/.bashrc`
 * etherpad config file: `/opt/etherpad/local/etherpad/etherpad-lite/settings.json`
+* if ssh-agent is not running: eval `ssh-agent -s`
+* ssh-agent setup that actually worked on mint https://yashagarwal.in/posts/2017/12/setting-up-ssh-agent-in-i3/
+* add this to `.bashrc`
+```
+if [ -f ~/.ssh/agent.env ] ; then
+    . ~/.ssh/agent.env > /dev/null
+    if ! kill -0 $SSH_AGENT_PID > /dev/null 2>&1; then
+        echo "Stale agent file found. Spawning a new agent. "
+        eval `ssh-agent | tee ~/.ssh/agent.env`
+        ssh-add
+    fi
+else
+    echo "Starting ssh-agent"
+    eval `ssh-agent | tee ~/.ssh/agent.env`
+    ssh-add
+fi
+```
+* mosh is failing because of locale problems: https://www.codeandbytes.com/solucion-locale-cannot-set-lc_all-to-default-locale-no-such-file-or-directory/
+```
+sudo locale-gen en_US.UTF-8
+export LANGUAGE=en_US.UTF-8
+export LANG=en_US.UTF-8
+export LC_ALL=en_US.UTF-8
+locale-gen en_US.UTF-8
+sudo dpkg-reconfigure locales
+```
 
 
 # /etc/network/interfaces new style
@@ -126,7 +153,7 @@ up ip addr add 172.168.3.47/24 dev ens160
 
 # license
 
-Copyright 2013 - 2016  David Ulrich (http://github.com/dulrich)
+Copyright 2013 - 2023  David Ulrich (http://github.com/dulrich)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
