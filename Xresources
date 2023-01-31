@@ -72,7 +72,7 @@ URxvt.keysym.Control-Meta-c: builtin-string:
 URxvt.keysym.Control-Meta-v: builtin-string:
 
 !! x11-misc/urxvt-tabbed
-URxvt.perl-ext: tabbedex
+URxvt.perl-ext: tabbedex,-confirm-paste
 URxvt.tabbedex.no-tabbedex-keys: yes
 URxvt.keysym.Control-t:    tabbedex:new_tab
 URxvt.keysym.Control-Shift-Left:  tabbedex:move_tab_left

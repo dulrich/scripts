@@ -91,3 +91,4 @@ bindsym $mod+e exec setxkbmap us
 bindsym $mod+period exec setxkbmap us
 bindsym $mod+s exec setxkbmap es
 bindsym $mod+comma exec setxkbmap ru
+
