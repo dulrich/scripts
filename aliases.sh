@@ -246,6 +246,7 @@ fileperm () {
 	find $path -type f -exec chmod 644 {} +
 }
 
+alias pingg="ping 8.8.8.8"
 
 mydir () {
 	group=$( id -g -n $USER )
@@ -308,14 +309,18 @@ alias xres="xrdb -merge $HOME/.Xresources"
 
 
 external () {
-    xrandr --output $EXTERNAL_OUTPUT --auto --output $INTERNAL_OUTPUT --off
+    xrandr --verbose --output $EXTERNAL_OUTPUT --auto --output $INTERNAL_OUTPUT --off
+	xrandr --newmode "1920x1080_60.00"  173.00  1920 2048 2248 2576  1080 1083 1088 1120 -hsync +vsync 2> /dev/null || true
+    xrandr --addmode $EXTERNAL_OUTPUT 1920x1080_60.00
+    xrandr --output $EXTERNAL_OUTPUT --mode "1920x1080_60.00"
 }
 internal () {
     xrandr --output $INTERNAL_OUTPUT --auto --output $EXTERNAL_OUTPUT --off
-    xrandr --newmode "2560x1400_60.0" 312.25  2560 2752 3024 3488  1440 1443 1448 1493 -hsync +vsync 2> /dev/null || true
-    xrandr --addmode eDP-1-1 2560x1400_60.0
-    xrandr --output $INTERNAL_OUTPUT --mode "2560x1400_60.0"
+    xrandr --newmode "1920x1080_60.00"  173.00  1920 2048 2248 2576  1080 1083 1088 1120 -hsync +vsync 2> /dev/null || true
+    xrandr --addmode $INTERNAL_OUTPUT 1920x1080_60.00
+    xrandr --output $INTERNAL_OUTPUT --mode "1920x1080_60.00"
 }
+
 
 volume() {
 	amixer -q -D pulse sset Master $1%
@@ -328,6 +333,7 @@ alias gdbx="gdb -x $here/gdb.config"
 # load git aliases
 source $here/git-aliases.sh
 
+
 if [ -f /etc/debian_version ]; then
 	source $here/debian-aliases.sh
 fi
@@ -336,3 +342,6 @@ if [ -f /etc/gentoo-release ]; then
 	source $here/gentoo-aliases.sh
 fi
 
+if [ -f $here/work-aliases.sh ]; then
+	source $here/work-aliases.sh
+fi
