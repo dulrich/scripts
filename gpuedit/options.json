@@ -1,25 +1,16 @@
 {
 	"general": {
 		"MainControl_searchPaths": [
-			"/home/dulrich/scripts",
-			"/web/c_json",
-			"/web/c3dlas",
-			"/web/gpuedit",
-			"/web/sti",
-			"/web/fibs"
+			"/home/fractal/code/scripts",
+			"/home/fractal/code/baced",
 		],
 		
-		commandsPath: "/home/dulrich/code/gpuedit/commands.json",
-		highlightersPath: "/home/dulrich/code/gpuedit/src/highlighters/",
-		highlightStylesPath: "/home/dulrich/code/gpuedit/config/",
+		commandsPath: "/home/fractal/.gpuedit/commands.json",
+		highlightStylesPath: "/home/fractal/.gpuedit/highlighters/",
 		
 		"MainControl_startupTabs": [
 			// { "type": "Edit", "path": "/web/gpuedit/src/commands.c", },
-			// { "type": "Edit", "path": "./testfile.h", },
 			{ "type": "FuzzyOpen", "path": "", },
-			// { "type": "FileOpen", "path": "./", },
-			{ "type": "Edit", "path": "/home/dulrich/scripts/gpuedit/commands.json", },
-			{ "type": "Edit", "path": "/home/dulrich/scripts/gpuedit/options.json", },
 		],
 
 		"MainControl_openInPlace": 1,
@@ -38,29 +29,12 @@
 	
 	
 	"buffer": {
-		// "GUIManager_maxInstances": 8192,
-		// "linesPerScrollWheel": 3,
-		// "cursorBlinkEnable": 1,
-		// "cursorBlinkOffTime": 0.600,
-		// "cursorBlinkOnTime": 0.600,
-		// "highlightCurrentLine": 1,
 		"outlineCurrentLine": 2,
-		// "lineNumExtraWidth": 10,
-		// "showLineNums": 1,
-		"lineNumBase": 10, // 2-35
-		"lineNumCharset": "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ",
-		// "charWidth": 10,
-		// "lineHeight": 20,
-		// "tabWidth": 4,
-		/*"fontList": [
-			"Arial",
-			"DejaVu Sans Mono",
-			"Liberation Mono",
-		],*/
 		"font": "DejaVu Sans Mono",
-		"fontSize": 16,
+		"fontSize": 18,
+		"charWidth": 11,
+		"lineHeight": 22,
 		"invertSelection": 0,
-		// "maxUndo": 4096,
 		"SequenceSets": {
 			"default": [
 				"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_",
@@ -73,9 +47,6 @@
 	
 	
 	"gui": {
-		shaderPath: "/home/dulrich/code/gpuedit/src/shaders/guiUnified.glsl",
-		
-		"maxInstances": 16384,
 // 		"linesPerScrollWheel": 5,
 		"hideScrollbar": 1,
 		"hideStatusBar": 0,
@@ -85,6 +56,7 @@
 			"DejaVu Sans Mono",
 			"Liberation Mono",
 		],
-		"font_fw": "DejaVu Sans Mono"
+		"font_fw": "DejaVu Sans Mono",
+		"fontSize_fw": 18,
 	},
 }

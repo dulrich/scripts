@@ -39,10 +39,10 @@
 
 
 !! URxvt Appearance
-*.font:           xft:bitstream vera sans mono:style=Regular:size=16
-*.boldFont:       xft:bitstream vera sans mono:style=Bold:size=16
-*.italicFont:     xft:bitstream vera sans mono:style=Italic:size=16
-*.boldItalicFont: xft:bitstream vera sans mono:style=Bold Italic:size=16
+*.font:           xft:bitstream vera sans mono:style=Regular:size=12
+*.boldFont:       xft:bitstream vera sans mono:style=Bold:size=12
+*.italicFont:     xft:bitstream vera sans mono:style=Italic:size=12
+*.boldItalicFont: xft:bitstream vera sans mono:style=Bold Italic:size=12
 URxvt.letterSpace: 0
 URxvt.lineSpace: 0
 URxvt.geometry: 92x24
