@@ -1,14 +1,16 @@
 {
-	Theme: {
+	theme: {
 		// Theme Settings
 		"name": "default dark",
 		"is_dark": 1,
+		"cursorColor":            "#c5c8c6ff", // color15
 	
 		// mainControl.c
 		"bgColor":                "#000000ff", // bg
 		"lineNumColor":           "#c5c8c6ff", // color15
 		"lineNumBgColor":         "#000000ff", // bg
-		"lineNumBookmarkColor":   "#8abd68ff", // color10
+		"lineNumBookmarkColor":   "#8a8dffff", // color10
+		"lineNumBreakpointColor": "#cc6666ff", // color9
 		"hl_bgColor":             "#282a2eff", // color0
 		"hl_textColor":           "#ff0000ff",
 		"find_bgColor":           "#373b41ff", // color8
@@ -18,7 +20,7 @@
 		"selectedItemBgColor":    "#282a2eff", // color0
 	},
 	// gui manager defaults
-	GUI_GlobalSettings: {
+	gui: {
 		"bgColor":                "#000000ff", // bg
 		"lineNumColor":           "#c5c8c6ff", // color15
 		"lineNumBgColor":         "#000000ff", // bg
