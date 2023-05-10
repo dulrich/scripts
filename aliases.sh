@@ -23,6 +23,7 @@ ssh_cmd="ssh"
 work_user="username"
 EXTERNAL_OUTPUT="DP-1-3"
 INTERNAL_OUTPUT="eDP-1-1"
+AUDIO_DEVICE="default" # pulse on systems using pulseaudio
 
 here="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 
@@ -318,7 +319,7 @@ internal () {
 }
 
 volume() {
-	amixer -q -D pulse sset Master $1%
+	amixer -q -D $AUDIO_DEVICE sset Master $1%
 }
 
 alias gdbr="gdb -ex r"
