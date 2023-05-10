@@ -195,3 +195,23 @@ hoaf () {
 	echo -e "#undef FDEBUG" >> "$fname.c"
 	
 }
+
+
+git_dirs=( baced c3dlas c_json diez_equis gpuedit sti )
+
+dirsmax=$(( ${#git_dirs[@]} - 1 ))
+
+uall () {
+	for (( i=0; i<=$dirsmax; i++ ))
+	do
+		echo "Checking ${git_dirs[$i]}..."
+		cd "$code_path/${git_dirs[$i]}"
+		git pull
+	done
+	cd "$code_path/${git_dirs[0]}"
+}
+
+
+
+
+
