@@ -211,6 +211,11 @@ uall () {
 	cd "$code_path/${git_dirs[0]}"
 }
 
+uassets() {
+	cd "$code_path/${git_dirs[0]}/assets"
+	scp -r root@192.168.50.13:/mnt/hoard/baced_assets/* .
+	cd "$code_path/${git_dirs[0]}"
+}
 
 
 

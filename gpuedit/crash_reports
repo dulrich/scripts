@@ -1,0 +1,120 @@
+Thread 1 "gpuedit" received signal SIGSEGV, Segmentation fault.
+0x000055555556d21e in Buffer_GetSequenceUnder (b=0x55555608e690, l=0x0, col=-1, charSet=0x5555556afec0 "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_", out=0x7fffffffd4a0) at /home/_shared_code/gpuedit/src/buffer.c:1615
+1615		for(end = col; end < l->length; end++) {
+(gdb) bt
+#0  0x000055555556d21e in Buffer_GetSequenceUnder (b=0x55555608e690, l=0x0, col=-1, 
+    charSet=0x5555556afec0 "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_", 
+    out=0x7fffffffd4a0) at /home/_shared_code/gpuedit/src/buffer.c:1615
+#1  0x0000555555571b3f in GUIBufferEditor_SmartFind (w=0x55555608f300, 
+    charSet=0x5555556afec0 "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_", 
+    mask=(FM_SELECTION | FM_SEQUENCE)) at /home/_shared_code/gpuedit/src/bufferEditor.c:348
+#2  0x0000555555573f05 in GUIBufferEditor_ProcessCommand (w=0x55555608f300, cmd=0x5555556ae7b0, 
+    needRehighlight=0x7fffffffd6d0) at /home/_shared_code/gpuedit/src/bufferEditor.c:969
+#3  0x00005555555713ca in GUIBufferEditor_Render (w=0x55555608f300, gm=0x5555555dca10, tl=..., sz=..., 
+    pfp=0x7fffffffdca0) at /home/_shared_code/gpuedit/src/bufferEditor.c:145
+#4  0x0000555555585ced in MainControlPane_Render (w=0x555555db09f0, gm=0x5555555dca10, tl=..., sz=..., 
+    pfp=0x7fffffffdca0) at /home/_shared_code/gpuedit/src/mainControl.c:175
+#5  0x0000555555585a41 in MainControl_Render (w=0x555555749890, gm=0x5555555dca10, tl=..., sz=..., 
+    pfp=0x7fffffffdca0) at /home/_shared_code/gpuedit/src/mainControl.c:146
+#6  0x000055555559aa83 in GUIManager_RunRenderPass (gm=0x5555555dca10, pfp=0x7fffffffdca0, isDraw=0)
+    at /home/_shared_code/gpuedit/src/ui/guiManager.c:536
+#7  0x000055555559a50e in GUIManager_HandleKeyInput (gm=0x5555555dca10, is=0x5555555c9440 <input>, 
+    iev=0x7fffffffdcd0, pfp=0x7fffffffdca0) at /home/_shared_code/gpuedit/src/ui/guiManager.c:436
+#8  0x0000555555569853 in handleEvent (as=0x5555555c9220 <app>, is=0x5555555c9440 <input>, ev=0x7fffffffdcd0, 
+    pfp=0x7fffffffdca0) at /home/_shared_code/gpuedit/src/app.c:796
+#9  0x00005555555698c3 in prefilterEvent (as=0x5555555c9220 <app>, is=0x5555555c9440 <input>, 
+    ev=0x7fffffffdcd0, pfp=0x7fffffffdca0) at /home/_shared_code/gpuedit/src/app.c:814
+#10 0x0000555555569cbd in appLoop (xs=0x5555555c9080 <xs>, as=0x5555555c9220 <app>, is=0x5555555c9440 <input>)
+    at /home/_shared_code/gpuedit/src/app.c:926
+#11 0x0000555555567d98 in main (argc=1, argv=0x7fffffffdf38) at /home/_shared_code/gpuedit/src/main.c:82
+
+-----------------------------------
+
+Thread 1 "gpuedit" received signal SIGSEGV, Segmentation fault.
+0x00005555555697e4 in execProcessPipe_bufferv (args=0x7fffffffd5d0, buffer_out=0x7fffffffd590, size_out=0x7fffffffd628) at /home/_shared_code/gpuedit/src/app.c:696
+696			while(!feof(cc->f_stdout)) {
+(gdb) bt
+#0  0x00005555555697e4 in execProcessPipe_bufferv (args=0x7fffffffd5d0, buffer_out=0x7fffffffd590, 
+    size_out=0x7fffffffd628) at /home/_shared_code/gpuedit/src/app.c:696
+#1  0x00005555555698e7 in execProcessPipe_charppv (args=0x7fffffffd5d0, charpp_out=0x55555778e4c0, 
+    n_out=0x7fffffffd628) at /home/_shared_code/gpuedit/src/app.c:726
+#2  0x0000555555569630 in execProcessPipe_charpp (args=0x7fffffffd680, charpp_out=0x55555778e4c0, 
+    n_out=0x7fffffffd628) at /home/_shared_code/gpuedit/src/app.c:672
+#3  0x00005555555ab0d0 in GUIFuzzyMatchControl_Refresh (w=0x555557524b40)
+    at /home/_shared_code/gpuedit/src/fuzzyMatchControl.c:228
+#4  0x00005555555aa873 in GUIFuzzyMatchControl_Render (w=0x555557524b40, gm=0x5555555e1a10, tl=..., sz=..., 
+    pfp=0x7fffffffdca0) at /home/_shared_code/gpuedit/src/fuzzyMatchControl.c:47
+#5  0x0000555555586b09 in MainControlPane_Render (w=0x555555db2300, gm=0x5555555e1a10, tl=..., sz=..., 
+    pfp=0x7fffffffdca0) at /home/_shared_code/gpuedit/src/mainControl.c:216
+#6  0x000055555558654b in MainControl_Render (w=0x555555db7000, gm=0x5555555e1a10, tl=..., sz=..., 
+    pfp=0x7fffffffdca0) at /home/_shared_code/gpuedit/src/mainControl.c:151
+#7  0x000055555559d61c in GUIManager_RunRenderPass (gm=0x5555555e1a10, pfp=0x7fffffffdca0, isDraw=0)
+    at /home/_shared_code/gpuedit/src/ui/guiManager.c:536
+#8  0x000055555559d02f in GUIManager_HandleKeyInput (gm=0x5555555e1a10, is=0x5555555ce580 <input>, 
+    iev=0x7fffffffdcd0, pfp=0x7fffffffdca0) at /home/_shared_code/gpuedit/src/ui/guiManager.c:436
+#9  0x0000555555569a5f in handleEvent (as=0x5555555ce360 <app>, is=0x5555555ce580 <input>, ev=0x7fffffffdcd0, 
+    pfp=0x7fffffffdca0) at /home/_shared_code/gpuedit/src/app.c:813
+#10 0x0000555555569acf in prefilterEvent (as=0x5555555ce360 <app>, is=0x5555555ce580 <input>, 
+    ev=0x7fffffffdcd0, pfp=0x7fffffffdca0) at /home/_shared_code/gpuedit/src/app.c:831
+#11 0x0000555555569ec9 in appLoop (xs=0x5555555ce1c0 <xs>, as=0x5555555ce360 <app>, is=0x5555555ce580 <input>)
+    at /home/_shared_code/gpuedit/src/app.c:943
+#12 0x0000555555567dc8 in main (argc=1, argv=0x7fffffffdf38) at /home/_shared_code/gpuedit/src/main.c:82
+(gdb) p cc
+$1 = (struct child_process_info *) 0x0
+(gdb) info locals
+status = 21845
+cc = 0x0
+bufferLength = 1024
+max_contents = 4096
+contents = 0x55555886eff0 "\240\003\260\367\377\177"
+offset = 0
+n_read = <optimized out>
+buffer = "og.h\nsrc/main.c\nsrc/mainControl.c\nsrc/mainControl.h\nsrc/mainMenu.c\nsrc/mainMenu.h\nsrc/mdi.c\nsrc/mdi.h\nsrc/msg.c\nsrc/msg.h\nsrc/pass.c\nsrc/pass.h\nsrc/pcBuffer.c\nsrc/pcBuffer.h\nsrc/perf.c\nsrc/perf.h\nsrc/"...
+filepaths = <optimized out>
+n_filepaths = 0
+i = 0
+
+---------------------------------------------------
+
+
+
+Thread 1 "gpuedit" received signal SIGSEGV, Segmentation fault.
+0x000055555556c605 in Buffer_FromSelection (src=0x555557d7fa50, sel=0x555557dd5f70) at /home/_shared_code/gpuedit/src/buffer.c:1158
+warning: Source file is more recent than executable.
+1158		blc = BufferLine_FromStr(b, sel->line[1]->buf, MIN(sel->col[1], sel->line[1]->length));
+(gdb) bt
+#0  0x000055555556c605 in Buffer_FromSelection (src=0x555557d7fa50, sel=0x555557dd5f70)
+    at /home/_shared_code/gpuedit/src/buffer.c:1158
+#1  0x000055555557b49b in GBEC_SelectionChanged (w=0x555557d7ea00)
+    at /home/_shared_code/gpuedit/src/bufferEditControl.c:1942
+#2  0x000055555557649a in GBEC_SetSelectionFromPivot (w=0x555557d7ea00)
+    at /home/_shared_code/gpuedit/src/bufferEditControl.c:577
+#3  0x00005555555746a8 in dragStop (w=0x555557d7ea00, gm=0x5555555e2a10)
+    at /home/_shared_code/gpuedit/src/bufferEditControl.c:114
+#4  0x0000555555575563 in GBEC_Render (w=0x555557d7ea00, gm=0x5555555e2a10, tl=..., sz=..., pfp=0x7fffffffdca0)
+    at /home/_shared_code/gpuedit/src/bufferEditControl.c:347
+#5  0x00005555555718a3 in GUIBufferEditor_Render (w=0x555557d7e910, gm=0x5555555e2a10, tl=..., sz=...,
+    pfp=0x7fffffffdca0) at /home/_shared_code/gpuedit/src/bufferEditor.c:155
+#6  0x000055555558722c in MainControlPane_Render (w=0x555556868860, gm=0x5555555e2a10, tl=..., sz=...,
+    pfp=0x7fffffffdca0) at /home/_shared_code/gpuedit/src/mainControl.c:216
+#7  0x0000555555586c6e in MainControl_Render (w=0x555555dae4d0, gm=0x5555555e2a10, tl=..., sz=...,
+    pfp=0x7fffffffdca0) at /home/_shared_code/gpuedit/src/mainControl.c:151
+#8  0x000055555559dd43 in GUIManager_RunRenderPass (gm=0x5555555e2a10, pfp=0x7fffffffdca0, isDraw=0)
+    at /home/_shared_code/gpuedit/src/ui/guiManager.c:536
+#9  0x000055555559d18a in GUIManager_HandleMouseClick (gm=0x5555555e2a10, is=0x5555555cf580 <input>,
+    iev=0x7fffffffdcd0, pfp=0x7fffffffdca0) at /home/_shared_code/gpuedit/src/ui/guiManager.c:354
+#10 0x0000555555569a7d in handleEvent (as=0x5555555cf360 <app>, is=0x5555555cf580 <input>, ev=0x7fffffffdcd0,
+    pfp=0x7fffffffdca0) at /home/_shared_code/gpuedit/src/app.c:817
+#11 0x0000555555569acf in prefilterEvent (as=0x5555555cf360 <app>, is=0x5555555cf580 <input>,
+    ev=0x7fffffffdcd0, pfp=0x7fffffffdca0) at /home/_shared_code/gpuedit/src/app.c:831
+#12 0x0000555555569ec9 in appLoop (xs=0x5555555cf1c0 <xs>, as=0x5555555cf360 <app>, is=0x5555555cf580 <input>)
+    at /home/_shared_code/gpuedit/src/app.c:943
+#13 0x0000555555567dc8 in main (argc=1, argv=0x7fffffffdf38) at /home/_shared_code/gpuedit/src/main.c:82
+
+
+
+---------------------------------------------------
+
+
+
+

@@ -1,0 +1,15 @@
+#!/bin/bash
+
+remotes=( \
+        git@notabug.org:fractal.arcana/gpuedit.git \
+        ssh://git@ulrichdev.com:47474/opt/git/gpuedit.git \
+)
+
+while read oldrev newrev ref
+do
+#       echo "$ref"
+        for remote in "${arr[@]}"; do
+                git push "$remote" "$ref"
+        done
+done
+
