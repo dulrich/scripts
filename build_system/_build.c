@@ -2,10 +2,10 @@
 
 // link with -lutil
 
-char* build_dir;
-char* source_dir = "./"; // "src"
-char* exe_path = "hworld";
-char* base_build_dir = "build";
+//char* build_dir;
+//char* source_dir = "__SED_TOKEN_SOURCE_PATH"; // "src"
+//char* exe_path = "__SED_TOKEN_EXE_PATH__SED_TOKEN_EXE_NAME";
+//char* base_build_dir = "__SED_TOKEN_BUILD_PATH";
 
 
 #include "_build.inc.c"
@@ -13,7 +13,7 @@ char* base_build_dir = "build";
 
 
 char* sources[] = {
-	"test.c",
+	"__SED_TOKEN_CODE_NAME",
 	NULL,
 };
 
@@ -113,62 +113,10 @@ char* common_cflags[] = {
 
 
 
-int compile_source(char* src_path, char* obj_path, objfile* obj) {
-	char* cmd = sprintfdup("gcc -c -o %s %s %s", obj_path, src_path, obj->gcc_opts_flat);
-	if(obj->verbose) puts(cmd);
-//	printf("%s\n", cmd);
-	strlist_push(&obj->compile_cache, cmd);
-//	exit(1);
-	return 0;
-}
-
-
-
-/*
-void check_source(char* raw_src_path, strlist* objs, objfile* o) {
-	time_t src_mtime, obj_mtime = 0, dep_mtime = 0;
-	
-	char* src_path = resolve_path(raw_src_path, &src_mtime);
-	char* src_dir = dir_name(raw_src_path);
-	char* base = base_name(src_path);
-	
-//	char* build_base = "debug";
-	char* src_build_dir = path_join(o->build_dir, src_dir);
-	char* obj_path = path_join(src_build_dir, base);
-	
-	// cheap and dirty
-	size_t olen = strlen(obj_path);
-	obj_path[olen-1] = 'o';
-	
-	
-	strlist_push(objs, obj_path);
-	
-	char* dep_path = strcatdup(src_build_dir, "/", base, ".d");
-	
-	mkdirp_cached(src_build_dir, 0755);
-	
-	char* real_obj_path = resolve_path(obj_path, &obj_mtime);
-	if(obj_mtime < src_mtime) {
-//		printf("  objtime compile\n");
-		compile_source(src_path, real_obj_path, o);
-		return;
-	}
-	
-	
-	if(gen_deps(src_path, dep_path, src_mtime, obj_mtime, o)) {
-//		printf("  deep dep compile\n");
-		compile_source(src_path, real_obj_path, o);
-	}
-	
-	//gcc -c -o $2 $1 $CFLAGS $LDADD
-}
-*/
-
-
 void global_init() {
 	string_cache_init(2048);
 	realname_cache_init();
-	//strlist_init(&string_cache);
+	//strlist_init(&compile_cache);
 	hash_init(&mkdir_cache, 128);
 	g_nprocs = get_nprocs();
 }
@@ -186,9 +134,9 @@ int main(int argc, char* argv[]) {
 	
 	obj->mode_debug = 2;
 	
-	obj->exe_path = "hworld";
-	obj->source_dir = "./"; // "src"
-	obj->base_build_dir = "build";
+	obj->exe_path = "__SED_TOKEN_EXE_PATH__SED_TOKEN_EXE_NAME";
+	obj->source_dir = "__SED_TOKEN_SOURCE_PATH";
+	obj->base_build_dir = "__SED_TOKEN_BUILD_PATH";
 	
 	obj->sources = sources;
 	

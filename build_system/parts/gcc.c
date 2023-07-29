@@ -83,7 +83,7 @@ char* default_compile_source(char* src_path, char* obj_path, objfile* obj) {
 }
 
 
-void check_source(char* raw_src_path, objfile* o) {
+void check_source(char* raw_src_path, strlist* objs, objfile* o) {
 	time_t src_mtime, obj_mtime = 0, dep_mtime = 0;
 	
 	char* src_path = resolve_path(raw_src_path, &src_mtime);
@@ -99,7 +99,7 @@ void check_source(char* raw_src_path, objfile* o) {
 	obj_path[olen-1] = 'o';
 	
 	
-	strlist_push(&o->objs, obj_path);
+	strlist_push(objs, obj_path);
 	
 	char* dep_path = strcatdup(src_build_dir, "/", base, ".d");
 	
@@ -107,12 +107,14 @@ void check_source(char* raw_src_path, objfile* o) {
 	
 	char* real_obj_path = resolve_path(obj_path, &obj_mtime);
 	if(obj_mtime < src_mtime) {
+//		printf("  objtime compile\n");
 		strlist_push(&o->compile_cache, o->compile_source_cmd(src_path, real_obj_path, o));
 		return;
 	}
 	
 	
 	if(gen_deps(src_path, dep_path, src_mtime, obj_mtime, o)) {
+//		printf("  deep dep compile\n");
 		strlist_push(&o->compile_cache, o->compile_source_cmd(src_path, real_obj_path, o));
 	}
 	
