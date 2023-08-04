@@ -1,9 +1,9 @@
 #!/bin/bash
 
 
-# there is a better version of this somewhere 
-here="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
-echo "we are here <$here>"
+here=$( dirname $( realpath "${BASH_SOURCE[0]}" ) )
+
+mode="run"
 
 sed_files=( _build.c _build.inc.c build.sh debug.sh profiling.sh valgrind.sh )
 code_file="test.c"
@@ -16,7 +16,32 @@ dest_path_root=""
 dest_path_source="src"
 
 
-while getopts ":b:c:e:r:s:x:" opt; do
+show_help() {
+	echo "usage: mkproject [-h|--help] [-b|--build_path]
+	[-s|--source_path] [-c|--code_file_name]
+	[-e|--executable_path] [-x|--executable_file_name]
+	[-r|--root_path] [<root path arg?>]"
+}
+
+orig_args=()
+
+for arg in "$@"; do
+	shift
+	orig_args+="$arg"
+	case "$arg" in
+		'--help') set -- "$@" '-h' ;;
+		'--build_path') set -- "$@" '-b' ;;
+		'--source_path')     set -- "$@" '-s' ;;
+		'--code_file_name') set -- "$@" '-c' ;;
+		'--executable_path') set -- "$@" '-e' ;;
+		'--executable_file_name') set -- "$@" '-x' ;;
+		'--root_path') set -- "$@" '-x' ;;
+		*) set -- "$@" "$arg" ;;
+	esac
+done
+
+
+while getopts ":b:c:e:r:s:x:h" opt; do
 	case $opt in
 		b)
 			dest_path_build="$OPTARG"
@@ -27,8 +52,13 @@ while getopts ":b:c:e:r:s:x:" opt; do
 		e)
 			dest_path_exe="$OPTARG"
 			;;
+		h)
+			show_help
+			exit 0
+			;;
 		r)
 			dest_path_root="$OPTARG"
+			echo "$OPTIND"
 			;;
 		s)
 			dest_path_source="$OPTARG"
@@ -49,6 +79,11 @@ done
 
 shift $((OPTIND-1))
 
+
+if [ "$mode" = "debug" ] ; then
+	echo "debug values:"
+	exit 3
+fi
 
 if [ "$dest_path_root" = "" ] ; then
 	if [ "$1" != "" ] ; then
