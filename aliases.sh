@@ -25,7 +25,9 @@ EXTERNAL_OUTPUT="DP-1-3"
 INTERNAL_OUTPUT="eDP-1-1"
 AUDIO_DEVICE="default" # pulse on systems using pulseaudio
 
-here="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+# https://github.com/ElectricRCAircraftGuy/eRCaGuy_hello_world/blob/master/bash/get_script_path.sh
+here=$( dirname $( realpath "${BASH_SOURCE[0]}" ) )
+
 
 if [ -f $here/config.sh ] ; then
 	source $here/config.sh
