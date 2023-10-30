@@ -333,6 +333,10 @@ alias gdbr="gdb -ex r"
 alias gdbx="gdb -x $here/gdb.config"
 
 
+cman() {
+	man -s "2,3,3p,2x,3x,7" "$*"
+}
+
 # load git aliases
 source $here/git-aliases.sh
 
