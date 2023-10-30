@@ -218,5 +218,33 @@ uassets() {
 }
 
 
+# running git webviewer
+#
+# ssh root@192.168.50.13
+# screen -S gitwebstack
+# su -s /bin/bash git
+# cd /home/git
+# ./git_webstack ./gitviewer_root/
+
+
+# new empty repos can be created in the system by:
+#
+# ssh root@192.168.50.13
+# su -s /bin/bash git
+# cd /home/git
+# git_webviewer ./gitviewer_root --add-repo fractal <reponame>
+
+
+# new empty repo on ulrichdev
+# 
+# sudo su - git
+# cd /opt/git/
+# git init --bare <reponame>.git
+
+
+
+
+
+
 
 
