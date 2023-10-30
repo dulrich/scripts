@@ -106,6 +106,19 @@ zz () {
 	git push
 }
 
+
+pall() {
+	remotes=( $( git remote ) )
+	for name in "${remotes[@]}"
+	do
+		push_url=$(git remote get-url --push "$name")
+		if [ "$push_url" != "no_push" ]; then
+			echo "Pushing to remote $name..."
+			git push "$name"
+		fi
+	done
+}
+
 blameline () {
 	local author blame line inv
 
