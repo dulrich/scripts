@@ -107,6 +107,9 @@ zz () {
 }
 
 
+nopush() {
+	git remote set-url --push "$1" no_push
+}
 pall() {
 	remotes=( $( git remote ) )
 	for name in "${remotes[@]}"
