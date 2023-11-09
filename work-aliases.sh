@@ -217,6 +217,17 @@ uassets() {
 	cd "$code_path/${git_dirs[0]}"
 }
 
+hoard() {
+	path=/mnt/hoard
+	mountpoint -q $path
+	if [ $? -ne 0 ]; then
+		sshfs -o reconnect root@betty:/mnt/hoard $path
+	fi
+}
+unhoard() {
+	umount /mnt/hoard
+}
+
 
 # running git webviewer
 #
