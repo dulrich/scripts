@@ -23,4 +23,26 @@ alias em="time sudo emerge --ask --tree"
 
 alias mod_rebuild="sudo emerge @module-rebuild"
 
+# eclean distfiles
+# eclean packages
+
+
+
+
+
+
+# sudo su -
+# eselect kernel list
+# eselect kernel set <n>
+# cd /usr/source/linux
+# make oldconfig
+# make -j9 && make modules_install
+# make install
+# mount /boot/efi
+# grub-install
+# grub-mkconfig =o /boot/grub/grub.cfg
+# make modules_prepare
+# emerge @module-rebuild
+
+
 
