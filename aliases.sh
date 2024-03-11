@@ -326,7 +326,17 @@ internal () {
 
 
 volume() {
-	amixer -q -D $AUDIO_DEVICE sset Master $1%
+	if [ "$1" == "" ]; then
+		amixer -D $AUDIO_DEVICE sget Master | grep -iIoP "\[\d+%\]" | grep -iIoP --color=never "\d+%"
+	else
+		amixer -q -D $AUDIO_DEVICE sset Master $1%
+	fi
+}
+
+playdir() {
+	# options don't seem to work w/o interface?
+	# --key-play-pause " " --key-next "d" --key-prev "a"
+	cvlc --play-and-exit *.mp3
 }
 
 alias gdbr="gdb -ex r"
