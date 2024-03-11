@@ -4,7 +4,7 @@
 			"/home/fractal/code/scripts",
 			"/home/fractal/code/baced",
 		],
-		
+		"MainControl_excludePatterns": [],
 		commandsPath: "/home/fractal/.gpuedit/commands.json",
 		highlightStylesPath: "/home/fractal/.gpuedit/highlighters/",
 		
