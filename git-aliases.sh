@@ -122,6 +122,7 @@ pall() {
 	done
 }
 
+
 blameline () {
 	local author blame line inv
 

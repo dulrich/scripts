@@ -4,7 +4,7 @@
 			"/home/user/code/scripts",
 			"/home/user/code/baced",
 		],
-		
+		"MainControl_excludePatterns": [],
 		commandsPath: "/home/user/.gpuedit/commands.json",
 		highlightStylesPath: "/home/user/.gpuedit/highlighters/",
 		
