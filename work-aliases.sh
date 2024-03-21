@@ -17,8 +17,8 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 # dirs, eval style
-cdnames=( cdb                       cdl                      cdp                        cda                        cdd                                     cdc                        cdk                           cdr                           cdt                             cdx)
-cdpaths=( $code_path/xembly-backend $code_path/xembly-lib-py $code_path/xembly-pipeline $code_path/xembly-data-api $code_path/xembly-delete-meeting-worker $code_path/xembly-chat-api $code_path/keybase-production $code_path/xembly-rasa-server $code_path/xembly-timeparse-api $code_path/xembly-xena-worker )
+cdnames=( cda                           cdb              cde                                   cdm                             cdg                cdc )
+cdpaths=( $code_path/baced/tools/assman $code_path/baced $code_path/baced/tools/blender_export $code_path/baced/tools/meshtool $code_path/gpuedit $code_path/music_controller )
 
 cdmax=$(( ${#cdnames[@]} - 1 ))
 
@@ -221,11 +221,22 @@ hoard() {
 	path=/mnt/hoard
 	mountpoint -q $path
 	if [ $? -ne 0 ]; then
-		sshfs -o reconnect root@betty:/mnt/hoard $path
+		sshfs -o reconnect fractal@betty:/mnt/hoard $path
 	fi
 }
 unhoard() {
 	umount /mnt/hoard
+}
+
+assets() {
+	path=/mnt/baced_assets_raw
+	mountpoint -q $path
+	if [ $? -ne 0 ]; then
+		sshfs -o allow_other,reconnect baced_assets@betty:/mnt/hoard/baced_assets_raw $path
+	fi
+}
+unassets() {
+	umount /mnt/baced_assets_raw
 }
 
 
