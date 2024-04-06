@@ -17,7 +17,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 alias upd="sudo emerge --sync"
-alias upg="sudo emerge --ask --update --deep --with-bdeps=y @world"
+alias upg="sudo emerge --ask --update --changed-use --deep --with-bdeps=y @world"
 
 alias em="time sudo emerge --ask --tree"
 
@@ -41,6 +41,40 @@ alias mod_rebuild="sudo emerge @module-rebuild"
 # mount /boot/efi
 # grub-install
 # grub-mkconfig =o /boot/grub/grub.cfg
+# make modules_prepare
+# emerge @module-rebuild
+
+
+
+
+
+# update/upgrade process
+# upd
+# upg
+# remove --deep if conflicts
+# rebuild kernel
+# copy backup kernel config
+# loop these until nothing
+# eclean distfiles
+# eclean packages
+# emerge --depclean
+# emerge --ask @preserved-rebuild
+
+
+
+
+
+
+# sudo su -
+# eselect kernel list
+# eselect kernel set <n>
+# cd /usr/source/linux
+# make oldconfig
+# make -j9 && make modules_install
+# make install
+# mount /boot/efi
+# grub-install
+# grub-mkconfig -o /boot/grub/grub.cfg
 # make modules_prepare
 # emerge @module-rebuild
 
