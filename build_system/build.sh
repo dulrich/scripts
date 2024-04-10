@@ -1,4 +1,6 @@
 #!/bin/bash
 
-gcc _build.c -lutil -o ._build -ggdb \
+source ./build-flags.sh
+
+gcc $gcc_flags _build.c -lutil -o ._build -ggdb \
 	&& ./._build $@ 

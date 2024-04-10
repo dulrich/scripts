@@ -1111,12 +1111,12 @@ char* pkg_config(char** packages, char* opts) {
 	free(pkgs);
 	
 	FILE* f = popen(tmp, "r");
-	free(tmp);
 	if(!f) {
 		fprintf(stderr, "Could not run command '%s'\n", tmp);
 		exit(1);
 		return NULL;
 	}
+	free(tmp);
 	
 	int len = 2048;
 	int fill = 0;
