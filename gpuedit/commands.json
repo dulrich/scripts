@@ -81,7 +81,8 @@
 			
 			
 			{elem: "Main", cmd: "GrepOpen", mods: "CS", key: "p", amt: 0},
-			{elem: "Buffer", cmd: "SmartBubbleSelection", mods: "CS", key: "p", amt: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_", },
+			{elem: "Buffer", cmd: "SmartBubbleSelection", mods: "CS", key: "p", amt: ["%s", "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_"], },
+			{elem: "Buffer", cmd: "SmartBubbleSelection", mods: "CS", key: "t", amt: ["struct %s", "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_"] },
 			{elem: "GrepOpen", cmd: "Exit", mods: "", key: "XK_Escape", amt: 0},
 			{elem: "GrepOpen", cmd: "MoveCursorV", mods: "", key: "XK_Up", amt: -1},
 			{elem: "GrepOpen", cmd: "MoveCursorV", mods: "", key: "XK_Down", amt: 1},
