@@ -18,6 +18,7 @@
 
 alias upd="sudo emerge --sync"
 alias upg="sudo emerge --ask --update --changed-use --deep --with-bdeps=y @world"
+# emerge -auDN --keep-going @world
 
 alias em="time sudo emerge --ask --tree"
 
@@ -29,6 +30,8 @@ alias mod_rebuild="sudo emerge @module-rebuild"
 
 
 
+# todo: switch to git portage
+# https://wiki.gentoo.org/wiki/Portage_with_Git
 
 
 # sudo su -
@@ -61,6 +64,7 @@ alias mod_rebuild="sudo emerge @module-rebuild"
 # eclean packages
 # emerge --depclean
 # emerge --ask @preserved-rebuild
+# eclean-kernel -n 2
 
 
 
