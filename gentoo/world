@@ -1,5 +1,6 @@
 app-admin/sudo
 app-admin/sysklogd
+app-arch/p7zip
 app-editors/gvim
 app-editors/nano
 app-editors/vim
@@ -32,6 +33,7 @@ sys-boot/grub:2
 sys-devel/gdb
 sys-fs/dosfstools
 sys-kernel/gentoo-sources
+sys-kernel/installkernel
 sys-kernel/linux-firmware
 sys-libs/glibc
 sys-power/acpi
