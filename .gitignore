@@ -1,4 +1,5 @@
 .gpuedit.json
+.gpuedit.session
 config.lifi
 config.sh
 *.swp
