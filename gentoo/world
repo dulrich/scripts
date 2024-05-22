@@ -1,3 +1,4 @@
+app-admin/eclean-kernel
 app-admin/sudo
 app-admin/sysklogd
 app-arch/p7zip
@@ -11,6 +12,13 @@ dev-db/postgis
 dev-db/postgresql
 dev-lang/lua
 dev-lang/python:3.9
+dev-perl/EV
+dev-python/numpy
+dev-python/virtualenv
+dev-util/cloc
+dev-util/glslang
+dev-util/vulkan-headers
+dev-util/vulkan-tools
 dev-vcs/git
 media-fonts/liberation-fonts
 media-fonts/ttf-bitstream-vera
