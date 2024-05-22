@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # gentoo-aliases.sh: shorten common gentoo tasks
-# Copyright 2021  David Ulrich
+# Copyright 2021 - 2024  David Ulrich
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by

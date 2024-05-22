@@ -108,6 +108,7 @@
 			{elem: "FileBrowser", sub_elem: "FileRow" cmd: "ToggleSelect", mods: "", key: "RAT_1", amt: 0, flags: []},
 			{elem: "FileBrowser", sub_elem: "FileRow" cmd: "SmartOpen", mods: "", key: "RAT_1x2", amt: 0, flags: []},
 			
+			{elem: "Buffer", cmd: "SmartAlign", mods: "CS", key: "a", amt: ",", flags: ["rehighlight", "resetCursorBlink", "undoSeqBreak"]},
 			
 			{elem: "Buffer", cmd: "MoveCursorH", mods: "", key: "XK_Left", amt: -1, flags: ["scrollToCursor", "resetCursorBlink", "undoSeqBreak"]},
 			{elem: "Buffer", cmd: "MoveCursorH", mods: "", key: "XK_Right", amt: 1, flags: ["scrollToCursor", "resetCursorBlink", "undoSeqBreak"]},
