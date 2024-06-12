@@ -342,6 +342,21 @@ cman() {
 	man -s "2,3,3p,2x,3x,7" "$*"
 }
 
+
+
+x() {
+	./build.sh
+}
+xd() {
+	./debug.sh
+}
+
+
+reload() {
+	source $here/aliases.sh
+}
+
+
 # load git aliases
 source $here/git-aliases.sh
 
