@@ -1,12 +1,20 @@
 #!/bin/bash
 
 # gentoo-aliases.sh: shorten common gentoo tasks
-# 2021 - 2024  David Ulrich
+# Copyright 2021 - 2024  David Ulrich
 #
-# CC0: This work has been marked as dedicated to the public domain. 
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
 #
-# You may have received a copy of the Creative Commons Public Domain dedication
-# along with this program.  If not, see <https://creativecommons.org/publicdomain/zero/1.0/>.
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 alias upd="sudo emerge --sync"
 alias upg="sudo emerge --ask --update --changed-use --deep --with-bdeps=y @world"
@@ -22,7 +30,7 @@ alias mod_rebuild="sudo emerge @module-rebuild"
 
 
 
-# todo: switch to git portage
+# done: switch to git portage
 # https://wiki.gentoo.org/wiki/Portage_with_Git
 
 
