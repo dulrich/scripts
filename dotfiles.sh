@@ -100,9 +100,13 @@ dotfile_backup() {
 		dotmax=$(( ${#dot_list[@]} - 1 ))
 		for (( j=0; j<=$dotmax; j++ )); do
 			dot=${dot_list[$j]}
-			cp -n -u $dot $meta_real_dotfiles/$dirname/$filename #2> /dev/null
+			printf -- "Checking <%s/%s>..." $dirname $dot
+			cp -n -u $dot $meta_real_dotfiles/$dirname/$filename 2> /dev/null
 			if [ $? -eq 0 ]; then
-				printf -- "backed up <%s/%s>\n" $dirname $dot
+				#printf -- "backed up <%s/%s>\n" $dirname $dot
+				printf "backed up\n"
+			else
+				printf "ok\n"
 			fi
 		done
 	done
