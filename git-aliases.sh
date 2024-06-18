@@ -40,7 +40,9 @@ gc () {
 	if [ ${repo: -4} != ".git" ]; then
 		repo="$repo.git"
 	fi
-
+	
+	# maybe parse the ref to see if it's already a protocol and don't duplicate
+	
 	git clone "git@github.com:/$repo"
 }
 alias gls="git log --stat"
