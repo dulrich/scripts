@@ -30,6 +30,7 @@ for arg in "$@"; do
 	orig_args+="$arg"
 	case "$arg" in
 		'--help') set -- "$@" '-h' ;;
+		'--force') set -- "$@" '-f' ;;
 		'--build_path') set -- "$@" '-b' ;;
 		'--source_path')     set -- "$@" '-s' ;;
 		'--code_file_name') set -- "$@" '-c' ;;
@@ -40,8 +41,9 @@ for arg in "$@"; do
 	esac
 done
 
+flag_force=0
 
-while getopts ":b:c:e:r:s:x:h" opt; do
+while getopts ":b:c:e:r:s:x:fh" opt; do
 	case $opt in
 		b)
 			dest_path_build="$OPTARG"
@@ -51,6 +53,9 @@ while getopts ":b:c:e:r:s:x:h" opt; do
 			;;
 		e)
 			dest_path_exe="$OPTARG"
+			;;
+		f)
+			flag_force=1
 			;;
 		h)
 			show_help
@@ -91,6 +96,17 @@ if [ "$dest_path_root" = "" ] ; then
 	else
 		echo "Missing destination root path of project"
 		exit 2
+	fi
+fi
+
+
+# check $dest_path_root is an empty folder or --force was used
+contents=$( ls $dest_path_root )
+ncontents=$(( ${#contents[@]} ))
+if [ $ncontents -gt 0 ]; then
+	if [ $flag_force -eq 0 ]; then
+		echo "Destination is not empty, use --force to override"
+		exit 3
 	fi
 fi
 

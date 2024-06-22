@@ -115,6 +115,30 @@ dotfile_backup() {
 
 
 
+dotfile_restore() {
+	dotname="$1"
+	
+	dirname="$proj_name"
+	printf -- "[%s]\n" $dirname
+	cd $meta_real_dotfiles/$dirname
+	dot_list=( $( find -type f | ls -A ) )
+	dotmax=$(( ${#dot_list[@]} - 1 ))
+	for (( j=0; j<=$dotmax; j++ )); do
+		dot=${dot_list[$j]}
+		if [ "$dot" == "$dotname" ]; then
+			cp -n -u $dot $here/$dotname 2> /dev/null
+			printf -- "Restored <%s> from <%s>\n" $dotname $meta_real_dotfiles/$dirname/$dot
+			return
+		fi
+	done
+	printf -- "ERROR: unregistered dotfile <%s>\n" $dotname
+	
+	cd $here
+	exit 4
+}
+
+
+
 dotfiles_show() {
 	proj_names=()
 	if [ $flag_all -eq 1 ]; then
@@ -215,7 +239,6 @@ while getopts ":a:r:bhlpst" opt; do
 		a)
 			guard_in_project
 			dotfile_add "$OPTARG"
-			#printf -- "NYI: add %s\n" $OPTARG
 			exit 0
 			;;
 		b)
@@ -223,7 +246,6 @@ while getopts ":a:r:bhlpst" opt; do
 				guard_in_project
 			fi
 			dotfile_backup
-			#printf -- "NYI: backup %s\n" $OPTARG
 			exit 0
 			;;
 		h)
@@ -243,7 +265,7 @@ while getopts ":a:r:bhlpst" opt; do
 			;;
 		r)
 			guard_in_project
-			printf -- "NYI: restore %s\n" $OPTARG
+			dotfile_restore "$OPTARG"
 			exit 0
 			;;
 		s)
