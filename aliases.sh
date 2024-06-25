@@ -8,6 +8,10 @@
 # You may have received a copy of the Creative Commons Public Domain dedication
 # along with this program.  If not, see <https://creativecommons.org/publicdomain/zero/1.0/>.
 
+
+export PS1='\[\033]0;\u@\h \d \t\a\]\[\033[00;36m\]\t \w \$ \[\033[00m\]'
+
+
 # CONFIG VARIABLES
 code_path="~/code/"
 down_path="~/Downloads"
