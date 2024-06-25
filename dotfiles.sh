@@ -79,6 +79,9 @@ dotfile_add() {
 	filename="$1"
 	
 	cp $filename $meta_real_dotfiles/$proj_name/$filename
+	cd $meta_real_dotfiles
+	git add -f $proj_name/$filename
+	cd $here
 }
 
 
