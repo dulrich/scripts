@@ -5,7 +5,7 @@ here=$( dirname $( realpath "${BASH_SOURCE[0]}" ) )
 
 mode="run"
 
-sed_files=( _build.c _build.inc.c build.sh build-flags.sh debug.sh profiling.sh valgrind.sh )
+sed_files=( _build.c _build.inc.c build.sh build-flags.sh debug.sh profiling.sh valgrind valgrind.sh )
 code_file="test.c"
 
 dest_name_code=""

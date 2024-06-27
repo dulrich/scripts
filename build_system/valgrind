@@ -1,0 +1,7 @@
+#!/bin/bash
+
+ valgrind --leak-check=full --show-leak-kinds=all --error-limit=no --track-origins=yes $@
+# valgrind  --error-limit=no --track-origins=yes --suppressions=./valgrind-gl-suppress.supp $@
+
+# --leak-check=full  --show-leak-kinds=all
+# --gen-suppressions=yes
