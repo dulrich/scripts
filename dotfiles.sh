@@ -99,6 +99,7 @@ dotfile_backup() {
 		dirname=${proj_names[$i]}
 		cd $meta_real_dotfiles/$dirname 
 		dot_list=( $( find -type f | ls -A ) )
+		cd $here
 		
 		dotmax=$(( ${#dot_list[@]} - 1 ))
 		for (( j=0; j<=$dotmax; j++ )); do
