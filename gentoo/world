@@ -46,7 +46,8 @@ sys-kernel/linux-firmware
 sys-libs/glibc
 sys-power/acpi
 sys-process/htop
-www-client/chromium
+www-client/firefox
+www-servers/nginx
 x11-apps/mesa-progs
 x11-apps/setxkbmap
 x11-apps/xfontsel
