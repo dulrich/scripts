@@ -90,6 +90,15 @@ up () {
 	git pull --no-edit production $(defarg "$*" 0 "$bname")
 }
 
+pu () {
+	bname=$( git branch | grep -oP "\b(main|master)\b" )
+	git push ulrichdev $(defarg "$*" 0 "$bname")
+}
+uu () {
+	bname=$( git branch | grep -oP "\b(main|master)\b" )
+	git pull --no-edit ulrichdev $(defarg "$*" 0 "$bname")
+}
+
 z () {
 	git commit -m "$*"
 	git push

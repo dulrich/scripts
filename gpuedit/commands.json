@@ -53,7 +53,7 @@
 			
 			{elem: "Main", cmd: "QuitWithoutSave", mods: "C", key: "q", amt: 0},
 			{elem: "Main", cmd: "OpenFileBrowser", mods: "C", key: "o", amt: 0},
-			{elem: "Main", cmd: "FuzzyOpener", mods: "C", key: "p", amt: 0},
+			
 			
 			//{elem: "Main", cmd: "Calculator", mods: "T", key: "/", amt: 0},
 			{elem: "Main", cmd: "SimpleWindowTest", mods: "C", key: "u", amt: 0},
@@ -74,6 +74,7 @@
 			{elem: "Buffer", cmd: "ToggleGDBBreakpoint", mods: "A", key: "b", amt: 0},
 			
 			
+			{elem: "Main", cmd: "FuzzyOpener", mods: "C", key: "p", amt: 0},
 			{elem: "FuzzyMatcher", cmd: "Exit", mods: "", key: "XK_Escape", amt: 0},
 			{elem: "FuzzyMatcher", cmd: "MoveCursorV", mods: "", key: "XK_Up", amt: -1},
 			{elem: "FuzzyMatcher", cmd: "MoveCursorV", mods: "", key: "XK_Down", amt: 1},
@@ -82,7 +83,8 @@
 			
 			{elem: "Main", cmd: "GrepOpen", mods: "CS", key: "p", amt: 0},
 			{elem: "Buffer", cmd: "SmartBubbleSelection", mods: "CS", key: "p", amt: ["%s", "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_"], },
-			{elem: "Buffer", cmd: "SmartBubbleSelection", mods: "CS", key: "t", amt: ["struct %s", "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_"] },
+			{elem: "Buffer", cmd: "SmartBubbleSelection", mods: "CA", key: "p", pane: "o", amt: ["%s", "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_"], },
+			{elem: "Buffer", cmd: "SmartBubbleSelection", mods: "CS", key: "t", pane: "o", amt: ["struct %s", "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_"] },
 			{elem: "GrepOpen", cmd: "Exit", mods: "", key: "XK_Escape", amt: 0},
 			{elem: "GrepOpen", cmd: "MoveCursorV", mods: "", key: "XK_Up", amt: -1},
 			{elem: "GrepOpen", cmd: "MoveCursorV", mods: "", key: "XK_Down", amt: 1},
