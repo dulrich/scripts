@@ -50,6 +50,7 @@ alias mod_rebuild="sudo emerge @module-rebuild"
 
 # cp /usr/src/linux/.config ./gentoo/X.Y.Z.config
 # cp /var/lib/portage/world ./gentoo/world
+# cp /etc/portage/package.accept_keywords ./gentoo/package.accept_keywords
 
 
 
