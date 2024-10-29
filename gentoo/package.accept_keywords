@@ -1,0 +1,23 @@
+sys-apps/plocate ~amd64
+
+dev-util/volk
+dev-util/vulkan-headers ~amd64
+dev-util/vulkan-tools ~amd64
+media-libs/vulkan-layers ~amd64
+dev-util/vulkan-utility-libraries ~amd64
+media-libs/vulkan-loader ~amd64
+dev-util/spirv-tools ~amd64
+dev-util/spirv-headers ~amd64
+dev-util/glslang ~amd64
+
+dev-util/nvidia-cuda-toolkit ~amd64
+
+media-gfx/openvdb ~amd64
+media-libs/oidn ~amd64
+media-libs/openpgl ~amd64
+media-libs/opensubdiv ~amd64
+media-libs/shaderc ~amd64
+media-gfx/blender ~amd64
+
+x11-misc/i3lock-color ~amd64
+

@@ -16,7 +16,8 @@ bindsym $mod+Shift+Return exec urxvt
 
 # kill focused window
 bindsym $mod+Shift+c kill
-bindsym $mod+Shift+l exec gmrun slock
+# bindsym $mod+Shift+l exec gmrun slock
+bindsym $mod+Shift+l exec /home/$USER/.config/i3/lock
 
 # launching programs
 #bindsym $mod+d exec dmenu_run
