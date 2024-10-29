@@ -53,8 +53,13 @@ URxvt.saveLines: 10240
 URxvt.scrollBar: false
 URxvt.scrollBar_right: false
 URxvt.urgentOnBell: true
-URxvt.depth: 24
+! URxvt.depth: 24
 URxvt.iso14755: false
+
+
+URxvt.transparent: false
+URxvt.depth: 32
+URxvt*background: rgba:0000/0000/0000/cccc
 
 
 !! Common Keybinds for Navigations
