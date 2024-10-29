@@ -6,34 +6,41 @@
 		
 		modes: {
 			// -1 is the default parent mode
-			"0": {name: "Normal", cascade: -1, },
-			"1": {name: "Find", cascade: -1, },
-			"2": {name: "Testing", cascade: -1, },
+			"0": {name: "Normal",            cascade: -1, }
+			"1": {name: "Find",              cascade: -1, }
+			"2": {name: "Testing",           cascade: -1, }
 			
-			"10": {name: "Autocomplete", cascade: 0, },
-			"11": {name: "AutocompleteOpts", cascade: 0, },
+			"10": {name: "Autocomplete",     cascade: 0,  }
+			"11": {name: "AutocompleteOpts", cascade: 0,  }
 			
 		},
 
 		overlays: {
-			"find": {name: "Find", flags: ["showFindBar"]},
-			"goto": {name: "GotoLine", flags: ["showGoToLineBar"]},
+			"find": {name: "Find",     flags: ["showFindBar"]}
+			"goto": {name: "GotoLine", flags: ["showGoToLineBar"]}
 		},
 		
 		keyConfig: [
 			{elem: "Main", cmd: "EnterLayoutMode",  mods: "A",  key: "l", amt: 1},
-			{mode: 10, elem: "Main", cmd: "ExitLayoutMode", mods: "",   key: "XK_Escape", amt: 1},
-			{mode: 10, elem: "Main", cmd: "ExpandPanesX",   mods: "",   key: "x", amt: 1},
-			{mode: 10, elem: "Main", cmd: "ExpandPanesX",   mods: "S",  key: "x", amt: -1},
-			{mode: 10, elem: "Main", cmd: "ExpandPanesY",   mods: "",   key: "y", amt: 1},
-			{mode: 10, elem: "Main", cmd: "ExpandPanesY",   mods: "S",  key: "y", amt: -1},
+			{mode: 10, elem: "Main", cmd: "ExitLayoutMode", mods: "",  key: "XK_Escape", amt: 1}
+			{mode: 10, elem: "Main", cmd: "ExpandPanesX",   mods: "",  key: "x",         amt: 1}
+			{mode: 10, elem: "Main", cmd: "ExpandPanesX",   mods: "S", key: "x",         amt: -1}
+			{mode: 10, elem: "Main", cmd: "ExpandPanesY",   mods: "",  key: "y",         amt: 1}
+			{mode: 10, elem: "Main", cmd: "ExpandPanesY",   mods: "S", key: "y",         amt: -1}
 			
 			
-			{elem: "Main", cmd: "NextTab",  mods: "A",  key: "XK_Right", amt: 1},
-			{elem: "Main", cmd: "PrevTab",  mods: "A",  key: "XK_Left", amt: 1},
-			{elem: "Main", cmd: "MoveTabR", mods: "AS", key: "XK_Right", amt: 1},
-			{elem: "Main", cmd: "MoveTabL", mods: "AS", key: "XK_Left", amt: 1},
-			{elem: "Main", cmd: "SortTabs", mods: "AS", key: "s", amt: 1},
+			{elem: "Main", cmd: "WalkAccessIndex", mods: "A",   key: "XK_Up",    amt: 1}
+			{elem: "Main", cmd: "WalkAccessIndex", mods: "A",   key: "XK_Down",  amt: -1}
+			{elem: "Main", cmd: "NextTab",         mods: "A",   key: "XK_Right", amt: 1}
+			{elem: "Main", cmd: "PrevTab",         mods: "A",   key: "XK_Left",  amt: 1}
+			{elem: "Main", cmd: "MoveTabR",        mods: "AS",  key: "XK_Right", amt: 1}
+			{elem: "Main", cmd: "MoveTabL",        mods: "AS",  key: "XK_Left",  amt: 1}
+			{elem: "Main", cmd: "SortTabs",        mods: "AS",  key: "s",        amt: 1}
+			{elem: "Main", cmd: "RepaneTabH",      mods: "CAS", key: "XK_Right", amt: 1}
+			{elem: "Main", cmd: "RepaneTabH",      mods: "CAS", key: "XK_Left",  amt: -1}
+			{elem: "Main", cmd: "RepaneTabV",      mods: "CAS", key: "XK_Up",    amt: 1}
+			{elem: "Main", cmd: "RepaneTabV",      mods: "CAS", key: "XK_Down",  amt: -1}
+			
 			
 			{elem: "Main", cmd: "FocusPaneRelX", mods: "AT", key: "XK_Right", amt: 1},
 			{elem: "Main", cmd: "FocusPaneRelX", mods: "AT", key: "XK_Left", amt: -1},
@@ -63,28 +70,33 @@
 			{elem: "Main", cmd: "Terminal", mods: "T", key: "t", amt: 0},
 			
 			{elem: "Main", cmd: "OpenConjugate", mods: "C", key: "h", amt: ["c", "h"]},
+			{elem: "Main", cmd: "OpenConjugate", mods: "CA", key: "h", pane: "o", amt: ["c", "h"]},
 			
+			{elem: "Main", cmd: "OpenSelf", mods: "CS", key: "o", pane: "o", amt: 0},
 			
-			{elem: "Main", cmd: "FontNudgeWidth", mods: "CAT", key: "XK_Next", amt: -1},
-			{elem: "Main", cmd: "FontNudgeWidth", mods: "CAT", key: "XK_Prior", amt: 1},
-			{elem: "Main", cmd: "FontNudgeCenter", mods: "CAT", key: "XK_Home", amt: 1},
-			{elem: "Main", cmd: "FontNudgeCenter", mods: "CAT", key: "XK_End", amt: -1},
+			{elem: "Main", cmd: "FontNudgeWidth",  mods: "CAT", key: "XK_Next",  amt: -1}
+			{elem: "Main", cmd: "FontNudgeWidth",  mods: "CAT", key: "XK_Prior", amt: 1}
+			{elem: "Main", cmd: "FontNudgeCenter", mods: "CAT", key: "XK_Home",  amt: 1}
+			{elem: "Main", cmd: "FontNudgeCenter", mods: "CAT", key: "XK_End",   amt: -1}
 			
 			
 			{elem: "Buffer", cmd: "ToggleGDBBreakpoint", mods: "A", key: "b", amt: 0},
 			
 			
-			{elem: "Main", cmd: "FuzzyOpener", mods: "C", key: "p", amt: 0},
-			{elem: "FuzzyMatcher", cmd: "Exit", mods: "", key: "XK_Escape", amt: 0},
-			{elem: "FuzzyMatcher", cmd: "MoveCursorV", mods: "", key: "XK_Up", amt: -1},
-			{elem: "FuzzyMatcher", cmd: "MoveCursorV", mods: "", key: "XK_Down", amt: 1},
-			{elem: "FuzzyMatcher", cmd: "OpenFile", mods: "", key: "XK_Return", amt: 0},
+			{elem: "Main",         cmd: "FuzzyOpener", mods: "C", key: "p", amt: 0},
+			{elem: "Main",         cmd: "FuzzyOpener", mods: "A", key: "p", pane: "o", amt: 0},
+			{elem: "FuzzyMatcher", cmd: "Exit",        mods: "",  key: "XK_Escape", amt: 0},
+			{elem: "FuzzyMatcher", cmd: "MoveCursorV", mods: "",  key: "XK_Up", amt: -1},
+			{elem: "FuzzyMatcher", cmd: "MoveCursorV", mods: "",  key: "XK_Down", amt: 1},
+			{elem: "FuzzyMatcher", cmd: "OpenFile",    mods: "",  key: "XK_Return", amt: 0},
 			
 			
-			{elem: "Main", cmd: "GrepOpen", mods: "CS", key: "p", amt: 0},
+			{elem: "Main",   cmd: "GrepOpen",             mods: "CS", key: "p", amt: 0},
 			{elem: "Buffer", cmd: "SmartBubbleSelection", mods: "CS", key: "p", amt: ["%s", "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_"], },
 			{elem: "Buffer", cmd: "SmartBubbleSelection", mods: "CA", key: "p", pane: "o", amt: ["%s", "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_"], },
-			{elem: "Buffer", cmd: "SmartBubbleSelection", mods: "CS", key: "t", pane: "o", amt: ["struct %s", "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_"] },
+			{elem: "Buffer", cmd: "SmartBubbleSelection", mods: "CS", key: "t", amt: ["typedef.+\\b%s", "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_"] },
+			{elem: "Buffer", cmd: "SmartBubbleSelection", mods: "CA", key: "t", pane: "o", amt: ["typedef.+\\b%s", "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_"] },
+			
 			{elem: "GrepOpen", cmd: "Exit", mods: "", key: "XK_Escape", amt: 0},
 			{elem: "GrepOpen", cmd: "MoveCursorV", mods: "", key: "XK_Up", amt: -1},
 			{elem: "GrepOpen", cmd: "MoveCursorV", mods: "", key: "XK_Down", amt: 1},
@@ -114,7 +126,7 @@
 			
 			
 			
-			{elem: "Buffer", cmd: "SmartAlign", mods: "CS", key: "a", amt: ",", flags: ["rehighlight", "resetCursorBlink", "undoSeqBreak"]},
+			{elem: "Buffer", cmd: "SmartAlign", mods: "CS", key: "a", amt: ",;:= ", flags: ["rehighlight", "resetCursorBlink", "undoSeqBreak"]},
 			
 			{elem: "Buffer", cmd: "MoveCursorH", mods: "", key: "XK_Left", amt: -1, flags: ["scrollToCursor", "resetCursorBlink", "undoSeqBreak"]},
 			{elem: "Buffer", cmd: "MoveCursorH", mods: "", key: "XK_Right", amt: 1, flags: ["scrollToCursor", "resetCursorBlink", "undoSeqBreak"]},
