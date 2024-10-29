@@ -22,6 +22,7 @@ bindsym $mod+Shift+l exec gmrun slock
 #bindsym $mod+d exec dmenu_run
 bindsym $mod+Shift+p exec gmrun
 for_window [class="Gmrun"] floating enable
+bindcode $mod+Shift+65 floating toggle
 
 # legacy version of no window descoration
 new_window none
@@ -91,4 +92,7 @@ bindsym $mod+e exec setxkbmap us
 bindsym $mod+period exec setxkbmap us
 bindsym $mod+s exec setxkbmap es
 bindsym $mod+comma exec setxkbmap ru
+
+
+exec_always picom -f
 

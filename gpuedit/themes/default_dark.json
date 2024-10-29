@@ -6,12 +6,12 @@
 		"cursorColor":            "#c5c8c6ff", // color15
 	
 		// mainControl.c
-		"bgColor":                "#000000ff", // bg
+		"bgColor":                "#000000bb", // bg
 		"lineNumColor":           "#c5c8c6ff", // color15
-		"lineNumBgColor":         "#000000ff", // bg
+		"lineNumBgColor":         "#00000000", // bg
 		"lineNumBookmarkColor":   "#8a8dffff", // color10
 		"lineNumBreakpointColor": "#cc6666ff", // color9
-		"hl_bgColor":             "#282a2eff", // color0
+		"hl_bgColor":             "#282a2ecc", // color0
 		"hl_textColor":           "#ff0000ff",
 		"find_bgColor":           "#373b41ff", // color8
 		"find_textColor":         "#ff0000ff",
@@ -21,17 +21,17 @@
 	},
 	// gui manager defaults
 	gui: {
-		"bgColor":                "#000000ff", // bg
+		"bgColor":                "#00000000", // bg <-- unused?
 		"lineNumColor":           "#c5c8c6ff", // color15
 		"lineNumBgColor":         "#000000ff", // bg
 		"lineNumBookmarkColor":   "#8abd68ff", // color10
-		"hl_bgColor":             "#282a2eff", // color0
+		"hl_bgColor":             "#282a2ecc", // color0
 		"hl_textColor":           "#ff0000ff",
 		"find_bgColor":           "#373b41ff", // color8
 		"find_textColor":         "#ff0000ff",
 		"outlineCurrentLineBorderColor": "#373b41ff", // color8
 		"selectedItemTextColor":  "#c5c8c6ff", // color15
-		"selectedItemBgColor":    "#282a2eff", // color0
+		"selectedItemBgColor":    "#282a2ecc", // color0
 	
 		"textColor":              "#c5c8c6ff", // color15
 	
@@ -59,7 +59,7 @@
 	
 		"windowBgBorderColor":    "#ff00ffff",
 	
-		"windowBgColor":          "#000000ff", // bg
+		"windowBgColor":          "#00000000", // bg <-- used?
 		"windowTitleBorderColor": "#ff00ffff",
 	
 		"windowTitleColor":       "#ff00ffff",

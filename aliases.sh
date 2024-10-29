@@ -254,6 +254,14 @@ mydir () {
 }
 
 
+movie_on () {
+	xset -dpms s off
+}
+movie_off () {
+	xset -dpms s on
+}
+
+
 tarc () {
 	tar -zcvf "$1.tar.gz" "$1"
 }
