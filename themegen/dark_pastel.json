@@ -1,0 +1,85 @@
+{
+	theme:                            {
+		// Theme Settings
+		"name":                          "default dark",                       
+		"is_dark":                       1,                                 
+		"cursorColor":                   "GEN_CURSOR",     // color15
+		// mainControl.c
+		"bgColor":                       "GEN_BACKGROUND", // bg
+		"lineNumColor":                  "GEN_WHITE_LITE", // color15
+		"lineNumBgColor":                "GEN_TRANSPARENCY", // bg
+		"lineNumBookmarkColor":          "GEN_GREEN_LITE", // color10
+		"lineNumBreakpointColor":        "GEN_RED_LITE",   // color9
+		"hl_bgColor":                    "GEN_BLACK_DARK", // color0
+		"hl_textColor":                  "GEN_PURE_WHITE", 
+		"find_bgColor":                  "GEN_BLACK_LITE", // color8
+		"find_textColor":                "GEN_PURE_WHITE", 
+		"outlineCurrentLineBorderColor": "GEN_BLACK_LITE", // color8
+		"selectedItemTextColor":         "GEN_WHITE_LITE", // color15
+		"selectedItemBgColor":           "GEN_BLACK_DARK", // color0
+	},                                             
+	// gui manager defaults
+	gui: {
+		"bgColor":                       "GEN_TRANSPARENCY", // bg <-- unused?
+		"lineNumColor":                  "GEN_WHITE_LITE", // color15
+		"lineNumBgColor":                "GEN_PURE_BLACK", // bg
+		"lineNumBookmarkColor":          "GEN_GREEN_LITE", // color10
+		"hl_bgColor":                    "GEN_BLACK_DARK", // color0
+		"hl_textColor":                  "GEN_PURE_WHITE",
+		"find_bgColor":                  "GEN_BLACK_LITE", // color8
+		"find_textColor":                "GEN_PURE_WHITE",
+		"outlineCurrentLineBorderColor": "GEN_BLACK_LITE", // color8
+		"selectedItemTextColor":         "GEN_WHITE_LITE", // color15
+		"selectedItemBgColor":           "GEN_BLACK_DARK", // color0
+	
+		"textColor":                     "GEN_WHITE_LITE", // color15
+	
+		"buttonTextColor":               "GEN_BLACK_DARK", // color0
+		"buttonHoverTextColor":          "GEN_BLACK_LITE", // color8
+		"buttonDisTextColor":            "GEN_WHITE_LITE", // color15
+		"buttonBgColor":                 "GEN_BLUE_DARK",  // color4
+		"buttonHoverBgColor":            "GEN_BLUE_LITE",  // color12
+		"buttonDisBgColor":              "GEN_BLACK_DARK", // color0
+		"buttonBorderColor":             "GEN_WHITE_DARK", // color7
+		"buttonHoverBorderColor":        "GEN_WHITE_DARK", // color7
+		"buttonDisBorderColor":          "GEN_WHITE_DARK", // color7
+	
+		"editBorderColor":               "GEN_WHITE_DARK", // color7
+		"editBgColor":                   "GEN_PURE_BLACK", // bg
+		"editTextColor":                 "GEN_WHITE_LITE", // color15
+	
+		"cursorColor":                   "GEN_WHITE_LITE", // color15
+	
+		"tabBorderColor":                "GEN_WHITE_DARK", // color7
+		"tabActiveBgColor":              "GEN_BLACK_LITE", // color8
+		"tabHoverBgColor":               "GEN_BLACK_DARK", // color0
+		"tabBgColor":                    "GEN_PURE_BLACK", // bg
+		"tabTextColor":                  "GEN_WHITE_LITE", // color15
+	
+		"windowBgBorderColor":           "#ff00ffff", // debug purple
+	
+		"windowBgColor":                 "GEN_TRANSPARENCY", // bg <-- used?
+		"windowTitleBorderColor":        "#ff00ffff", // debug purple
+	
+		"windowTitleColor":              "#ff00ffff", // debug purple
+		"windowTitleTextColor":          "#ff00ffff", // debug purple
+		"windowCloseBtnBorderColor":     "#d22800ff", // used?
+	
+		"windowCloseBtnColor":           "#ff00ffff", // debug purple
+		"windowScrollbarColor":          "#ff00ffff", // debug purple
+		"windowScrollbarBorderColor":    "#ff00ffff", // debug purple
+	
+		"selectBgColor":                 "#ff00ffff", // debug purple
+		"selectBorderColor":             "#ff00ffff", // debug purple
+		"selectTextColor":               "#ff00ffff", // debug purple
+		
+		"trayBgColor":                   "GEN_BLACK_LITE", // color8
+		
+		"statusBarBgColor":              "GEN_BLACK_DARK", // color0
+		"statusBarTextColor":            "GEN_WHITE_LITE", // color15
+		
+		"fileBrowserHeaderTextColor":    "GEN_WHITE_LITE", // color15
+		"fileBrowserHeaderBgColor":      "GEN_BLACK_DARK", // color0
+		"fileBrowserHeaderBorderColor":  "GEN_WHITE_DARK", // color7
+	},
+}
