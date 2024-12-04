@@ -356,6 +356,8 @@ xd() {
 }
 
 
+
+
 reload() {
 	source $here/aliases.sh
 }
