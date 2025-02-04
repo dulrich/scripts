@@ -12,9 +12,8 @@ alias s="git status -bs"
 a () {
 	git add $(defarg "$*" '@' '.')
 }
-as () {
-	git add $(defarg "$*" '@' '.')
-	git status
+ap () {
+	git add -p $(defarg "$*" '@' '.')
 }
 b () {
 	bname=$( git branch | grep -oP "\b(main|master)\b" )
