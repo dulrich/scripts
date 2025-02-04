@@ -1,0 +1,6 @@
+.gpuedit.json
+.gpuedit.session
+.mesh_export.json
+.pyhistory
+**/__pycache__/*
+data_file.py
