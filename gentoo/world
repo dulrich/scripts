@@ -25,6 +25,7 @@ dev-util/glslang
 dev-util/vulkan-headers
 dev-util/vulkan-tools
 dev-vcs/git
+media-fonts/farsi-fonts
 media-fonts/liberation-fonts
 media-fonts/ttf-bitstream-vera
 media-gfx/blender
