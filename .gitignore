@@ -1,5 +1,6 @@
 .gpuedit.json
 .gpuedit.session
+fonts.atlas
 config.lifi
 config.sh
 *.swp
