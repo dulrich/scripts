@@ -25,12 +25,16 @@ dev-util/glslang
 dev-util/vulkan-headers
 dev-util/vulkan-tools
 dev-vcs/git
+games-strategy/wesnoth
 media-fonts/farsi-fonts
+media-fonts/kochi-substitute
 media-fonts/liberation-fonts
+media-fonts/thaifonts-scalable
 media-fonts/ttf-bitstream-vera
 media-gfx/blender
 media-gfx/feh
 media-gfx/gimp
+media-gfx/krita
 media-gfx/mypaint
 media-libs/fontconfig
 media-libs/freetype
@@ -56,6 +60,7 @@ sys-apps/pciutils
 sys-apps/plocate
 sys-apps/portage
 sys-apps/usbutils
+sys-block/gparted
 sys-boot/grub:2
 sys-fs/dosfstools
 sys-kernel/gentoo-sources
@@ -72,6 +77,7 @@ x11-apps/setxkbmap
 x11-apps/xfontsel
 x11-apps/xrandr
 x11-base/xorg-server
+x11-drivers/OpenTabletDriver
 x11-drivers/nvidia-drivers
 x11-misc/gmrun
 x11-misc/i3lock-color

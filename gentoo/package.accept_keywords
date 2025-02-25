@@ -19,5 +19,8 @@ media-libs/opensubdiv ~amd64
 media-libs/shaderc ~amd64
 media-gfx/blender ~amd64
 
+x11-drivers/OpenTabletDriver ~amd64
+
 x11-misc/i3lock-color ~amd64
 
+games-strategy/wesnoth ~amd64
