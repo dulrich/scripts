@@ -1,0 +1,35 @@
+
+# lua
+dev-lang/lua -deprecated
+
+# libreoffice
+>=dev-libs/boost-1.85.0-r1 nls
+
+# krita
+>=dev-python/pyqt5-5.15.11 declarative
+
+#blender
+media-gfx/blender cuda
+
+# sdl2
+>=media-libs/sdl2-image-2.8.2 webp
+
+# ffmpeg
+media-video/ffmpeg nvenc x265
+# vlc
+media-video/ffmpeg -vaapi
+
+# mosh
+net-misc/mosh -server -utempter
+
+# cups
+net-print/cups ssl zeroconf
+net-print/cups-filters foomatic zeroconf
+net-print/cups-meta foomatic zeroconf
+
+# installkernel
+# >=sys-kernel/installkernel-50 dracut efistub
+
+# glibc
+>=sys-libs/glibc-2.33-r3 -crypt
+
