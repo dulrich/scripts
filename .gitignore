@@ -5,3 +5,4 @@ config.lifi
 config.sh
 *.swp
 *-swp
+work-aliases.sh
