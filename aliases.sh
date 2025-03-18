@@ -170,8 +170,8 @@ ajoin () {
 }
 
 
-alias ll="ls -alF"
-alias llr="ls -alFR"
+alias ll="ls -alF --color=auto"
+alias llr="ls -alFR --color=auto"
 
 
 
