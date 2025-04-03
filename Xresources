@@ -77,6 +77,7 @@ URxvt.keysym.Control-Meta-c: builtin-string:
 URxvt.keysym.Control-Meta-v: builtin-string:
 
 !! x11-misc/urxvt-tabbed
+URxvt.perl-lib: /home/_shared_code/urxvt-perls
 URxvt.perl-ext: -confirm-paste,tabbedex
 URxvt.tabbedex.no-tabbedex-keys: yes
 URxvt.keysym.Control-t:    tabbedex:new_tab
