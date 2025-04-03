@@ -54,8 +54,6 @@ net-misc/ntp
 net-p2p/rtorrent
 net-print/cups
 net-print/cups-meta
-net-wireless/iw
-net-wireless/wpa_supplicant
 sys-apps/pciutils
 sys-apps/plocate
 sys-apps/portage
