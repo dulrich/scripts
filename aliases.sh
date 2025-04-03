@@ -363,6 +363,12 @@ reload() {
 }
 
 
+# ensure bash completions are loaded
+if [ -f /etc/profile.d/bash_completion.sh ]; then
+	source /etc/profile.d/bash_completion.sh
+fi
+
+
 # load git aliases
 source $here/git-aliases.sh
 
