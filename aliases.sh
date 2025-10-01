@@ -331,6 +331,8 @@ volume() {
 		amixer -q -D $AUDIO_DEVICE sset Master $1%
 	fi
 }
+alias vol="volume"
+
 
 playdir() {
 	# options don't seem to work w/o interface?
