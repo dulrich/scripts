@@ -24,11 +24,6 @@ alias em="time sudo emerge --ask --tree"
 
 alias mod_rebuild="sudo emerge @module-rebuild"
 
-# eclean distfiles
-# eclean packages
-
-
-
 
 # done: switch to git portage
 # https://wiki.gentoo.org/wiki/Portage_with_Git
