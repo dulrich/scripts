@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 
 # load pastel|saturated
 # load internal|external -> font config, transparency config
@@ -13,9 +14,13 @@ source ./dark_pastel.sh
 # remove scripts/Xresources
 
 SED_TOKENS=( \
+TRANSPARENCY_XSTR \
+FONTSIZE_SMALL FONTSIZE_MAIN \
+)
+
+SED_COLOR_TOKENS=( \
 FOREGROUND BACKGROUND CURSOR \
-TRANSPARENCY TRANSPARENCY_XSTR \
-FONTSIZE_SMALL FONTSIZE_MAIN
+TRANSPARENCY \
 PURE_BLACK PURE_WHITE \
 BLACK_LITE BLACK_DARK \
 RED_LITE RED_DARK \
@@ -27,22 +32,24 @@ CYAN_LITE CYAN_DARK \
 WHITE_LITE WHITE_DARK \
 )
 
-SED_TOKENS_MAX=$(( ${#SED_TOKENS[@]} - 1 ))
-
-# do 32-bit rgba first
-sed_files=( dark_pastel.json dark_saturated.json options.json )
-for token in "${SED_TOKENS[@]}"; do
+# do 32-bit rgba for json files
+sed_rgba_files=( dark_pastel.json dark_saturated.json options.json )
+for token in "${SED_TOKENS[@]}" "${SED_COLOR_TOKENS[@]}"; do
 	echo "GEN_$token->${!token}"
-	#sed -i -E -e "s;GEN_$token;${!token};" "${sed_files[@]}"
+	#sed -i -E -e "s;GEN_$token;${!token};" "${sed_rgba_files[@]}"
 done
 
 
-# chop last byte and do rgb only files
-sed_files=( Xresources )
+# chop alpha byte for Xresources: settings as-is, colors stripped to rgb
+sed_rgb_files=( Xresources )
 for token in "${SED_TOKENS[@]}"; do
-	token_short=${token::-2}
-	echo "GEN_$token->${!token_short}"
-	#sed -i -E -e "s;GEN_$token;${!token_short};" "${sed_files[@]}"
+	echo "GEN_$token->${!token}"
+	#sed -i -E -e "s;GEN_$token;${!token};" "${sed_rgb_files[@]}"
+done
+for token in "${SED_COLOR_TOKENS[@]}"; do
+	value="${!token}"
+	echo "GEN_$token->${value::-2}"
+	#sed -i -E -e "s;GEN_$token;${value::-2};" "${sed_rgb_files[@]}"
 done
 
 

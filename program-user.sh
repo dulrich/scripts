@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 
 
 opt_db='none'
@@ -29,11 +30,17 @@ shift $(($OPTIND - 1))
 
 
 if [ $opt_db == 'none' ]; then
-	exit 'ERROR: must specify target db with one of -[mp] or -d mysql|pgsql'
+	echo 'ERROR: must specify target db with one of -[mp] or -d mysql|pgsql'
+	exit 2
 fi
 
-user=$(echo "$1" | sed s/\'//)
-pass=$(echo "$2" | sed s/\'/\'\'/)
+if [ $# -lt 2 ]; then
+	echo "ERROR: missing user and pass"
+	exit 3
+fi
+
+user=$(echo "$1" | sed s/\'//g)
+pass=$(echo "$2" | sed s/\'/\'\'/g)
 
 
 if [ $opt_db == 'mysql' ]; then
