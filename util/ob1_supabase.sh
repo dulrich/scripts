@@ -1,5 +1,5 @@
 #!/bin/bash
-
+set -euo pipefail
 
 if [ "$#" -ne 2 ]; then
 	echo "Usage: ob1_supabase <EXTENSION_NAME> <DOWNLOAD_PATH>"

@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 
 # this is for detecting script's location
 #here=$( dirname $( realpath "${BASH_SOURCE[0]}" ) )

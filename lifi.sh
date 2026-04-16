@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 
 # lifi.sh: easily manage license and copyright headers
 # Copyright (C) 2015 David Ulrich
@@ -42,7 +43,7 @@ filetype () {
 filetype "c"   "//" ""
 filetype "cc"  "//" ""
 filetype "cpp" "//" ""
-fieltype "cs"  "//" ""
+filetype "cs"  "//" ""
 filetype "cxx" "//" ""
 filetype "coffee" "#" ""
 filetype "el"  ";"  ""

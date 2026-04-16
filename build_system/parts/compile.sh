@@ -1,7 +1,7 @@
 #!/bin/bash
+set -euo pipefail
 
-
-rm ../_build.inc.c
+rm -f ../_build.inc.c
 
 cat strlist.c header.c \
 	string.c \
