@@ -1,3 +1,6 @@
+#!/bin/bash
+set -euo pipefail
+
 # daylog.sh: track what happens at a certain time, and view previous logs
 # Copyright 2013 - 2015 David Ulrich
 # 

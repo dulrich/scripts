@@ -159,6 +159,4 @@ alias bim="vim"
 alias clera="clear"
 
 
-# load tmux helper
-source $here/tmux.sh
 

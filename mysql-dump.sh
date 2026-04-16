@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 
 # mysql-dump.sh: mysqldump wrapper, with optional compressed network transfer
 # Copyright 2015  David Ulrich
@@ -33,6 +34,7 @@ ruser="root"
 
 host=""
 suser=""
+link=""
 
 while getopts ":bgh:iIL:rs:u:U:" opt; do
 	case $opt in
