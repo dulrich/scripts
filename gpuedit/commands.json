@@ -102,6 +102,7 @@
 			{elem: "GrepOpen", cmd: "MoveCursorV", mods: "", key: "XK_Down", amt: 1},
 			{elem: "GrepOpen", cmd: "OpenFile", mods: "", key: "XK_Return", amt: 0},
 			
+			{elem: "Main", cmd: "CommandConfig", mods: "C", key: ",", amt: 0},
 			
 			{elem: "FileBrowser", cmd: "CursorMoveNoWrap", mods: "", key: "XK_Up", amt: -1},
 			{elem: "FileBrowser", cmd: "CursorMoveNoWrap", mods: "", key: "XK_Down", amt: 1},
@@ -150,9 +151,6 @@
 			//{elem: "Buffer", cmd: "GoToFirstCharOfLine", mods: "", key: "XK_Home", amt: 0, flags: ["scrollToCursor", "resetCursorBlink", "undoSeqBreak"]},
 			//{elem: "Buffer", cmd: "GoToLastCharOfLine", mods: "", key: "XK_End", amt: 0, flags: ["scrollToCursor", "resetCursorBlink", "undoSeqBreak"]},
 			
-			{elem: "Buffer", cmd: "GoToFirstCharOrSOL",           mods: "",   key: "XK_Home",         amt: 0,  flags: ["scrollToCursor", "resetCursorBlink", "undoSeqBreak"]},
-			{elem: "Buffer", cmd: "GoToLastCharOfLine",           mods: "",   key: "XK_End",          amt: 0,  flags: ["scrollToCursor", "resetCursorBlink", "undoSeqBreak"]},
-			
 			{elem: "Buffer", cmd: "GrowSelectionH", mods: "S", key: "XK_Left", amt: -1, flags: ["scrollToCursor", "resetCursorBlink", "undoSeqBreak"]},
 			{elem: "Buffer", cmd: "GrowSelectionH", mods: "S", key: "XK_Right", amt: 1, flags: ["scrollToCursor", "resetCursorBlink", "undoSeqBreak"]},
 			{elem: "Buffer", cmd: "GrowSelectionV", mods: "S", key: "XK_Up", amt: -1, flags: ["scrollToCursor", "resetCursorBlink", "undoSeqBreak"]},
@@ -185,8 +183,8 @@
 			{elem: "Buffer", cmd: "DeleteCurLine", mods: "C", key: "k", amt: 0, flags: ["scrollToCursor", "rehighlight", "undoSeqBreak"]},
 			{elem: "Buffer", cmd: "DuplicateLine", mods: "CA", key: "XK_Down", amt: 1, flags: ["scrollToCursor", "rehighlight", "undoSeqBreak"]},
 			{elem: "Buffer", cmd: "DuplicateLine", mods: "CA", key: "XK_Up", amt: -1, flags: ["scrollToCursor", "rehighlight", "undoSeqBreak"]},
-			{elem: "Buffer", cmd: "Cut", mods: "C", key: "x", amt: 0, flags: ["rehighlight", "undoSeqBreak"]},
-			{elem: "Buffer", cmd: "SmartCut", mods: "CS", key: "x", amt: 0, flags: ["rehighlight", "undoSeqBreak"]},
+			//{elem: "Buffer", cmd: "Cut", mods: "C", key: "x", amt: 0, flags: ["rehighlight", "undoSeqBreak"]},
+			{elem: "Buffer", cmd: "SmartCut", mods: "C", key: "x", amt: 0, flags: ["rehighlight", "undoSeqBreak"]},
 			{elem: "Buffer", cmd: "Copy", mods: "C", key: "c", amt: 0, },
 			{elem: "Buffer", cmd: "Paste", mods: "C", key: "v", amt: 0, flags: ["scrollToCursor", "rehighlight", "undoSeqBreak"]},
 			{elem: "Buffer", cmd: "Paste", mods: "S", key: "XK_Insert", amt: 2, flags: ["scrollToCursor", "rehighlight", "undoSeqBreak"]},
@@ -195,8 +193,8 @@
 			{elem: "Buffer", cmd: "SelectToEOL", mods: "C", key: "l", amt: 0, },
 			{elem: "Buffer", cmd: "SelectFromSOL", mods: "CS", key: "l", amt: 0, },
 //			{elem: "Buffer", cmd: "GoToLine", mods: "C", key: "g", amt: 0, flags: ["scrollToCursor", "resetCursorBlink"]},
-			{elem: "Buffer", cmd: "GoToSOL", mods: "C", key: "XK_Home", amt: 0, flags: ["scrollToCursor", "resetCursorBlink"]},
-			{elem: "Buffer", cmd: "GoToEOL", mods: "C", key: "XK_End", amt: 0, flags: ["scrollToCursor", "resetCursorBlink"]},
+			{elem: "Buffer", cmd: "GoToFirstCharOrSOL", mods: "", key: "XK_Home", amt: 0, flags: ["scrollToCursor", "resetCursorBlink"]},
+			{elem: "Buffer", cmd: "GoToEOL", mods: "", key: "XK_End", amt: 0, flags: ["scrollToCursor", "resetCursorBlink"]},
 			{elem: "Buffer", cmd: "GoToAfterIndent", mods: "T", key: "XK_Home", amt: 0, flags: ["scrollToCursor", "resetCursorBlink"]},
 			{elem: "Buffer", cmd: "Undo", mods: "C", key: "z", amt: 0, flags: ["scrollToCursor", "rehighlight"]},
 			{elem: "Buffer", cmd: "Redo", mods: "CS", key: "z", amt: 0, flags: ["scrollToCursor", "rehighlight"]},
@@ -274,8 +272,10 @@
 				{ elem: "Buffer", cmd: "SmartFind", amt: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_", setMode: 1, flags: ["centerOnCursor"]},
 			]},
 			{mode: 1, elem: "Buffer", cmd: "FindResume", amt: 0, flags: ["centerOnCursor"]},
-			{mode: 1, elem: "Buffer", cmd: "FindNext",     mods: "",  key: "XK_Return", amt: 0, flags: ["centerOnCursor"]},
-			{mode: 1, elem: "Buffer", cmd: "FindPrev",     mods: "S", key: "XK_Return", amt: 0, flags: ["centerOnCursor"]},
+			{mode: 1, elem: "Buffer", cmd: "FindNext",     mods: "",   key: "XK_Return", amt: 0, flags: ["centerOnCursor"]},
+			{mode: 1, elem: "Buffer", cmd: "FindPrev",     mods: "S",  key: "XK_Return", amt: 0, flags: ["centerOnCursor"]},
+			{mode: 1, elem: "Buffer", cmd: "ReplaceNext",  mods: "C",  key: "XK_Return", amt: 0, flags: ["centerOnCursor", "rehighlight", "undoSeqBreak"]},
+			{mode: 1, elem: "Buffer", cmd: "ReplaceAll",   mods: "CA", key: "XK_Return", amt: 0, flags: ["centerOnCursor", "rehighlight", "undoSeqBreak"]},
 			{mode: 1, elem: "Buffer", mods: "", key: "XK_Escape", meta: [
 				{ elem: "SYSTEM", cmd: "Nop", amt: 0, clearMode: "find", setMode: 0 },
 //				{ elem: "Buffer", cmd: "FindStop", amt: 0, clearMode: "find", setMode: 0 },
@@ -287,6 +287,7 @@
 			{mode: 1, elem: "Buffer", cmd: "SetMode", mods: "", key: "BLUR_FindBox",  amt: 0, setMode: 0 },
 			{mode: 0, elem: "Buffer", cmd: "SetMode", mods: "", key: "FOCUS_FindBox", amt: 0, setMode: 1 },
 			{mode: 1, elem: "Buffer", cmd: "SetMode", mods: "", key: "FOCUS_FindBox", amt: 0, setMode: 1 },
+			
 			
 			// goto line control
 			{mode: 0, elem: "Buffer", cmd: "GoToLineLaunch", mods: "C", key: "g", amt: 0, setMode: "goto", flags: ["resetCursorBlink"]},
