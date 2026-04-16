@@ -1,23 +1,21 @@
 #!/bin/bash
+set -euo pipefail
+
 
 dashes="----------"
-
 py_version="3.12"
-py_path=$( command -v python$py_version )
 
-#echo $py_path
 
-if [ ! -x "$py_path" ]; then
+if ! command -v "python${py_version}" > /dev/null 2>&1; then
 	echo "Missing required python version $py_version"
-else
-	echo "Found python $py_version at $py_path"
-	echo "$dashes"
+	exit 1
 fi
+py_path=$(command -v "python${py_version}")
+echo "Found python $py_version at $py_path"
+echo "$dashes"
 
 
-
-venv_path=$( command -v virtualenv )
-if [ ! -x "$venv_path" ]; then
+if ! command -v virtualenv > /dev/null 2>&1; then
 	echo "Missing virtualenv package. Please emerge"
 	echo "$dashes"
 	emerge -av dev-python/virtualenv

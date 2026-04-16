@@ -1,5 +1,5 @@
 #!/bin/bash
-
+set -euo pipefail
 
 here=$( dirname $( realpath "${BASH_SOURCE[0]}" ) )
 
@@ -101,9 +101,7 @@ fi
 
 
 # check $dest_path_root is an empty folder or --force was used
-contents=$( ls $dest_path_root )
-ncontents=$(( ${#contents[@]} ))
-if [ $ncontents -gt 0 ]; then
+if [ -n "$(ls -A "$dest_path_root")" ]; then
 	if [ $flag_force -eq 0 ]; then
 		echo "Destination is not empty, use --force to override"
 		exit 3
