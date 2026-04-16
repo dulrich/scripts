@@ -12,7 +12,9 @@ or `~/.bashrc` so that `aliases.sh` will be loaded along with whatever other
 local aliases you use. Alternately: run `./links.sh`, which is the same as
 `ln -s ~/scripts/aliases.sh ~/.bash_aliases`
 
-Chain-loads `git-aliases.sh`
+Chain-loads `git-aliases.sh` and `work-aliases.sh`
+
+Set `ENV_PATH` to wherever ENV secrets are stored
 
 
 ## daylog.sh
@@ -52,6 +54,9 @@ xrdb ~/.Xresources
 
 #crouton, alternate aliases
 ln -s ~/scripts/crouton/crouton_aliases.sh ~/.bash_aliases
+
+# rotating background images:
+install feh, picom
 
 #crouton, remap search key to mod4
 ln -s ~/scripts/crouton/xinitrc ~/.xinitrc
