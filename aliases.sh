@@ -365,7 +365,7 @@ xd() {
 }
 
 
-alias size_here="du -sh */ | sort -hr"
+alias size_here="du -sh .[^.]* * 2>/dev/null | sort -hr"
 
 
 reload() {
