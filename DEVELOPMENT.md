@@ -1,3 +1,11 @@
+---
+title: DEVELOPMENT
+created: 2026-04-16
+modified: 2026-04-26
+word-count: 71
+tags: ""
+---
+
 # Todo
 
 - [ ] test mkproject.sh — emptiness check was broken (scalar/array confusion), verify `--force` behaviour and normal empty-dir case
