@@ -62,15 +62,17 @@ perform.
 
 A non-exhaustive snapshot for fast triage. This is a self-propagating worm that republishes new
 poisoned versions using stolen maintainer tokens, so treat any static list (including this one) as
-stale — **cross-check the live lists below** before trusting it. `scan.sh` matches the obscure
-families by name/prefix precisely so it stays robust as new versions appear.
+stale — **cross-check the live lists below** before trusting it. `scan.sh` parses `node_modules`
+and lockfiles directly instead of trusting `npm ls`; it flags advisory-backed exact versions as
+`HIT` and broad legitimate scopes as `REVIEW`.
 
-**Wave 1 — Miasma, `@redhat-cloud-services` (June 1, 2026).** Treat the whole scope as compromised:
-~32 package releases across two waves (~80k weekly downloads). Examples — `frontend-components`
-(`<= 7.7.2`), `frontend-components-utilities`, `frontend-components-notifications`,
-`frontend-components-advisor-components`, `frontend-components-testing`, `chrome`, `types`,
-`rbac-client`, `host-inventory-client`, `compliance-client`, `remediations-client`, `hcc-kessel-mcp`,
-and ~two dozen more.
+**Wave 1 — Miasma, `@redhat-cloud-services` (June 1, 2026).** Specific versions were compromised
+inside a legitimate scope. `scan.sh` embeds the Microsoft/Snyk exact-version snapshot as `HIT`
+signals and reports other `@redhat-cloud-services/*` sightings as `REVIEW`. Examples include
+`frontend-components` (7.7.2, 7.7.3, 7.7.5), `frontend-components-utilities`,
+`frontend-components-notifications`, `frontend-components-advisor-components`,
+`frontend-components-testing`, `chrome`, `types`, `rbac-client`, `host-inventory-client`,
+`compliance-client`, `remediations-client`, `hcc-kessel-mcp`, and ~two dozen more.
 
 **Wave 2 — Phantom Gyp (June 3–4, 2026).** 57 packages / 286+ malicious versions in under two hours:
 

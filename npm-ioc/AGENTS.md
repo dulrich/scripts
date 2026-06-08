@@ -74,17 +74,20 @@ gate:
   any reappear.
 - **Positive fixture** — a throwaway tree with a weaponized `binding.gyp` (`<!(node index.js …)`)
   beside an `index.js` containing `globalThis.getBunPath`, a lockfile referencing
-  `@vapi-ai/server-sdk` (HIT) and `@tanstack/react-query` (REVIEW), a `.claude/setup.mjs`, and a
-  `.vscode/tasks.json` with `runOn: folderOpen`. Asserts each fires, exit code is `2`, and that the
-  co-located legit `node-addon-api` `binding.gyp` and plain `.gemini/settings.json` do **not** fire.
+  `@vapi-ai/server-sdk` (HIT), `@tanstack/react-router` exact bad version (HIT), and
+  `@tanstack/react-query` benign version (REVIEW), a `.claude/setup.mjs`, malicious
+  `.claude/settings.json`, temp Bun/payload artifacts, and a `.vscode/tasks.json` with `runOn:
+  folderOpen`. Asserts each fires, exit code is `2`, that a fake `npm` on `PATH` is not invoked, and
+  that the co-located legit `node-addon-api` `binding.gyp` and plain `.gemini/settings.json` do
+  **not** fire.
 - **Negative fixture** — a clean tree (legit `node-addon-api` `binding.gyp`, plain
-  `.gemini/settings.json`, a `@tanstack` dep). Asserts verdict `CLEAN`, exit `0`, and zero `HIT:`
-  lines.
+  `.gemini/settings.json`, a benign `@redhat-cloud-services` version, and a `@tanstack` dep). Asserts
+  verdict `CLEAN`, exit `0`, and zero `HIT:` lines.
 
-The harness redirects `HOME` to an empty temp dir so the host's real `~/.claude` etc. cannot skew
-results; the system-global sections (systemd, `/etc/sudoers.d`, `/tmp` bun staging) assume a clean
-host and only emit REVIEW/info there on a normal machine. `bash -n scan.sh` (syntax) is implied by
-both shellcheck and actually invoking the script in the fixtures.
+The harness redirects `HOME`, `/tmp` checks, and `/etc/hosts` checks to temp fixtures so the host's
+real `~/.claude` etc. cannot skew results; the system-global sections (systemd, `/etc/sudoers.d`)
+assume a clean host and only emit REVIEW/info there on a normal machine. `bash -n scan.sh` (syntax)
+is implied by both shellcheck and actually invoking the script in the fixtures.
 
 When adding a new detection, add a matching positive assertion (and, if it touches a file type that
 legitimately exists, a negative assertion proving it doesn't false-positive) to `tests/smoke.sh`.
