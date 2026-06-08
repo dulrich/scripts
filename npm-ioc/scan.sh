@@ -25,15 +25,20 @@ set -uo pipefail
 
 ROOT="${1:-$HOME}"
 DEEP="${DEEP:-false}"
+TMP_ROOT="${NPM_IOC_TMP_ROOT:-/tmp}"
+HOSTS_FILE="${NPM_IOC_HOSTS_FILE:-/etc/hosts}"
 FOUND=0
 REVIEWS=0
 SECTION=0
+
+# Prefer system tool locations over a user-controlled PATH. This cannot defeat a
+# fully rooted host, but it avoids simple PATH shadowing on compromised accounts.
+PATH="/usr/sbin:/usr/bin:/sbin:/bin:${PATH:-}"
 
 # Affected package FAMILIES -- obscure / typosquat names that are attacker-
 # specific, so a name/prefix match is high-signal (low false positive). Matched
 # by prefix so all poisoned versions are caught even as the worm republishes.
 PKG_PREFIXES=(
-  "@redhat-cloud-services"
   "@vapi-ai"
   "ai-sdk-ollama"
   "autotel"
@@ -45,17 +50,97 @@ PKG_PREFIXES=(
   "effect-analyzer"
   "http-uploader-dev"
   "chalk-tempalte"       # typosquat of chalk
+  "@deadcode09284814/axios-util"
   "axois-utils"          # typosquat of axios
   "color-style-utils"
 )
-PKG_RE='@redhat-cloud-services|@vapi-ai|ai-sdk-ollama|autotel|awaitly|executable-stories|node-env-resolver|wrangler-deploy|mountly|effect-analyzer|http-uploader-dev|chalk-tempalte|axois-utils|color-style-utils'
+PKG_RE='@vapi-ai|ai-sdk-ollama|autotel|awaitly|executable-stories|node-env-resolver|wrangler-deploy|mountly|effect-analyzer|http-uploader-dev|chalk-tempalte|@deadcode09284814/axios-util|axois-utils|color-style-utils'
+
+# Exact malicious versions from Microsoft/Snyk for @redhat-cloud-services and
+# GitHub/Tenable for CVE-2026-45321. Broad scopes below are REVIEW only.
+KNOWN_BAD_PACKAGES=(
+  "@redhat-cloud-services/types@3.6.1" "@redhat-cloud-services/types@3.6.2" "@redhat-cloud-services/types@3.6.4"
+  "@redhat-cloud-services/frontend-components-utilities@7.4.1" "@redhat-cloud-services/frontend-components-utilities@7.4.2" "@redhat-cloud-services/frontend-components-utilities@7.4.4"
+  "@redhat-cloud-services/frontend-components@7.7.2" "@redhat-cloud-services/frontend-components@7.7.3" "@redhat-cloud-services/frontend-components@7.7.5"
+  "@redhat-cloud-services/rbac-client@9.0.3" "@redhat-cloud-services/rbac-client@9.0.4" "@redhat-cloud-services/rbac-client@9.0.6"
+  "@redhat-cloud-services/javascript-clients-shared@2.0.8" "@redhat-cloud-services/javascript-clients-shared@2.0.9" "@redhat-cloud-services/javascript-clients-shared@2.0.11"
+  "@redhat-cloud-services/frontend-components-config-utilities@4.11.2" "@redhat-cloud-services/frontend-components-config-utilities@4.11.3" "@redhat-cloud-services/frontend-components-config-utilities@4.11.5"
+  "@redhat-cloud-services/frontend-components-notifications@6.9.2" "@redhat-cloud-services/frontend-components-notifications@6.9.3" "@redhat-cloud-services/frontend-components-notifications@6.9.5"
+  "@redhat-cloud-services/tsc-transform-imports@1.2.2" "@redhat-cloud-services/tsc-transform-imports@1.2.4" "@redhat-cloud-services/tsc-transform-imports@1.2.6"
+  "@redhat-cloud-services/frontend-components-config@6.11.3" "@redhat-cloud-services/frontend-components-config@6.11.4" "@redhat-cloud-services/frontend-components-config@6.11.6"
+  "@redhat-cloud-services/eslint-config-redhat-cloud-services@3.2.1" "@redhat-cloud-services/eslint-config-redhat-cloud-services@3.2.2" "@redhat-cloud-services/eslint-config-redhat-cloud-services@3.2.4"
+  "@redhat-cloud-services/host-inventory-client@5.0.3" "@redhat-cloud-services/host-inventory-client@5.0.4" "@redhat-cloud-services/host-inventory-client@5.0.6"
+  "@redhat-cloud-services/rule-components@4.7.2" "@redhat-cloud-services/rule-components@4.7.3" "@redhat-cloud-services/rule-components@4.7.5"
+  "@redhat-cloud-services/frontend-components-remediations@4.9.2" "@redhat-cloud-services/frontend-components-remediations@4.9.3" "@redhat-cloud-services/frontend-components-remediations@4.9.5"
+  "@redhat-cloud-services/frontend-components-translations@4.4.1" "@redhat-cloud-services/frontend-components-translations@4.4.2" "@redhat-cloud-services/frontend-components-translations@4.4.4"
+  "@redhat-cloud-services/vulnerabilities-client@2.1.9" "@redhat-cloud-services/vulnerabilities-client@2.1.11"
+  "@redhat-cloud-services/frontend-components-advisor-components@3.8.2" "@redhat-cloud-services/frontend-components-advisor-components@3.8.4" "@redhat-cloud-services/frontend-components-advisor-components@3.8.6"
+  "@redhat-cloud-services/entitlements-client@4.0.11" "@redhat-cloud-services/entitlements-client@4.0.12" "@redhat-cloud-services/entitlements-client@4.0.14"
+  "@redhat-cloud-services/chrome@2.3.1" "@redhat-cloud-services/chrome@2.3.2" "@redhat-cloud-services/chrome@2.3.4"
+  "@redhat-cloud-services/notifications-client@6.1.4" "@redhat-cloud-services/notifications-client@6.1.5" "@redhat-cloud-services/notifications-client@6.1.7"
+  "@redhat-cloud-services/compliance-client@4.0.3" "@redhat-cloud-services/compliance-client@4.0.4" "@redhat-cloud-services/compliance-client@4.0.6"
+  "@redhat-cloud-services/sources-client@3.0.10" "@redhat-cloud-services/sources-client@3.0.11" "@redhat-cloud-services/sources-client@3.0.13"
+  "@redhat-cloud-services/integrations-client@6.0.4" "@redhat-cloud-services/integrations-client@6.0.5" "@redhat-cloud-services/integrations-client@6.0.7"
+  "@redhat-cloud-services/frontend-components-testing@1.2.1" "@redhat-cloud-services/frontend-components-testing@1.2.2" "@redhat-cloud-services/frontend-components-testing@1.2.4"
+  "@redhat-cloud-services/remediations-client@4.0.4" "@redhat-cloud-services/remediations-client@4.0.5" "@redhat-cloud-services/remediations-client@4.0.7"
+  "@redhat-cloud-services/insights-client@4.0.4" "@redhat-cloud-services/insights-client@4.0.5" "@redhat-cloud-services/insights-client@4.0.7"
+  "@redhat-cloud-services/topological-inventory-client@3.0.10" "@redhat-cloud-services/topological-inventory-client@3.0.11" "@redhat-cloud-services/topological-inventory-client@3.0.13"
+  "@redhat-cloud-services/config-manager-client@5.0.4" "@redhat-cloud-services/config-manager-client@5.0.5" "@redhat-cloud-services/config-manager-client@5.0.7"
+  "@redhat-cloud-services/hcc-pf-mcp@0.6.1" "@redhat-cloud-services/hcc-pf-mcp@0.6.2" "@redhat-cloud-services/hcc-pf-mcp@0.6.4"
+  "@redhat-cloud-services/quickstarts-client@4.0.11" "@redhat-cloud-services/quickstarts-client@4.0.12" "@redhat-cloud-services/quickstarts-client@4.0.14"
+  "@redhat-cloud-services/patch-client@4.0.4" "@redhat-cloud-services/patch-client@4.0.5" "@redhat-cloud-services/patch-client@4.0.7"
+  "@redhat-cloud-services/hcc-feo-mcp@0.3.1" "@redhat-cloud-services/hcc-feo-mcp@0.3.2" "@redhat-cloud-services/hcc-feo-mcp@0.3.4"
+  "@redhat-cloud-services/hcc-kessel-mcp@0.3.1" "@redhat-cloud-services/hcc-kessel-mcp@0.3.2" "@redhat-cloud-services/hcc-kessel-mcp@0.3.4"
+  "@tanstack/arktype-adapter@1.166.12" "@tanstack/arktype-adapter@1.166.15"
+  "@tanstack/eslint-plugin-router@1.161.9" "@tanstack/eslint-plugin-router@1.161.12"
+  "@tanstack/eslint-plugin-start@0.0.4" "@tanstack/eslint-plugin-start@0.0.7"
+  "@tanstack/history@1.161.9" "@tanstack/history@1.161.12"
+  "@tanstack/nitro-v2-vite-plugin@1.154.12" "@tanstack/nitro-v2-vite-plugin@1.154.15"
+  "@tanstack/react-router@1.169.5" "@tanstack/react-router@1.169.8"
+  "@tanstack/react-router-devtools@1.166.16" "@tanstack/react-router-devtools@1.166.19"
+  "@tanstack/react-router-ssr-query@1.166.15" "@tanstack/react-router-ssr-query@1.166.18"
+  "@tanstack/react-start@1.167.68" "@tanstack/react-start@1.167.71"
+  "@tanstack/react-start-client@1.166.51" "@tanstack/react-start-client@1.166.54"
+  "@tanstack/react-start-rsc@0.0.47" "@tanstack/react-start-rsc@0.0.50"
+  "@tanstack/react-start-server@1.166.55" "@tanstack/react-start-server@1.166.58"
+  "@tanstack/router-cli@1.166.46" "@tanstack/router-cli@1.166.49"
+  "@tanstack/router-core@1.169.5" "@tanstack/router-core@1.169.8"
+  "@tanstack/router-devtools@1.166.16" "@tanstack/router-devtools@1.166.19"
+  "@tanstack/router-devtools-core@1.167.6" "@tanstack/router-devtools-core@1.167.9"
+  "@tanstack/router-generator@1.166.45" "@tanstack/router-generator@1.166.48"
+  "@tanstack/router-plugin@1.167.38" "@tanstack/router-plugin@1.167.41"
+  "@tanstack/router-ssr-query-core@1.168.3" "@tanstack/router-ssr-query-core@1.168.6"
+  "@tanstack/router-utils@1.161.11" "@tanstack/router-utils@1.161.14"
+  "@tanstack/router-vite-plugin@1.166.53" "@tanstack/router-vite-plugin@1.166.56"
+  "@tanstack/solid-router@1.169.5" "@tanstack/solid-router@1.169.8"
+  "@tanstack/solid-router-devtools@1.166.16" "@tanstack/solid-router-devtools@1.166.19"
+  "@tanstack/solid-router-ssr-query@1.166.15" "@tanstack/solid-router-ssr-query@1.166.18"
+  "@tanstack/solid-start@1.167.65" "@tanstack/solid-start@1.167.68"
+  "@tanstack/solid-start-client@1.166.50" "@tanstack/solid-start-client@1.166.53"
+  "@tanstack/solid-start-server@1.166.54" "@tanstack/solid-start-server@1.166.57"
+  "@tanstack/start-client-core@1.168.5" "@tanstack/start-client-core@1.168.8"
+  "@tanstack/start-fn-stubs@1.161.9" "@tanstack/start-fn-stubs@1.161.12"
+  "@tanstack/start-plugin-core@1.169.23" "@tanstack/start-plugin-core@1.169.26"
+  "@tanstack/start-server-core@1.167.33" "@tanstack/start-server-core@1.167.36"
+  "@tanstack/start-static-server-functions@1.166.44" "@tanstack/start-static-server-functions@1.166.47"
+  "@tanstack/start-storage-context@1.166.38" "@tanstack/start-storage-context@1.166.41"
+  "@tanstack/valibot-adapter@1.166.12" "@tanstack/valibot-adapter@1.166.15"
+  "@tanstack/virtual-file-routes@1.161.10" "@tanstack/virtual-file-routes@1.161.13"
+  "@tanstack/vue-router@1.169.5" "@tanstack/vue-router@1.169.8"
+  "@tanstack/vue-router-devtools@1.166.16" "@tanstack/vue-router-devtools@1.166.19"
+  "@tanstack/vue-router-ssr-query@1.166.15" "@tanstack/vue-router-ssr-query@1.166.18"
+  "@tanstack/vue-start@1.167.61" "@tanstack/vue-start@1.167.64"
+  "@tanstack/vue-start-client@1.166.46" "@tanstack/vue-start-client@1.166.49"
+  "@tanstack/vue-start-server@1.166.50" "@tanstack/vue-start-server@1.166.53"
+  "@tanstack/zod-adapter@1.166.12" "@tanstack/zod-adapter@1.166.15"
+)
 
 # Broad, LEGITIMATE scopes where only specific versions were compromised
 # (mini-Shai-Hulud / CVE-2026-45321 for @tanstack). These are widely-used
 # libraries (e.g. @tanstack/react-query), so presence is NOT proof of
 # compromise -- it is a watchlist. Reported as REVIEW only; cross-check the
 # exact versions in your lockfile against the Tenable/Snyk advisories.
-WATCH_RE='@tanstack|@uipath|@mistralai|@opensearch-project|@antv|@squawk'
+WATCH_RE='@redhat-cloud-services|@tanstack|@uipath|@mistralai|@opensearch-project|@antv|@squawk'
 
 # Attacker-INVENTED file names. These do not normally exist, so existence alone
 # is high-signal. Executed via "bun run", evading node-only monitoring.
@@ -70,6 +155,8 @@ SETUP_FILES=(
 # rather than creating the file). Existence is normal; only matching content is
 # malicious, so these are content-scanned, not flagged on presence.
 INJECT_CONFIGS=(
+  ".claude/settings.json"
+  ".claude/settings.local.json"
   ".gemini/settings.json"
   ".cursor/settings.json"
 )
@@ -104,6 +191,74 @@ $real
   done
 }
 
+json_string_field() {
+  local field="$1" file="$2"
+  perl -0777 -ne 'BEGIN { $f = shift @ARGV } print $1 if /"\Q$f\E"\s*:\s*"([^"]+)"/s' "$field" "$file" 2>/dev/null
+}
+
+known_bad_exact() {
+  local needle="$1@$2" i
+  for i in "${KNOWN_BAD_PACKAGES[@]}"; do
+    [ "$i" = "$needle" ] && return 0
+  done
+  return 1
+}
+
+prefix_hit_pkg() {
+  local name="$1" p
+  for p in "${PKG_PREFIXES[@]}"; do
+    case "$name" in
+      "$p"|"$p"/*|"$p"-*) return 0 ;;
+    esac
+  done
+  return 1
+}
+
+watch_pkg() {
+  case "$1" in
+    @redhat-cloud-services/*|@tanstack/*|@uipath/*|@mistralai/*|@opensearch-project/*|@antv/*|@squawk/*) return 0 ;;
+  esac
+  return 1
+}
+
+report_package_reference() {
+  local name="$1" version="$2" where="$3"
+  [ -n "$name" ] || return 0
+
+  if [ -n "$version" ] && known_bad_exact "$name" "$version"; then
+    package_hits=$((package_hits+1))
+    hit "known malicious package version $name@$version in $where"
+  elif prefix_hit_pkg "$name"; then
+    package_hits=$((package_hits+1))
+    if [ -n "$version" ]; then
+      hit "affected package family '$name'@$version present in $where"
+    else
+      hit "affected package family '$name' present in $where"
+    fi
+  elif watch_pkg "$name"; then
+    if [ -n "$version" ]; then
+      review "watchlist package present (verify exact version vs advisory): $name@$version in $where"
+    else
+      review "watchlist package present (verify exact version vs advisory): $name in $where"
+    fi
+  fi
+}
+
+scan_lock_pairs() {
+  local lock="$1"
+  perl -0777 -ne '
+    while (/"node_modules\/((?:@[^\/"]+\/)?[^\/"]+)"\s*:\s*\{.*?"version"\s*:\s*"([^"]+)"/sg) {
+      print "$1\t$2\n";
+    }
+    while (/^"?((?:@[^\/\s"]+\/)?[^@\s",:]+)@(?:npm:)?([^",:\s]+)[^"]*"?\s*:/mg) {
+      print "$1\t$2\n";
+    }
+    while (/^\s{2,}\/((?:@[^\/\s:]+\/)?[^@\s:]+)@([^:\s]+):/mg) {
+      print "$1\t$2\n";
+    }
+  ' "$lock" 2>/dev/null
+}
+
 host="$(hostname 2>/dev/null || echo unknown)"
 user="${USER:-${USERNAME:-unknown}}"
 os="$(uname -s 2>/dev/null || echo unknown)"
@@ -118,6 +273,12 @@ printf '  User     : %s\n' "$user"
 printf '  OS       : %s\n' "$os"
 printf '  Scan root: %s\n' "$ROOT"
 printf '  Deep     : %s\n' "$DEEP"
+printf '  TMP root : %s\n' "$TMP_ROOT"
+printf '  Tools    : find=%s grep=%s perl=%s ps=%s\n' \
+  "$(command -v find 2>/dev/null || echo missing)" \
+  "$(command -v grep 2>/dev/null || echo missing)" \
+  "$(command -v perl 2>/dev/null || echo missing)" \
+  "$(command -v ps 2>/dev/null || echo missing)"
 
 section "Affected package families (installed trees)"
 projects_found=0
@@ -128,18 +289,15 @@ while IFS= read -r -d '' pkgjson; do
   dir="$(dirname "$pkgjson")"
   [ -d "$dir/node_modules" ] || continue
   projects_found=$((projects_found+1))
-
-  for pkg in "${PKG_PREFIXES[@]}"; do
-    matches="$(npm ls "$pkg" --all --parseable --prefix "$dir" 2>/dev/null)" || matches=""
-    if [ -n "$matches" ]; then
-      package_hits=$((package_hits+1))
-      hit "npm package family '$pkg' present in $dir"
-      printf '%s\n' "$matches" | sed 's/^/    /'
-    fi
-  done
 done < <(find "$ROOT" \
   \( -path '*/node_modules' -o -path '*/.git' \) -prune -o \
   -name package.json -print0 2>/dev/null)
+
+while IFS= read -r -d '' modpkg; do
+  name="$(json_string_field name "$modpkg")"
+  version="$(json_string_field version "$modpkg")"
+  report_package_reference "$name" "$version" "$modpkg"
+done < <(find "$ROOT" -path '*/node_modules/*/package.json' -print0 2>/dev/null)
 
 info "$projects_found npm project(s) found"
 info "$package_hits affected-package match(es) found"
@@ -178,6 +336,10 @@ info "$gyp_total binding.gyp file(s) seen; $binding_gyp_hits weaponized"
 
 section "Affected packages referenced in lockfiles"
 while IFS= read -r -d '' lock; do
+  while IFS="$(printf '\t')" read -r name version; do
+    report_package_reference "$name" "$version" "$lock"
+  done < <(scan_lock_pairs "$lock")
+
   if grep -Eq "$PKG_RE" "$lock" 2>/dev/null; then
     hit "affected package reference in $lock"
     grep -nE "$PKG_RE" "$lock" 2>/dev/null | sed 's/^/    /' | head -n 40
@@ -297,12 +459,16 @@ bun_seen=0
 while IFS= read -r -d '' b; do
   bun_seen=1
   hit "bun binary in temp dir (worm staging): $b"
-done < <(find /tmp -maxdepth 2 -type f -name 'bun' -path '*/b-*' -print0 2>/dev/null)
+done < <(find "$TMP_ROOT" -maxdepth 2 -type f -name 'bun' \( -path '*/b-*' -o -path '*/.b_*' \) -print0 2>/dev/null)
+while IFS= read -r -d '' pjs; do
+  bun_seen=1
+  hit "temp JavaScript payload artifact: $pjs"
+done < <(find "$TMP_ROOT" -maxdepth 1 -type f -name 'p*.js' -print0 2>/dev/null)
 if command -v ps >/dev/null 2>&1; then
   # Only flag bun executing from the worm's mktemp staging dir (/tmp/b-XXXX/bun);
   # a bare "bun run" would match legitimate Bun usage.
   # shellcheck disable=SC2009  # ps|grep is portable; pgrep -f not guaranteed everywhere
-  if ps -eo args 2>/dev/null | grep -E '/tmp/b-[^ ]*/bun' | grep -v grep; then
+  if ps -eo args 2>/dev/null | grep -E "$TMP_ROOT/(\.?b[-_][^ ]*)/bun" | grep -v grep; then
     bun_seen=1; FOUND=1
   fi
 fi
@@ -310,18 +476,27 @@ fi
 
 section "Passwordless-sudo persistence"
 if [ -d /etc/sudoers.d ]; then
-  if grep -RIl 'NOPASSWD' /etc/sudoers.d 2>/dev/null | grep -v -e '/README' >/tmp/.npm_ioc_sudo 2>/dev/null; then
-    if [ -s /tmp/.npm_ioc_sudo ]; then
-      while IFS= read -r sf; do
-        review "NOPASSWD rule present (confirm it is intentional): $sf"
-      done < /tmp/.npm_ioc_sudo
-    fi
-    rm -f /tmp/.npm_ioc_sudo 2>/dev/null
-  else
+  sudo_seen=0
+  while IFS= read -r sf; do
+    sudo_seen=1
+    review "NOPASSWD rule present (confirm it is intentional): $sf"
+  done < <(grep -RIl 'NOPASSWD' /etc/sudoers.d 2>/dev/null | grep -v -e '/README')
+  if [ "$sudo_seen" -eq 0 ]; then
     info "sudoers.d check skipped or no NOPASSWD rules readable"
   fi
 else
   info "no /etc/sudoers.d directory"
+fi
+
+section "Hosts file DNS redirection"
+if [ -f "$HOSTS_FILE" ]; then
+  if grep -Ei '^[[:space:]]*(127\.0\.0\.1|0\.0\.0\.0)[[:space:]].*(github\.com|api\.github\.com|registry\.npmjs\.org|npmjs\.org|nodejs\.org|api\.anthropic\.com|oven-sh)' "$HOSTS_FILE" 2>/dev/null; then
+    review "developer-service hostname redirection in hosts file (verify intentional): $HOSTS_FILE"
+  else
+    info "no suspicious developer-service hosts redirection found"
+  fi
+else
+  info "hosts file not readable: $HOSTS_FILE"
 fi
 
 section "Payload code markers in source / config trees"
