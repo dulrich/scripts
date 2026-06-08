@@ -66,9 +66,12 @@ stale — **cross-check the live lists below** before trusting it. `scan.sh` par
 and lockfiles directly instead of trusting `npm ls`; it flags advisory-backed exact versions as
 `HIT` and broad legitimate scopes as `REVIEW`.
 
-**Wave 1 — Miasma, `@redhat-cloud-services` (June 1, 2026).** Specific versions were compromised
-inside a legitimate scope. `scan.sh` embeds the Microsoft/Snyk exact-version snapshot as `HIT`
-signals and reports other `@redhat-cloud-services/*` sightings as `REVIEW`. Examples include
+**Wave 1 — Miasma, `@redhat-cloud-services` (June 1, 2026).** Microsoft's IOC table states *every*
+package on the `@redhat-cloud-service` account was compromised, and the worm republishes new poisoned
+versions, so `scan.sh` treats **any `@redhat-cloud-services/*` sighting as a `HIT`** (family match) —
+not REVIEW — with the Microsoft/Snyk exact-version snapshot supplying the precise version label.
+Unlike `@tanstack` (a ubiquitous dependency on the REVIEW watchlist), this scope is rarely a clean
+transitive dep, so the family HIT is low-FP. Examples include
 `frontend-components` (7.7.2, 7.7.3, 7.7.5), `frontend-components-utilities`,
 `frontend-components-notifications`, `frontend-components-advisor-components`,
 `frontend-components-testing`, `chrome`, `types`, `rbac-client`, `host-inventory-client`,
