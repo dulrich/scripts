@@ -33,18 +33,30 @@ These four rules keep it quiet on clean systems while still catching the real th
 them without re-running the verification below.
 
 1. **`binding.gyp` is a normal file.** Every native module ships one (`better-sqlite3`, `node-pty`,
-   `keytar`, `@parcel/watcher`, …). Presence is not a finding. The legitimate idiom is
-   `<!(node -p "require('node-addon-api').include_dir")` — running `node -p` on an *expression*. The
-   malicious form runs a *script file*: `<!(node index.js > /dev/null 2>&1 && echo stub.c)`.
-   Discriminate on a `.js` being executed via command substitution, and treat the obfuscated payload
-   markers in the sibling root `index.js` (`getBunPath`, `aes-128-gcm` decipher, `oven-sh/bun`
-   download) as the definitive signal.
+   `keytar`, `@parcel/watcher`, …). Presence is not a finding. The *only* legitimate idiom is
+   `<!(node -p "require('node-addon-api').include_dir")` — running `node`/`bun` with `-p`/`-e` on an
+   inline *expression*. The malicious form executes a *file/module*:
+   `<!(node index.js > /dev/null 2>&1 && echo stub.c)`. Do NOT key narrowly on `node …*.js` — that
+   leaves a blind spot for a renamed payload, a no-extension entry, or a `bun` invocation. Instead:
+   treat the obfuscated payload markers in the sibling root `index.js` (`getBunPath`, `aes-128-gcm`
+   decipher, `oven-sh/bun` download) as the definitive HIT; any command substitution running
+   `node`/`bun` that is *not* the `-p`/`-e` expression idiom is a finding — a `.js`/`.mjs`/`.cjs`
+   script is a HIT, other non-idiom forms are REVIEW.
 2. **Broad legit scopes are a watchlist, not a HIT.** `@tanstack`, `@uipath`, `@mistralai`, `@antv`,
    `@squawk`, `@opensearch-project` are widely-used libraries where only *specific versions* were
    compromised (CVE-2026-45321 for `@tanstack`). Matching the scope alone (`@tanstack/react-query` is
-   everywhere) is a false-positive cannon — report these as REVIEW with a "verify versions" note.
+   everywhere) is a false-positive cannon — report these as REVIEW with a "verify versions" note,
+   backed by the exact-version `KNOWN_BAD_PACKAGES` list for the HITs.
    Only obscure/typosquat names (`autotel`, `awaitly`, `@vapi-ai`, `ai-sdk-ollama`, `chalk-tempalte`,
    …) are safe to prefix-match as HITs.
+   **Exception — `@redhat-cloud-services` is a HIT scope, not a watchlist.** Microsoft's IOC table
+   states *every* package on the `@redhat-cloud-service` account was compromised, and this is a
+   self-propagating worm that republishes new poisoned versions, so a static exact-version list goes
+   stale. Unlike `@tanstack/react-query`, this scope is not a ubiquitous transitive dependency, so the
+   FP risk of a family-prefix HIT is low. It is therefore in `PKG_PREFIXES`/`PKG_RE` (any sighting =
+   HIT), with `KNOWN_BAD_PACKAGES` only supplying the precise advisory version label. Do NOT move it
+   to `WATCH_RE`/`watch_pkg` — that re-opens the gap where republished redhat versions silently
+   degrade to REVIEW (which does not change the exit code).
 3. **Legit config files are content-checked, not existence-checked.** `.gemini/settings.json` and
    `.claude/settings.json` are normal config files the worm *injects into* — flag only on malicious
    content (`bun run`, `setup.mjs`, IOC strings). Only attacker-*invented* names (`setup.mjs`,
@@ -54,6 +66,23 @@ them without re-running the verification below.
    instead. (This bug, inherited from the draft, made any machine with a `CLAUDE.md` report
    COMPROMISED.) The same "test output, not exit status" caution applies to any added `grep -q`/perl
    probes.
+
+## False-negative / evasion rules (do NOT regress)
+
+These close blind spots where a clean-looking change silently stops catching the real thing — the
+opposite failure mode from the FP rules above, and the more dangerous one for a detection tool.
+
+5. **Parse the *resolved* version, never the lockfile key range.** In `yarn.lock` (classic and berry)
+   the entry key carries a semver *range* (`@x/y@^1.2.3`), not the installed version. Matching the key
+   against the exact `KNOWN_BAD_PACKAGES` list never fires. `scan_lock_pairs` must read the version off
+   the block's own `version`/`resolution` line. It must also handle all three lockfile shapes: npm
+   `package-lock` v1 and v2/v3, yarn classic + berry, and pnpm v6–v8 (`/name@ver:`) *and* v9 (quoted,
+   slash-less `'name@ver':`). The smoke suite carries a `package-lock.json`, a `yarn.lock`, and a
+   `pnpm-lock.yaml` fixture with a known-bad version each — keep all three.
+6. **`package.json` parsing must be top-level-aware.** A first-match `/"name"\s*:\s*"…"/` grabs any
+   nested `"name"` (e.g. `"author":{"name":"innocent"}`), so a hostile package can shadow its real
+   name and evade attribution. `json_string_field` walks brace depth and returns only depth-1 keys; do
+   not replace it with a flat regex. The smoke suite has a shadowing-`name` fixture.
 
 ## Verification
 

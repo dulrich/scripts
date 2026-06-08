@@ -39,6 +39,7 @@ PATH="/usr/sbin:/usr/bin:/sbin:/bin:${PATH:-}"
 # specific, so a name/prefix match is high-signal (low false positive). Matched
 # by prefix so all poisoned versions are caught even as the worm republishes.
 PKG_PREFIXES=(
+  "@redhat-cloud-services"
   "@vapi-ai"
   "ai-sdk-ollama"
   "autotel"
@@ -54,7 +55,7 @@ PKG_PREFIXES=(
   "axois-utils"          # typosquat of axios
   "color-style-utils"
 )
-PKG_RE='@vapi-ai|ai-sdk-ollama|autotel|awaitly|executable-stories|node-env-resolver|wrangler-deploy|mountly|effect-analyzer|http-uploader-dev|chalk-tempalte|@deadcode09284814/axios-util|axois-utils|color-style-utils'
+PKG_RE='@redhat-cloud-services|@vapi-ai|ai-sdk-ollama|autotel|awaitly|executable-stories|node-env-resolver|wrangler-deploy|mountly|effect-analyzer|http-uploader-dev|chalk-tempalte|@deadcode09284814/axios-util|axois-utils|color-style-utils'
 
 # Exact malicious versions from Microsoft/Snyk for @redhat-cloud-services and
 # GitHub/Tenable for CVE-2026-45321. Broad scopes below are REVIEW only.
@@ -140,7 +141,15 @@ KNOWN_BAD_PACKAGES=(
 # libraries (e.g. @tanstack/react-query), so presence is NOT proof of
 # compromise -- it is a watchlist. Reported as REVIEW only; cross-check the
 # exact versions in your lockfile against the Tenable/Snyk advisories.
-WATCH_RE='@redhat-cloud-services|@tanstack|@uipath|@mistralai|@opensearch-project|@antv|@squawk'
+#
+# NOTE: @redhat-cloud-services is deliberately NOT here. Although only specific
+# versions were poisoned, this is a self-propagating worm that republishes new
+# poisoned versions under stolen maintainer tokens, and the scope is not a
+# ubiquitous transitive dependency (unlike @tanstack/react-query). So any
+# sighting is treated as a HIT via PKG_PREFIXES/PKG_RE, with KNOWN_BAD_PACKAGES
+# providing the precise advisory-backed version label. A static version list
+# would silently miss republished versions, so the family match is the backstop.
+WATCH_RE='@tanstack|@uipath|@mistralai|@opensearch-project|@antv|@squawk'
 
 # Attacker-INVENTED file names. These do not normally exist, so existence alone
 # is high-signal. Executed via "bun run", evading node-only monitoring.
@@ -191,9 +200,53 @@ $real
   done
 }
 
+# Extract a TOP-LEVEL string field from a JSON file. A naive /"name"\s*:\s*"..."/
+# grabs the FIRST occurrence anywhere, so a hostile package.json that puts e.g.
+# "author":{"name":"innocent"} before its real top-level "name" shadows the real
+# value and evades attribution. This walks the JSON tracking brace/bracket depth
+# and only returns the value of a key found at depth 1 (the root object). It does
+# not execute anything in the file.
 json_string_field() {
   local field="$1" file="$2"
-  perl -0777 -ne 'BEGIN { $f = shift @ARGV } print $1 if /"\Q$f\E"\s*:\s*"([^"]+)"/s' "$field" "$file" 2>/dev/null
+  perl -e '
+    my $f = shift @ARGV;
+    local $/; my $s = <>;
+    return unless defined $s;
+    my $len = length $s; my $i = 0; my $depth = 0;
+    while ($i < $len) {
+      my $c = substr($s,$i,1);
+      if ($c eq "\"") {
+        my $j = $i+1; my $key = "";
+        while ($j < $len) {
+          my $d = substr($s,$j,1);
+          if ($d eq "\\") { $key .= substr($s,$j+1,1); $j+=2; next; }
+          last if $d eq "\"";
+          $key .= $d; $j++;
+        }
+        my $here = $depth; $i = $j+1;
+        if ($here == 1) {
+          my $k = $i; $k++ while $k < $len && substr($s,$k,1) =~ /\s/;
+          if ($k < $len && substr($s,$k,1) eq ":") {
+            my $v = $k+1; $v++ while $v < $len && substr($s,$v,1) =~ /\s/;
+            if ($v < $len && substr($s,$v,1) eq "\"") {
+              my $m = $v+1; my $vv = "";
+              while ($m < $len) {
+                my $d = substr($s,$m,1);
+                if ($d eq "\\") { $vv .= substr($s,$m+1,1); $m+=2; next; }
+                last if $d eq "\"";
+                $vv .= $d; $m++;
+              }
+              if ($key eq $f) { print $vv; exit 0; }
+            }
+          }
+        }
+        next;
+      }
+      if ($c eq "{" || $c eq "[") { $depth++; $i++; next; }
+      if ($c eq "}" || $c eq "]") { $depth--; $i++; next; }
+      $i++;
+    }
+  ' "$field" "$file" 2>/dev/null
 }
 
 known_bad_exact() {
@@ -215,8 +268,10 @@ prefix_hit_pkg() {
 }
 
 watch_pkg() {
+  # @redhat-cloud-services intentionally absent -- it is a HIT scope (see WATCH_RE
+  # note), caught earlier by prefix_hit_pkg, so it never reaches this branch.
   case "$1" in
-    @redhat-cloud-services/*|@tanstack/*|@uipath/*|@mistralai/*|@opensearch-project/*|@antv/*|@squawk/*) return 0 ;;
+    @tanstack/*|@uipath/*|@mistralai/*|@opensearch-project/*|@antv/*|@squawk/*) return 0 ;;
   esac
   return 1
 }
@@ -244,16 +299,40 @@ report_package_reference() {
   fi
 }
 
+# Emit "name<TAB>resolved-version" for every package in a lockfile, across the
+# npm/yarn/pnpm formats. CRITICAL: for yarn and yarn-berry the entry KEY carries a
+# semver RANGE (e.g. @x/y@^1.2.3), not the resolved version -- pairing the key's
+# range against an exact known-bad list silently misses everything, so we read the
+# resolved value off the block's own "version"/"resolution" line. Spurious pairs
+# are harmless: report_package_reference only acts on known-bad/prefix/watch names.
 scan_lock_pairs() {
   local lock="$1"
+  # \x27 is a single quote (the whole perl program is single-quoted for the shell).
   perl -0777 -ne '
+    # npm package-lock v2/v3: "node_modules/<name>": { ... "version": "x.y.z" }
     while (/"node_modules\/((?:@[^\/"]+\/)?[^\/"]+)"\s*:\s*\{.*?"version"\s*:\s*"([^"]+)"/sg) {
       print "$1\t$2\n";
     }
-    while (/^"?((?:@[^\/\s"]+\/)?[^@\s",:]+)@(?:npm:)?([^",:\s]+)[^"]*"?\s*:/mg) {
+    # npm package-lock v1 (and nested deps): "<name>": { "version": "x.y.z" ... }
+    while (/"((?:@[^"\/]+\/)?[^"\/@]+)"\s*:\s*\{\s*"version"\s*:\s*"([^"]+)"/g) {
       print "$1\t$2\n";
     }
-    while (/^\s{2,}\/((?:@[^\/\s:]+\/)?[^@\s:]+)@([^:\s]+):/mg) {
+    # yarn classic AND yarn-berry: the key line carries the range; the resolved
+    # version is the block-local "version" line (classic: version "x"; berry:
+    # version: x). Capture the name from the key, the version from the block.
+    while (/^[ \t]*"?((?:@[^\/\s"]+\/)?[^@\s",]+)@[^\n:]*:[ \t]*\r?\n(?:[^\n]*\n)*?[ \t]+version:?[ \t]+"?([^"\s]+)"?/mg) {
+      print "$1\t$2\n";
+    }
+    # pnpm v6-v8: "  /<name>@<version>:"  (leading slash; optional (peer) suffix)
+    while (/^[ \t]{2,}\/((?:@[^\/\s:]+\/)?[^@\s:]+)@([^:\s(]+)[:(]/mg) {
+      print "$1\t$2\n";
+    }
+    # pnpm v9: "  \x27<name>@<version>\x27:"  (quoted, NO leading slash)
+    while (/^[ \t]+\x27((?:@[^\/\s\x27]+\/)?[^@\s\x27]+)@([^\x27\s(]+)\x27:/mg) {
+      print "$1\t$2\n";
+    }
+    # yarn-berry resolution lines: resolution: "<name>@npm:<version>"
+    while (/resolution:\s*"((?:@[^\/"]+\/)?[^@"]+)@(?:npm:)?([^"(]+?)(?:\([^"]*\))?"/g) {
       print "$1\t$2\n";
     }
   ' "$lock" 2>/dev/null
@@ -309,8 +388,12 @@ section "Phantom Gyp payload in node_modules (weaponized binding.gyp)"
 # NOTE: binding.gyp is a NORMAL file for native modules (better-sqlite3,
 # node-pty, keytar, ...), and the idiom "<!(node -p \"require('node-addon-api')
 # .include_dir\")" is legitimate -- that runs node -p on an EXPRESSION, not a
-# .js file. So the discriminators are: (a) command substitution that runs node
-# on a .js script, and (b) the definitive payload markers in the root index.js.
+# .js file. The discriminators are: (a) the definitive payload markers in the
+# root index.js, and (b) a command substitution that runs node/bun as anything
+# OTHER than the inline -p/-e expression idiom. Keying narrowly on "node ...*.js"
+# leaves a blind spot (renamed payload, no extension, or run via bun), so we
+# treat any non-idiom node/bun invocation as a finding: a .js script is a HIT
+# (matches the known payload), other non-idiom forms are REVIEW.
 gyp_total=0
 while IFS= read -r -d '' bg; do
   gyp_total=$((gyp_total+1))
@@ -321,13 +404,24 @@ while IFS= read -r -d '' bg; do
   if [ -f "$rootidx" ] && grep -Eq "$PAYLOAD_MARKERS" "$rootidx" 2>/dev/null; then
     bad=1; hit "payload code marker in root index.js beside binding.gyp: $rootidx"
     grep -noE "$PAYLOAD_MARKERS" "$rootidx" 2>/dev/null | sort -u | sed 's/^/    /' | head -n 5
-  # (b) binding.gyp runs node on a .js script (not the legit "node -p <expr>")
-  elif grep -Eq '<!\(\s*node\b[^)]*\.js\b' "$bg" 2>/dev/null; then
-    bad=1; hit "binding.gyp runs a .js via command substitution (not node -p idiom): $bg"
-    grep -nE '<!\(\s*node\b[^)]*\.js\b' "$bg" 2>/dev/null | sed 's/^/    /' | head -n 5
-    if [ -f "$rootidx" ]; then
-      sz="$(wc -c < "$rootidx" 2>/dev/null | tr -d ' ')"
-      [ -n "${sz:-}" ] && info "    (root index.js is ${sz} bytes)"
+  # (b) command substitution running node/bun as something other than node -p/-e
+  #     on an inline expression (the only legitimate native-module idiom).
+  elif grep -Eq '<!@?\(\s*(node|bun)\b' "$bg" 2>/dev/null; then
+    nonidiom="$(grep -noE '<!@?\([^)]*' "$bg" 2>/dev/null \
+      | grep -E '<!@?\(\s*(node|bun)\b' \
+      | grep -vE '\(\s*(node|bun)\b[[:space:]]+(-p|--print|-e|--eval)\b')"
+    if [ -n "$nonidiom" ]; then
+      if printf '%s\n' "$nonidiom" | grep -Eq '\.[mc]?js\b'; then
+        bad=1
+        hit "binding.gyp runs a .js via command substitution (not node -p idiom): $bg"
+      else
+        review "binding.gyp runs node/bun via command substitution without the -p/-e idiom (verify): $bg"
+      fi
+      printf '%s\n' "$nonidiom" | sed 's/^/    /' | head -n 5
+      if [ -f "$rootidx" ]; then
+        sz="$(wc -c < "$rootidx" 2>/dev/null | tr -d ' ')"
+        [ -n "${sz:-}" ] && info "    (root index.js is ${sz} bytes)"
+      fi
     fi
   fi
   binding_gyp_hits=$((binding_gyp_hits+bad))
