@@ -16,7 +16,8 @@
 set -u
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SCAN="$(cd "$HERE/.." && pwd)/scan.sh"
+ROOTDIR="$(cd "$HERE/.." && pwd)"
+SCAN="$ROOTDIR/scan.sh"
 
 PASS=0
 FAIL=0
@@ -40,22 +41,27 @@ FAKEHOME="$WORK/home"; mkdir -p "$FAKEHOME"
 FAKETMP="$WORK/tmp"; mkdir -p "$FAKETMP"
 FAKEHOSTS="$WORK/hosts"; printf '127.0.0.1 localhost\n' > "$FAKEHOSTS"
 
-run_scan() { # root -> sets global OUT and CODE
+run_scan() { # root -> sets global OUT and CODE (ecosystem: all)
   OUT="$(HOME="$FAKEHOME" NPM_IOC_TMP_ROOT="$FAKETMP" NPM_IOC_HOSTS_FILE="$FAKEHOSTS" bash "$SCAN" "$1" 2>&1)"; CODE=$?
+}
+run_scan_eco() { # ecosystem root -> sets global OUT and CODE
+  OUT="$(HOME="$FAKEHOME" NPM_IOC_TMP_ROOT="$FAKETMP" NPM_IOC_HOSTS_FILE="$FAKEHOSTS" bash "$SCAN" --ecosystem "$1" "$2" 2>&1)"; CODE=$?
 }
 
 # ---------------------------------------------------------------------------
-echo "[shellcheck] scan.sh (optional)"
+echo "[shellcheck] scan.sh + lib/*.sh (optional)"
+# -x lets shellcheck follow the sourced lib files from the router, so the libs
+# are analyzed in the context that defines their shared globals (FOUND, ROOT, ...).
 if command -v shellcheck >/dev/null 2>&1; then
-  if shellcheck "$SCAN"; then ok "shellcheck clean"; else bad "shellcheck reported issues"; fi
+  if shellcheck -x "$SCAN"; then ok "shellcheck clean"; else bad "shellcheck reported issues"; fi
 else
   printf '  WARN - shellcheck not installed; skipping (install it for full coverage)\n'
 fi
 
 # ---------------------------------------------------------------------------
-echo "[regression] no fabricated indicators in scan.sh"
-if grep -qE 'ddjidd564|p2024_integrity|router_init|router_runtime|tanstack_runner|dev-env-bootstrapper' "$SCAN"; then
-  bad "fabricated indicator present in scan.sh"
+echo "[regression] no fabricated indicators in scan.sh or lib/*.sh"
+if grep -rqE 'ddjidd564|p2024_integrity|router_init|router_runtime|tanstack_runner|dev-env-bootstrapper' "$SCAN" "$ROOTDIR/lib"; then
+  bad "fabricated indicator present in scan.sh/lib"
 else
   ok "no fabricated indicators"
 fi
@@ -170,6 +176,89 @@ printf '127.0.0.1 registry.npmjs.org\n' > "$FAKEHOSTS"
 run_scan "$NEG"
 assert_eq "$CODE" "0" "review-only: exit code stays 0"
 assert_contains "$OUT" "developer-service hostname redirection"          "review-only: hosts redirection review"
+printf '127.0.0.1 localhost\n' > "$FAKEHOSTS"   # reset for the PyPI cases below
+
+# ---------------------------------------------------------------------------
+# PyPI ("Hades") leg ---------------------------------------------------------
+# ---------------------------------------------------------------------------
+echo "[pypi-positive] malicious Python env must HIT and exit 2"
+PYPOS="$WORK/pypos"
+PE="$PYPOS/env/lib/python3.12/site-packages"
+mkdir -p "$PE/langchain_core_mcp-1.4.2.dist-info" "$PE/ensmallen-0.8.101.dist-info" "$PYPOS/proj"
+# installed malicious dist (langchain-core-mcp exact bad, normalized from underscore)
+printf 'Metadata-Version: 2.1\nName: langchain-core-mcp\nVersion: 1.4.2\n' \
+  > "$PE/langchain_core_mcp-1.4.2.dist-info/METADATA"
+# installed REAL bioinformatics pkg at the exact poisoned version -> HIT (watch+exact)
+printf 'Name: ensmallen\nVersion: 0.8.101\n' \
+  > "$PE/ensmallen-0.8.101.dist-info/METADATA"
+# split-loader: *-setup.pth that searches sys.path for _index.js
+printf 'import os, sys, subprocess\nfor d in sys.path:\n    p=os.path.join(d,"_index.js")\n' \
+  > "$PE/langchain_core-setup.pth"
+# planted JS stealer payload with a definitive marker (and a fake header line)
+printf '/* fake LLM-bait header */\nglobalThis.getBunPath=function(){}\n' \
+  > "$PE/_index.js"
+# trojanized native extension by known filename, beside _index.js
+printf 'x' > "$PE/ensmallen_haswell.abi3.so"
+# requirements: typosquat pinned (HIT exact) + benign bioinformatics version (REVIEW) + benign real dep
+printf 'rsquests==2.34.3\nensmallen==0.8.100\nrequests==2.31.0\n' \
+  > "$PYPOS/proj/requirements.txt"
+# Hades temp artifacts (run-once marker + SSH propagation file)
+printf 'x' > "$FAKETMP/.bun_ran"
+printf 'x' > "$FAKETMP/.sshu-setup.js"
+
+run_scan_eco pypi "$PYPOS"
+assert_eq "$CODE" "2" "pypi-positive: exit code is 2"
+assert_contains "$OUT" "known malicious package version langchain-core-mcp@1.4.2" \
+                                                                          "pypi-positive: normalized installed dist exact HIT"
+assert_contains "$OUT" "known malicious package version ensmallen@0.8.101" \
+                                                                          "pypi-positive: bioinformatics exact-version HIT"
+assert_contains "$OUT" "known malicious package version rsquests@2.34.3" \
+                                                                          "pypi-positive: typosquat pinned in requirements HIT"
+assert_contains "$OUT" "watchlist package present (verify exact version vs advisory): ensmallen@0.8.100" \
+                                                                          "pypi-positive: benign bioinformatics version is REVIEW"
+assert_contains "$OUT" "Hades-style executable startup hook (*-setup.pth)" \
+                                                                          "pypi-positive: split-loader setup.pth HIT"
+assert_contains "$OUT" "Hades stealer payload markers in _index.js"      "pypi-positive: _index.js payload marker HIT"
+assert_contains "$OUT" "known trojanized native extension"               "pypi-positive: known .abi3.so HIT"
+assert_contains "$OUT" "Hades temp artifact present"                     "pypi-positive: temp .bun_ran / .sshu-setup.js HIT"
+rm -f "$FAKETMP/.bun_ran" "$FAKETMP/.sshu-setup.js"
+
+# ---------------------------------------------------------------------------
+echo "[pypi-negative] clean Python env must be CLEAN and exit 0"
+PYNEG="$WORK/pyneg"
+PN="$PYNEG/env/lib/python3.12/site-packages"
+mkdir -p "$PN/numpy-1.26.0.dist-info" "$PN/numpy" "$PYNEG/proj"
+printf 'Name: numpy\nVersion: 1.26.0\n' > "$PN/numpy-1.26.0.dist-info/METADATA"
+# bare compiled extension with NO sibling _index.js -> must NOT fire
+printf 'x' > "$PN/numpy/_core.abi3.so"
+# legit *executable* .pth files (editable install, virtualenv, setuptools) -> must NOT fire
+printf 'import _virtualenv\n' > "$PN/_virtualenv.pth"
+printf 'import os; os.environ.setdefault("X","1")\n' > "$PN/distutils-precedence.pth"
+printf 'import sys; sys.path.insert(0, "/x")\n' > "$PN/__editable__.foo.pth"
+# benign deps incl. REAL langchain-core / openai / requests (must not match the -mcp lookalikes)
+# and a bioinformatics name at a non-poisoned version (REVIEW only, never HIT)
+printf 'requests==2.31.0\nlangchain-core==0.3.1\nopenai==1.10.0\nensmallen==0.8.50\n' \
+  > "$PYNEG/proj/requirements.txt"
+
+run_scan_eco pypi "$PYNEG"
+assert_eq "$CODE" "0" "pypi-negative: exit code is 0"
+assert_contains "$OUT" "CLEAN"                                           "pypi-negative: verdict is CLEAN"
+assert_not_contains "$OUT" "HIT:"                                        "pypi-negative: no HIT lines"
+assert_not_contains "$OUT" "known trojanized native extension"          "pypi-negative: bare .abi3.so not flagged"
+assert_not_contains "$OUT" "executable .pth with payload-loader markers" "pypi-negative: legit executable .pth not flagged"
+
+# ---------------------------------------------------------------------------
+echo "[router] --ecosystem dispatch is honored"
+# npm-only over the clean npm fixture: runs npm sections, skips pypi sections.
+run_scan_eco npm "$NEG"
+assert_eq "$CODE" "0" "router: --ecosystem npm stays clean on clean npm fixture"
+assert_contains "$OUT" "npm:"                                            "router: npm run emits npm sections"
+assert_not_contains "$OUT" "pypi:"                                       "router: npm run does not emit pypi sections"
+# pypi-only over the clean pypi fixture: runs pypi sections, skips npm sections.
+run_scan_eco pypi "$PYNEG"
+assert_eq "$CODE" "0" "router: --ecosystem pypi stays clean on clean pypi fixture"
+assert_contains "$OUT" "pypi:"                                           "router: pypi run emits pypi sections"
+assert_not_contains "$OUT" "npm:"                                        "router: pypi run does not emit npm sections"
 
 # ---------------------------------------------------------------------------
 echo
