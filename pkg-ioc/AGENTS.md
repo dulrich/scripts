@@ -115,6 +115,26 @@ opposite failure mode from the FP rules above, and the more dangerous one for a 
    nested `"name"` (e.g. `"author":{"name":"innocent"}`), so a hostile package can shadow its real
    name and evade attribution. `json_string_field` walks brace depth and returns only depth-1 keys; do
    not replace it with a flat regex. The smoke suite has a shadowing-`name` fixture.
+7. **Scan every platform temp root, not just `/tmp`.** The loaders stage via `mkdtempSync(tmpdir())` /
+   `tempfile.gettempdir()`, which is `$TMPDIR` (`/var/folders/…`) on macOS. The router builds
+   `TMP_ROOTS` (`/tmp` + a differing `$TMPDIR`; `NPM_IOC_TMP_ROOT` pins a single root for the hermetic
+   test harness) and every temp-artifact check (`b-*/bun`, `p*.js`, `.bun_ran`, `.sshu-setup.js`, the
+   ps staging-dir pattern) must iterate it — keying any of them on a single literal `/tmp` reopens the
+   macOS blind spot.
+8. **Process/daemon listings must route through `hit()` on a captured string.** An earlier draft ran
+   `if systemctl … | grep …; then daemon_seen=1; fi`: a LIVE `gh-token-monitor` unit printed raw grep
+   output with no `HIT:` label and never set `FOUND` — exit code stayed 0 on a compromised box.
+   Capture the output, test `[ -n … ]`, report via `hit()` (rule 4's discipline, applied to the
+   FOUND side). Also: use `ps axo args=`, not `ps -eo args` — on FreeBSD `-e` means "display the
+   environment", silently scanning the wrong thing. systemctl/launchctl/ps are *supplements*; the
+   file-level unit-dir sweep (which includes `/run/systemd/system` transient units, `/usr/lib/systemd`,
+   and `$XDG_CONFIG_HOME/systemd/user`) is the primary signal a compromised host cannot easily lie to.
+9. **Watchlist REVIEWs must print the advisory versions.** `report_package_reference` /
+   `report_pypi_package` append `(known-bad: …)` from `known_bad_versions_for` /
+   `pypi_known_bad_versions_for` (or `(no advisory-pinned versions for this package)`), and the
+   lockfile scope backstop summarizes per-scope counts via `scope_known_bad_summary`. This is what
+   makes REVIEW actionable at a glance — keep the suffix when rewording messages; the smoke suite
+   asserts it.
 
 ## PyPI (Hades leg) false-positive / false-negative rules
 

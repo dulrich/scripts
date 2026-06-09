@@ -58,12 +58,36 @@ run_common_checks() {
   section "gh-token-monitor dead-man's-switch daemon"
   # Polls GitHub every ~60s; recursively deletes files if it sees its token
   # revoked. Listing only -- do not stop/remove until the machine is isolated.
-  local daemon_seen=0 ud u
+  # Test the captured OUTPUT and route through hit() (FP rule 4 discipline): an
+  # earlier draft set only daemon_seen on the systemctl match, so a LIVE unit
+  # printed raw grep output and never changed the exit code.
+  local daemon_seen=0 ud u m
   if command -v systemctl >/dev/null 2>&1; then
-    if systemctl list-units --all 2>/dev/null | grep -i 'gh-token-monitor'; then daemon_seen=1; fi
-    if systemctl --user list-units --all 2>/dev/null | grep -i 'gh-token-monitor'; then daemon_seen=1; fi
+    m="$(systemctl list-units --all 2>/dev/null | grep -i 'gh-token-monitor')"
+    if [ -n "$m" ]; then
+      daemon_seen=1
+      hit "gh-token-monitor unit listed by systemctl:"
+      printf '%s\n' "$m" | sed 's/^/    /'
+    fi
+    m="$(systemctl --user list-units --all 2>/dev/null | grep -i 'gh-token-monitor')"
+    if [ -n "$m" ]; then
+      daemon_seen=1
+      hit "gh-token-monitor unit listed by systemctl --user:"
+      printf '%s\n' "$m" | sed 's/^/    /'
+    fi
   fi
-  for ud in "$HOME/.config/systemd/user" "/etc/systemd/system" "/etc/systemd/user" "$HOME/Library/LaunchAgents" "/Library/LaunchAgents" "/Library/LaunchDaemons"; do
+  # File-level sweep is the PRIMARY signal (systemctl/launchctl above could lie
+  # on a compromised host): include transient (/run) and vendor (/usr/lib) unit
+  # dirs, and an XDG override location when it differs from ~/.config.
+  local unit_dirs=(
+    "$HOME/.config/systemd/user" "/etc/systemd/system" "/etc/systemd/user"
+    "/usr/lib/systemd/system" "/usr/lib/systemd/user" "/run/systemd/system"
+    "$HOME/Library/LaunchAgents" "/Library/LaunchAgents" "/Library/LaunchDaemons"
+  )
+  if [ -n "${XDG_CONFIG_HOME:-}" ] && [ "${XDG_CONFIG_HOME%/}" != "$HOME/.config" ]; then
+    unit_dirs+=("${XDG_CONFIG_HOME%/}/systemd/user")
+  fi
+  for ud in "${unit_dirs[@]}"; do
     [ -d "$ud" ] || continue
     while IFS= read -r -d '' u; do
       daemon_seen=1
@@ -77,28 +101,41 @@ run_common_checks() {
     done < <(find "$ud" -maxdepth 1 -type f \( -name '*.service' -o -name '*.plist' \) -print0 2>/dev/null)
   done
   if command -v launchctl >/dev/null 2>&1; then
-    if launchctl list 2>/dev/null | grep -i 'gh-token-monitor'; then daemon_seen=1; FOUND=1; fi
+    m="$(launchctl list 2>/dev/null | grep -i 'gh-token-monitor')"
+    if [ -n "$m" ]; then
+      daemon_seen=1
+      hit "gh-token-monitor agent listed by launchctl:"
+      printf '%s\n' "$m" | sed 's/^/    /'
+    fi
   fi
   [ "$daemon_seen" -eq 0 ] && info "no gh-token-monitor daemon found"
 
   section "Bun runtime artifacts (evasion: payload runs off-Node)"
-  local bun_seen=0 b pjs
-  while IFS= read -r -d '' b; do
-    bun_seen=1
-    hit "bun binary in temp dir (worm staging): $b"
-  done < <(find "$TMP_ROOT" -maxdepth 2 -type f -name 'bun' \( -path '*/b-*' -o -path '*/.b_*' \) -print0 2>/dev/null)
-  while IFS= read -r -d '' pjs; do
-    bun_seen=1
-    hit "temp JavaScript payload artifact: $pjs"
-  done < <(find "$TMP_ROOT" -maxdepth 1 -type f -name 'p*.js' -print0 2>/dev/null)
-  if command -v ps >/dev/null 2>&1; then
-    # Only flag bun executing from the worm's mktemp staging dir (/tmp/b-XXXX/bun);
-    # a bare "bun run" would match legitimate Bun usage.
-    # shellcheck disable=SC2009  # ps|grep is portable; pgrep -f not guaranteed everywhere
-    if ps -eo args 2>/dev/null | grep -E "$TMP_ROOT/(\.?b[-_][^ ]*)/bun" | grep -v grep; then
-      bun_seen=1; FOUND=1
+  local bun_seen=0 b pjs troot
+  for troot in "${TMP_ROOTS[@]}"; do
+    [ -d "$troot" ] || continue
+    while IFS= read -r -d '' b; do
+      bun_seen=1
+      hit "bun binary in temp dir (worm staging): $b"
+    done < <(find "$troot" -maxdepth 2 -type f -name 'bun' \( -path '*/b-*' -o -path '*/.b_*' \) -print0 2>/dev/null)
+    while IFS= read -r -d '' pjs; do
+      bun_seen=1
+      hit "temp JavaScript payload artifact: $pjs"
+    done < <(find "$troot" -maxdepth 1 -type f -name 'p*.js' -print0 2>/dev/null)
+    if command -v ps >/dev/null 2>&1; then
+      # Only flag bun executing from the worm's mktemp staging dir (/tmp/b-XXXX/bun);
+      # a bare "bun run" would match legitimate Bun usage. "ps axo args=" is the
+      # portable spelling: on FreeBSD "-e" means "show environment", not "every
+      # process", so "-eo args" silently scans the wrong thing there.
+      # shellcheck disable=SC2009  # ps|grep is portable; pgrep -f not guaranteed everywhere
+      m="$(ps axo args= 2>/dev/null | grep -E "$troot/(\.?b[-_][^ ]*)/bun" | grep -v grep)"
+      if [ -n "$m" ]; then
+        bun_seen=1
+        hit "bun process executing from temp staging dir:"
+        printf '%s\n' "$m" | sed 's/^/    /'
+      fi
     fi
-  fi
+  done
   [ "$bun_seen" -eq 0 ] && info "no suspicious bun artifacts found"
 
   section "Passwordless-sudo persistence"
@@ -133,11 +170,13 @@ run_common_checks() {
   section "Agent context files -- zero-width character injection"
   # NOTE: U+FEFF as the very first byte is a normal UTF-8 BOM and U+200D is part
   # of legitimate emoji ZWJ sequences, so match these only mid-line and report
-  # them for review rather than as a hard hit. Test perl's OUTPUT, not its exit
-  # status -- perl -ne always exits 0 whether or not the pattern matched.
+  # them for review rather than as a hard hit. The class also covers U+2060
+  # (word joiner) and the Unicode tag block U+E0000-E007F used by ASCII-smuggling
+  # prompt injection. Test perl's OUTPUT, not its exit status -- perl -ne always
+  # exits 0 whether or not the pattern matched.
   local ctx zw
   while IFS= read -r -d '' ctx; do
-    zw="$(perl -CSD -ne 'print "$ARGV:$.: $_" if /\S[\x{200B}\x{200C}\x{200D}\x{FEFF}]|[\x{200B}\x{200C}\x{200D}\x{FEFF}]\S/' "$ctx" 2>/dev/null)"
+    zw="$(perl -CSD -ne 'print "$ARGV:$.: $_" if /\S[\x{200B}\x{200C}\x{200D}\x{2060}\x{FEFF}\x{E0000}-\x{E007F}]|[\x{200B}\x{200C}\x{200D}\x{2060}\x{FEFF}\x{E0000}-\x{E007F}]\S/' "$ctx" 2>/dev/null)"
     if [ -n "$zw" ]; then
       review "zero-width character inside text (often benign emoji/BOM; verify): $ctx"
       printf '%s\n' "$zw" | sed 's/^/    /' | head -n 5

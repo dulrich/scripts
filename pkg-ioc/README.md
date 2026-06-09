@@ -27,7 +27,11 @@ Exit codes:
 
 `REVIEW` lines are informational (things that are usually benign but worth a human glance — e.g. a
 legitimate `@tanstack` dependency, a non-poisoned version of a real bioinformatics package, or an
-editable-install `.pth` you may have created); they do **not** change the exit code.
+editable-install `.pth` you may have created); they do **not** change the exit code. Watchlist
+REVIEWs print the advisory-pinned bad versions inline for one-glance verification, e.g.
+`@tanstack/react-router@1.169.9 in <lockfile> (known-bad: 1.169.5, 1.169.8)` — or
+`(no advisory-pinned versions for this package)` when the scope is watched but that package has no
+recorded poisoned version.
 
 ### If something fires — order matters
 
@@ -69,7 +73,8 @@ The malware wipes `$HOME` if it sees its access cut, so follow this order:
 **Shared host-level** (`lib/common.sh`, run once regardless of ecosystem):
 
 1. `gh-token-monitor` dead-man's-switch daemon (systemd / launchctl)
-2. Bun runtime artifacts staged in `/tmp/b-*` (the off-Node evasion runtime)
+2. Bun runtime artifacts staged in the platform temp dir (`/tmp/b-*`, plus `$TMPDIR` on macOS —
+   the loaders stage via `tmpdir()`/`gettempdir()`, which is `/var/folders/…` there)
 3. Passwordless-sudo persistence (`/etc/sudoers.d`)
 4. Hosts-file DNS redirection of developer / registry / StepSecurity-telemetry domains
 5. Zero-width-character injection in agent context files (`CLAUDE.md`, `AGENTS.md`, …)

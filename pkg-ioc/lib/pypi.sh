@@ -109,6 +109,18 @@ pypi_known_bad_exact() {
   return 1
 }
 
+# Comma-join the advisory-recorded bad versions for a (PEP 503 normalized)
+# name, so a watchlist REVIEW shows what to compare against on the spot.
+pypi_known_bad_versions_for() {
+  local name="$1" i out=""
+  for i in "${PYPI_KNOWN_BAD[@]}"; do
+    case "$i" in
+      "$name@"*) out="${out:+$out, }${i#*@}" ;;
+    esac
+  done
+  printf '%s' "$out"
+}
+
 pypi_hit_name() {
   local n="$1" i
   for i in "${PYPI_HIT_NAMES[@]}"; do
@@ -143,10 +155,17 @@ report_pypi_package() {
       hit "affected package '$nname' present in $where"
     fi
   elif pypi_watch_name "$nname"; then
-    if [ -n "$version" ]; then
-      review "watchlist package present (verify exact version vs advisory): $nname@$version in $where"
+    local kbv
+    kbv="$(pypi_known_bad_versions_for "$nname")"
+    if [ -n "$kbv" ]; then
+      kbv="known-bad: $kbv"
     else
-      review "watchlist package present (verify exact version vs advisory): $nname in $where"
+      kbv="no advisory-pinned versions for this package"
+    fi
+    if [ -n "$version" ]; then
+      review "watchlist package present (verify exact version vs advisory): $nname@$version in $where ($kbv)"
+    else
+      review "watchlist package present (verify exact version vs advisory): $nname in $where ($kbv)"
     fi
   fi
 }
@@ -169,6 +188,12 @@ scan_pyreq_pairs() {
     while (/"([A-Za-z0-9][A-Za-z0-9._-]*)"\s*:\s*\{[^{}]*?"version"\s*:\s*"==?([^"\s]+)"/g) {
       print "$1\t$2\n";
     }
+    # conda environment.yml list pins: "- name=1.2.3" or "- name=1.2.3=build"
+    # (single =; the version-must-start-with-a-digit guard keeps pip == pins
+    # from double-matching here).
+    while (/^\s*-\s*([A-Za-z0-9][A-Za-z0-9._-]*)=([0-9][^\s=,;"\x27]*)(?:=\S+)?\s*$/mg) {
+      print "$1\t$2\n";
+    }
   ' "$f" 2>/dev/null
 }
 
@@ -184,7 +209,7 @@ run_pypi_checks() {
   local ROOT="$1"
   local pypi_package_hits=0
   local m name version dist_count=0
-  local f pth base pth_total=0 has_import marker
+  local f wn pth base pth_total=0 has_import marker
   local idx idx_total=0 idxdir
   local so so_total=0 sobase
   local h known kh kname
@@ -216,6 +241,11 @@ run_pypi_checks() {
     if grep -qiE "$PYPI_WATCH_BOUND" "$f" 2>/dev/null; then
       review "watchlist (bioinformatics) package referenced (verify exact version vs advisory): $f"
       grep -niE "$PYPI_WATCH_BOUND" "$f" 2>/dev/null | sed 's/^/    /' | head -n 20
+      for wn in "${PYPI_WATCH_NAMES[@]}"; do
+        if grep -qiE "(^|[^A-Za-z0-9._-])${wn//-/[-_]}([^A-Za-z0-9._-]|$)" "$f" 2>/dev/null; then
+          info "      $wn known-bad: $(pypi_known_bad_versions_for "$wn")"
+        fi
+      done
     fi
   done < <(find "$ROOT" \
     \( -path '*/node_modules' -o -path '*/.git' \) -prune -o \
@@ -317,12 +347,14 @@ run_pypi_checks() {
     -print0 2>/dev/null)
 
   section "pypi: temp artifacts (Bun run-once marker, SSH propagation)"
-  local tmp_seen=0 t
-  for t in "$TMP_ROOT/.bun_ran" "$TMP_ROOT/.sshu-setup.js"; do
-    if [ -e "$t" ]; then
-      tmp_seen=1
-      hit "Hades temp artifact present: $t"
-    fi
+  local tmp_seen=0 t troot
+  for troot in "${TMP_ROOTS[@]}"; do
+    for t in "$troot/.bun_ran" "$troot/.sshu-setup.js"; do
+      if [ -e "$t" ]; then
+        tmp_seen=1
+        hit "Hades temp artifact present: $t"
+      fi
+    done
   done
   [ "$tmp_seen" -eq 0 ] && info "no Hades temp artifacts found"
 }
