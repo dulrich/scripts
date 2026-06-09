@@ -100,8 +100,9 @@ printf '{"targets":[{"sources":["<!(node loader.mjs > /dev/null 2>&1 && echo stu
 # a renamed/off-Node payload is not a silent blind spot.
 printf '{"targets":[{"sources":["<!(bun run ./setup && echo stub.c)"]}]}' \
   > "$P/node_modules/bungyp/binding.gyp"
-# lockfile: @vapi-ai (HIT family) + @tanstack (REVIEW watchlist)
-printf '{"packages":{"node_modules/@vapi-ai/server-sdk":{"version":"1.2.2"},"node_modules/@tanstack/react-query":{"version":"5.0.0"},"node_modules/@tanstack/react-router":{"version":"1.169.5"}}}' \
+# lockfile: @vapi-ai + @jagreehal (HIT families) + @tanstack (REVIEW watchlist);
+# vue-router is at the PATCHED 1.169.9 so its REVIEW must list the bad versions.
+printf '{"packages":{"node_modules/@vapi-ai/server-sdk":{"version":"1.2.2"},"node_modules/@jagreehal/workflow":{"version":"1.16.1"},"node_modules/@tanstack/react-query":{"version":"5.0.0"},"node_modules/@tanstack/react-router":{"version":"1.169.5"},"node_modules/@tanstack/vue-router":{"version":"1.169.9"}}}' \
   > "$P/package-lock.json"
 printf '{"name":"proj"}' > "$P/package.json"
 # yarn classic: the KEY carries the range (^1.169.5); the resolved bad version is
@@ -143,7 +144,14 @@ assert_contains "$OUT" "malicious content injected into config (.claude/settings
                                                                           "positive: nested claude settings injection"
 assert_contains "$OUT" "folderOpen task persistence"                     "positive: vscode folderOpen task"
 assert_contains "$OUT" "affected package reference"                      "positive: @vapi-ai lockfile HIT"
+assert_contains "$OUT" "known malicious package version @jagreehal/workflow@1.16.1" \
+                                                                          "positive: StepSecurity-table package exact HIT"
 assert_contains "$OUT" "REVIEW: watchlist scope"                         "positive: @tanstack is REVIEW not HIT"
+assert_contains "$OUT" "@tanstack/vue-router@1.169.9 in"                 "positive: patched tanstack version is REVIEW"
+assert_contains "$OUT" "(known-bad: 1.169.5, 1.169.8)"                   "positive: watch REVIEW lists advisory versions"
+assert_contains "$OUT" "@tanstack/react-query@5.0.0"                     "positive: clean-family tanstack package REVIEW"
+assert_contains "$OUT" "(no advisory-pinned versions for this package)"  "positive: clean-family REVIEW says no pinned versions"
+assert_contains "$OUT" "known-bad version(s) across"                     "positive: scope backstop summarizes known-bad counts"
 assert_contains "$OUT" "bun binary in temp dir"                          "positive: temp bun artifact"
 assert_contains "$OUT" "temp JavaScript payload artifact"                "positive: temp p*.js artifact"
 assert_not_contains "$OUT" "fake npm was invoked"                        "positive: npm binary on PATH not trusted"
@@ -202,6 +210,9 @@ printf 'x' > "$PE/ensmallen_haswell.abi3.so"
 # requirements: typosquat pinned (HIT exact) + benign bioinformatics version (REVIEW) + benign real dep
 printf 'rsquests==2.34.3\nensmallen==0.8.100\nrequests==2.31.0\n' \
   > "$PYPOS/proj/requirements.txt"
+# conda environment.yml: single-= pin at the exact poisoned version -> HIT
+printf 'name: bio\ndependencies:\n  - python=3.12\n  - gpsea=0.9.14\n' \
+  > "$PYPOS/proj/environment.yml"
 # Hades temp artifacts (run-once marker + SSH propagation file)
 printf 'x' > "$FAKETMP/.bun_ran"
 printf 'x' > "$FAKETMP/.sshu-setup.js"
@@ -216,6 +227,9 @@ assert_contains "$OUT" "known malicious package version rsquests@2.34.3" \
                                                                           "pypi-positive: typosquat pinned in requirements HIT"
 assert_contains "$OUT" "watchlist package present (verify exact version vs advisory): ensmallen@0.8.100" \
                                                                           "pypi-positive: benign bioinformatics version is REVIEW"
+assert_contains "$OUT" "ensmallen@0.8.100 in $PYPOS/proj/requirements.txt (known-bad: 0.8.101)" \
+                                                                          "pypi-positive: bioinformatics REVIEW lists advisory version"
+assert_contains "$OUT" "known malicious package version gpsea@0.9.14"    "pypi-positive: conda single-= pin exact HIT"
 assert_contains "$OUT" "Hades-style executable startup hook (*-setup.pth)" \
                                                                           "pypi-positive: split-loader setup.pth HIT"
 assert_contains "$OUT" "Hades stealer payload markers in _index.js"      "pypi-positive: _index.js payload marker HIT"

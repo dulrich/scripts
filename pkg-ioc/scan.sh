@@ -38,7 +38,19 @@ esac
 
 ROOT="${ROOT:-$HOME}"
 DEEP="${DEEP:-false}"
-TMP_ROOT="${NPM_IOC_TMP_ROOT:-/tmp}"
+# Temp roots. The loaders stage in the PLATFORM temp dir (mkdtempSync(tmpdir())
+# in the JS stage, tempfile.gettempdir() in the .pth loader): that is /tmp on
+# Linux/BSD but $TMPDIR (/var/folders/...) on macOS, so both are scanned.
+# NPM_IOC_TMP_ROOT pins a single root (the test harness uses this to stay
+# hermetic).
+if [ -n "${NPM_IOC_TMP_ROOT:-}" ]; then
+  TMP_ROOTS=("${NPM_IOC_TMP_ROOT%/}")
+else
+  TMP_ROOTS=(/tmp)
+  if [ -n "${TMPDIR:-}" ] && [ "${TMPDIR%/}" != "/tmp" ] && [ -d "${TMPDIR%/}" ]; then
+    TMP_ROOTS+=("${TMPDIR%/}")
+  fi
+fi
 HOSTS_FILE="${NPM_IOC_HOSTS_FILE:-/etc/hosts}"
 FOUND=0
 REVIEWS=0
@@ -74,7 +86,7 @@ printf '  OS       : %s\n' "$os"
 printf '  Scan root: %s\n' "$ROOT"
 printf '  Ecosystem: %s\n' "$ECOSYSTEM"
 printf '  Deep     : %s\n' "$DEEP"
-printf '  TMP root : %s\n' "$TMP_ROOT"
+printf '  TMP roots: %s\n' "${TMP_ROOTS[*]}"
 printf '  Tools    : find=%s grep=%s perl=%s ps=%s\n' \
   "$(command -v find 2>/dev/null || echo missing)" \
   "$(command -v grep 2>/dev/null || echo missing)" \

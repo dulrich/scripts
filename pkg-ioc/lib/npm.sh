@@ -33,12 +33,16 @@ PKG_PREFIXES=(
   "@deadcode09284814/axios-util"
   "axois-utils"          # typosquat of axios
   "color-style-utils"
+  "@evolvconsulting/evolv-coder-lite"   # StepSecurity affected-packages table
+  "@jagreehal/workflow"                 # StepSecurity affected-packages table
 )
-PKG_RE='@redhat-cloud-services|@vapi-ai|ai-sdk-ollama|autotel|awaitly|executable-stories|node-env-resolver|wrangler-deploy|mountly|effect-analyzer|http-uploader-dev|chalk-tempalte|@deadcode09284814/axios-util|axois-utils|color-style-utils'
+PKG_RE='@redhat-cloud-services|@vapi-ai|ai-sdk-ollama|autotel|awaitly|executable-stories|node-env-resolver|wrangler-deploy|mountly|effect-analyzer|http-uploader-dev|chalk-tempalte|@deadcode09284814/axios-util|axois-utils|color-style-utils|@evolvconsulting/evolv-coder-lite|@jagreehal/workflow'
 
 # Exact malicious versions from Microsoft/Snyk for @redhat-cloud-services and
 # GitHub/Tenable for CVE-2026-45321. Broad scopes below are REVIEW only.
 KNOWN_BAD_PACKAGES=(
+  "@evolvconsulting/evolv-coder-lite@1.2.0"
+  "@jagreehal/workflow@1.16.1"
   "@redhat-cloud-services/types@3.6.1" "@redhat-cloud-services/types@3.6.2" "@redhat-cloud-services/types@3.6.4"
   "@redhat-cloud-services/frontend-components-utilities@7.4.1" "@redhat-cloud-services/frontend-components-utilities@7.4.2" "@redhat-cloud-services/frontend-components-utilities@7.4.4"
   "@redhat-cloud-services/frontend-components@7.7.2" "@redhat-cloud-services/frontend-components@7.7.3" "@redhat-cloud-services/frontend-components@7.7.5"
@@ -196,6 +200,38 @@ known_bad_exact() {
   return 1
 }
 
+# Comma-join the advisory-recorded bad versions for an exact package name, so a
+# watchlist REVIEW shows what to compare against without opening the advisory.
+# Empty output = scope is on the watchlist but this package has no pinned entry.
+known_bad_versions_for() {
+  local name="$1" i out=""
+  for i in "${KNOWN_BAD_PACKAGES[@]}"; do
+    case "$i" in
+      "$name@"*) out="${out:+$out, }${i##*@}" ;;
+    esac
+  done
+  printf '%s' "$out"
+}
+
+# "N known-bad version(s) across M package(s)" for a watch scope, derived from
+# KNOWN_BAD_PACKAGES (which groups a package's versions consecutively) -- used
+# by the lockfile scope backstop REVIEW.
+scope_known_bad_summary() {
+  local scope="$1" i nv=0 np=0 last=""
+  for i in "${KNOWN_BAD_PACKAGES[@]}"; do
+    case "$i" in
+      "$scope"/*)
+        nv=$((nv+1))
+        if [ "${i%@*}" != "$last" ]; then np=$((np+1)); last="${i%@*}"; fi ;;
+    esac
+  done
+  if [ "$nv" -gt 0 ]; then
+    printf '%d known-bad version(s) across %d package(s)' "$nv" "$np"
+  else
+    printf 'no version-pinned entries; verify against advisory'
+  fi
+}
+
 prefix_hit_pkg() {
   local name="$1" p
   for p in "${PKG_PREFIXES[@]}"; do
@@ -216,7 +252,7 @@ watch_pkg() {
 }
 
 report_package_reference() {
-  local name="$1" version="$2" where="$3"
+  local name="$1" version="$2" where="$3" kbv
   [ -n "$name" ] || return 0
 
   if [ -n "$version" ] && known_bad_exact "$name" "$version"; then
@@ -230,10 +266,16 @@ report_package_reference() {
       hit "affected package family '$name' present in $where"
     fi
   elif watch_pkg "$name"; then
-    if [ -n "$version" ]; then
-      review "watchlist package present (verify exact version vs advisory): $name@$version in $where"
+    kbv="$(known_bad_versions_for "$name")"
+    if [ -n "$kbv" ]; then
+      kbv="known-bad: $kbv"
     else
-      review "watchlist package present (verify exact version vs advisory): $name in $where"
+      kbv="no advisory-pinned versions for this package"
+    fi
+    if [ -n "$version" ]; then
+      review "watchlist package present (verify exact version vs advisory): $name@$version in $where ($kbv)"
+    else
+      review "watchlist package present (verify exact version vs advisory): $name in $where ($kbv)"
     fi
   fi
 }
@@ -349,10 +391,12 @@ run_npm_checks() {
       grep -nE "$PKG_RE" "$lock" 2>/dev/null | sed 's/^/    /' | head -n 40
     fi
     if grep -Eq "$WATCH_RE" "$lock" 2>/dev/null; then
-      local scopes
+      local scopes scope
       scopes="$(grep -oE "$WATCH_RE" "$lock" 2>/dev/null | sort -u | paste -sd' ' -)"
       review "watchlist scope(s) present (legit libs; verify versions vs advisory): $lock"
-      info "      scopes: $scopes"
+      for scope in $scopes; do
+        info "      $scope: $(scope_known_bad_summary "$scope") -- per-package detail above"
+      done
     fi
   done < <(find "$ROOT" \
     \( -path '*/node_modules' -o -path '*/.git' \) -prune -o \
