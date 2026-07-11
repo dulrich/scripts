@@ -10,9 +10,7 @@ A personal scripts and dotfiles collection. The primary entry point is `aliases.
 
 Run `./link.sh` to create the standard symlinks:
 - `~/.bash_aliases` → `aliases.sh`
-- `~/.vimrc` → `vimrc`
-- `~/.vim` → `vim/`
-- `~/.irssi/scripts` → `irssi_scripts/`
+- `~/.Xresources` → `Xresources`
 
 Or manually: `ln -s ~/scripts/aliases.sh ~/.bash_aliases`
 
@@ -24,13 +22,17 @@ Or manually: `ln -s ~/scripts/aliases.sh ~/.bash_aliases`
 - `git-aliases.sh` — git shorthands (`s`, `a`, `c`, `d`, `u`, `p`, `z`, etc.)
 - `debian-aliases.sh` or `gentoo-aliases.sh` — conditionally by OS detection
 
-It optionally loads (not in repo):
-- `config.sh` — local machine-specific overrides for variables like `EXTERNAL_OUTPUT`, `AUDIO_DEVICE`, `code_path`
-- `work-aliases.sh` — work-specific aliases
+It optionally loads (not in repo, gitignored):
+- `config.sh` — local machine-specific overrides for variables like `EXTERNAL_OUTPUT`, `AUDIO_DEVICE`, `code_path` (template: `config.example.sh`)
+- `work-aliases.sh` — private aliases, provided by the separate private overlay repo
 
 `aliases.sh` uses `$here` (resolved via `realpath "${BASH_SOURCE[0]}"`) so all sibling-script references work correctly regardless of where it is symlinked from.
 
 `git-aliases.sh` depends on `defarg` and `grep_options` defined in `aliases.sh` — it must always be sourced after `aliases.sh`.
+
+### The `util` router
+
+`aliases.sh` aliases `util` to `util/dispatch.sh`, a filesystem-router: `util <command> [args]` execs `util/<command>[.sh]`. There is no central registry — adding a subcommand is just dropping a `util/<name>.sh` file. `util/lib.sh` holds shared helpers (e.g. `defarg`) that subcommands can source, since they run as separate processes and don't inherit `aliases.sh` functions. `util/completions.sh` generates the completion list from `util/*.sh` (excluding `dispatch`/`lib`/`completions`), so private subcommands symlinked into `util/` are picked up automatically. Pattern modeled on `asset-tools/cond/util/`.
 
 ### Key utilities
 
@@ -43,11 +45,10 @@ It optionally loads (not in repo):
 
 ### Subdirectories
 
-- `magic_8_ball/` — Same fortune-telling program in multiple languages (JS, Lua, Perl, Python, Ruby, Java, C#). Run with `./run <lang>`.
-- `pystat/` — Python statistics REPL. Launch with `python -i startup.py` inside a virtualenv (`setup.sh` creates it). Uses numpy/scipy. Put data in `data_file.py` (see `data_file.example.py`).
+- `util/` — utility subcommands dispatched by the `util` router (see above).
 - `themegen/` — Generates terminal/Xresources color themes from JSON palette definitions. Run `gen.sh`.
 - `blamecount/` — Node.js tool for summarizing `git blame` stats. Configure via `config.json` (see `config.example.json`).
-- `irssi_scripts/` — Perl scripts for the irssi IRC client. `autorun/` symlinks are loaded automatically by irssi.
+- `pkg-ioc/` — Supply-chain-attack IOC scanner for npm/PyPI. Has its own tests (`tests/smoke.sh`).
 - `gpuedit/` — Config files (themes, keybindings, highlighters) for gpuedit.
 - `i3/` — i3 window manager config.
 - `gentoo/` — Portage `make.conf`, `package.use`, world files for two machines (bluebox, tower).
@@ -56,3 +57,11 @@ It optionally loads (not in repo):
 ### Config pattern
 
 Scripts that need per-machine customization look for `config.sh` (or `config.lifi`) in the repo root and source it if present. The repo ships `config.example.sh` and `config.example.lifi` as templates — copy and edit locally, never commit the live versions (they are gitignored).
+
+### Public / private split
+
+This is the **public** repo. Private and machine-specific content (`work-aliases.sh`, private `util/*` scripts, kernel configs, secrets) lives in a separate private overlay repo and is symlinked into place locally; all such paths are gitignored here. When adding files, keep private/host-specific detail out — this repo is public.
+
+### License
+
+The repo is **CC0** (public domain); see `LICENSE`. Anything added should be CC0 / public-domain compatible. Vendored subdirs keep their own compatible licenses (`build_system/` public domain, `pkg-ioc/` CC0). New source headers added by `lifi.sh` should use the `cc0` license body.
