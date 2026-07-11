@@ -383,6 +383,15 @@ fi
 source $here/git-aliases.sh
 
 
+# util script router: `util <command> [args]` -> util/<command>[.sh]
+if [ -f $here/util/dispatch.sh ]; then
+	alias util="$here/util/dispatch.sh"
+	if [ -f $here/util/completions.sh ]; then
+		source $here/util/completions.sh
+	fi
+fi
+
+
 if [ -f /etc/debian_version ]; then
 	source $here/debian-aliases.sh
 fi
