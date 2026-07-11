@@ -8,15 +8,6 @@ config.sh
 *-swp
 
 # local machine / private overlay (provided by the scripts-private repo)
-work-aliases.sh
-lms_monitor/
-
-# private util subcommands symlinked in from scripts-private; the util/
-# router auto-discovers them locally without tracking them here
-util/ob1_supabase.sh
-util/gitolite_migration.sh
-util/codex
-util/codex-cindy
-util/codex-david
-util/codex-profile-wrappers.sh
-util/ssh-agent.sh
+private
+private/
+private/util

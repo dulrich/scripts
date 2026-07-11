@@ -9,6 +9,8 @@
 
 # resolved once at source time; the function reuses it on every completion
 _UTIL_DIR=$( dirname $( realpath "${BASH_SOURCE[0]}" ) )
+# optional private overlay (scripts-private symlinked in as ../private)
+_UTIL_PRIV="$_UTIL_DIR/../private/util"
 
 _util_complete() {
 	local cur cmds f name
@@ -24,6 +26,13 @@ _util_complete() {
 			esac
 			cmds="$cmds $name"
 		done
+		# private overlay commands, if the overlay is present
+		if [ -d "$_UTIL_PRIV" ]; then
+			for f in "$_UTIL_PRIV"/*.sh; do
+				[ -e "$f" ] || continue
+				cmds="$cmds $( basename "$f" .sh )"
+			done
+		fi
 		COMPREPLY=( $( compgen -W "${cmds}" -- "${cur}" ) )
 	else
 		# subcommand arguments are completed as filenames

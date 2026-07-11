@@ -400,6 +400,6 @@ if [ -f /etc/gentoo-release ]; then
 	source $here/gentoo-aliases.sh
 fi
 
-if [ -f $here/work-aliases.sh ]; then
-	source $here/work-aliases.sh
+if [ -f $here/private/aliases.sh ]; then
+	source $here/private/aliases.sh
 fi
