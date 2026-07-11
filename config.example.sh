@@ -1,17 +1,22 @@
-# lifi.sh: easily manage license and copyright headers
-# Copyright (C) 2015 David Ulrich
-# 
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-# 
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-# 
-# You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# config.example.sh: per-machine overrides for aliases.sh.
+# Copy to config.sh (gitignored) and edit. aliases.sh sources config.sh if
+# present, so anything set here overrides the defaults defined in aliases.sh.
+#
+# CC0: This work has been marked as dedicated to the public domain.
+# https://creativecommons.org/publicdomain/zero/1.0/
 
-rd_res="1920x1080"
+# Common paths used by the cd aliases (down, code)
+# code_path="~/code/"
+# down_path="~/Downloads"
+
+# ssh command / work user used by some helpers
+# ssh_cmd="ssh"
+# work_user="username"
+
+# xrandr output names for the external()/internal() display helpers.
+# Find yours with: xrandr | grep " connected"
+# EXTERNAL_OUTPUT="DP-1-3"
+# INTERNAL_OUTPUT="eDP-1-1"
+
+# ALSA device for the volume()/vol helper ("default", or "pulse" on PulseAudio)
+# AUDIO_DEVICE="default"
