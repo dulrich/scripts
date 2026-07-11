@@ -1,9 +1,0 @@
-'.platform-darwin, .platform-win32, .platform-linux':
-  'ctrl-g': 'find-and-replace:find-next'
-  'ctrl-shift-g': 'find-and-replace:find-previous'
-  'ctrl-k': 'editor:delete-line'
-'.editor:not([mini])':
-  'ctrl-d': 'aligner:align'
-  'ctrl-alt-1': 'editor:fold-at-indent-level-1'
-  'ctrl-alt-2': 'editor:fold-at-indent-level-2'
-  'ctrl-alt-3': 'editor:fold-at-indent-level-3'
