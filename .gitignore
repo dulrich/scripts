@@ -19,3 +19,4 @@ util/codex
 util/codex-b
 util/codex-a
 util/codex-profile-wrappers.sh
+util/ssh-agent.sh
