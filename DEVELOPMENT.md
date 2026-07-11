@@ -4,9 +4,18 @@ created: 2026-04-16
 modified: 2026-07-06
 word-count: 62
 tags: ""
+initiative-visibility: hybrid
+initiative-status: active
+initiative-cadence: as-needed
+pending-plans:
+initiative-title: Scripts
+initiative-slug: scripts
 ---
 
-# Todo
+# Blocked on User
+
+---
+# Todos
 
 - [ ] test mkproject.sh — emptiness check was broken (scalar/array confusion), verify `--force` behaviour and normal empty-dir case
 - [ ] dotfiles.sh `proj_name_list()` — `find | ls` pipe is a no-op, ls ignores stdin and lists cwd instead; fix to use find output directly
