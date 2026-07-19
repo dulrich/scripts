@@ -60,6 +60,32 @@ It optionally loads (not in repo, gitignored):
 
 Scripts that need per-machine customization look for `config.sh` (or `config.lifi`) in the repo root and source it if present. The repo ships `config.example.sh` and `config.example.lifi` as templates — copy and edit locally, never commit the live versions (they are gitignored).
 
+## Quality gates
+
+Run the complete tracked-shell gate before reporting a change complete:
+
+```bash
+bash tests/shell-gate.sh
+```
+
+The gate enumerates public tracked scripts with `git ls-files -z '*.sh'`, then
+runs ShellCheck and `bash -n` over that exact set. It also runs the Debian
+maintenance, util router, alias-chain, root-utility, and `pkg-ioc` smoke suites,
+followed by the build-system and theme-generation checks. Gitignored private
+overlays are intentionally outside this public repository gate.
+
+For focused iteration, the component smoke commands are:
+
+```bash
+bash util/tests/debian-maintenance.sh
+bash util/tests/util-router.sh
+bash tests/aliases-smoke.sh
+bash tests/root-utils-smoke.sh
+bash pkg-ioc/tests/smoke.sh
+(cd build_system && ./build.sh)
+(cd themegen && bash gen.sh)
+```
+
 ## Public / private split
 
 This is the **public** repo. Private and machine-specific content

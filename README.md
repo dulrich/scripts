@@ -2,7 +2,7 @@
 title: README
 created: 2026-07-11
 modified: 2026-07-19
-word-count: 343
+word-count: 646
 tags: ""
 ---
 
@@ -36,9 +36,8 @@ chain-loads:
 - `config.sh` and `work-aliases.sh` — optional local files (see
   [Local overrides](#local-overrides)); sourced only if present.
 
-`aliases.sh` resolves its own location via
-`here=$( dirname $( realpath "${BASH_SOURCE[0]}" ) )`, so every sibling-script
-reference works regardless of where the file is symlinked from.
+`aliases.sh` resolves its own real location from `BASH_SOURCE`, so every
+sibling-script reference works regardless of where the file is symlinked from.
 
 ## The `util` command
 
@@ -55,6 +54,32 @@ util debian-maintenance    # -> util/debian-maintenance.sh
 Adding a command is just dropping a new `util/<name>.sh` file — no central
 registry. Bash completion for `util` (in `util/completions.sh`) generates its
 subcommand list from `util/*.sh`, so new commands complete automatically.
+
+### Debian maintenance safety
+
+`util debian-maintenance` is an interactive, root-only command. It updates APT,
+then simulates and separately confirms `upgrade --with-new-pkgs`,
+`full-upgrade`, explicit old-kernel purges, and general autoremove. It refuses
+transactions that would remove boot-critical kernel, GRUB, shim, or initramfs
+packages.
+
+Kernel cleanup considers only fully installed concrete image packages. It keeps
+the newest two images plus the running kernel, verifies their `/boot` artifacts,
+and purges only older images and their exact installed companions. Missing
+running/protected kernels abort cleanup. Package hooks own initramfs and
+bootloader updates; the script does not retry boot repairs or reboot the host.
+
+## Development gate
+
+Run the complete public shell suite with:
+
+```bash
+bash tests/shell-gate.sh
+```
+
+It checks every tracked `.sh` file with ShellCheck and `bash -n`, then runs all
+hermetic smoke, build-system, and theme-generation checks. Private/gitignored
+overlays are excluded.
 
 ## Key utilities
 

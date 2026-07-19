@@ -7,6 +7,9 @@ config.sh
 *.swp
 *-swp
 
+# local implementation-orchestration records
+/runs/dispatch/
+
 # local machine / private overlay (provided by the scripts-private repo)
 private
 private/
