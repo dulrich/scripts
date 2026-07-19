@@ -26,10 +26,10 @@ while getopts ":d:mp" opt; do
 	esac
 done
 
-shift $(($OPTIND - 1))
+shift "$((OPTIND - 1))"
 
 
-if [ $opt_db == 'none' ]; then
+if [ "$opt_db" = 'none' ]; then
 	echo 'ERROR: must specify target db with one of -[mp] or -d mysql|pgsql'
 	exit 2
 fi
@@ -39,11 +39,11 @@ if [ $# -lt 2 ]; then
 	exit 3
 fi
 
-user=$(echo "$1" | sed s/\'//g)
-pass=$(echo "$2" | sed s/\'/\'\'/g)
+user=${1//\'/}
+pass=${2//\'/\'\'}
 
 
-if [ $opt_db == 'mysql' ]; then
+if [ "$opt_db" = 'mysql' ]; then
 echo "
 CREATE USER '$user'@'localhost' IDENTIFIED BY '$pass';
 GRANT ALL PRIVILEGES ON $user.* TO '$user'@'localhost'
@@ -51,7 +51,7 @@ GRANT ALL PRIVILEGES ON $user.* TO '$user'@'localhost'
 GRANT ALL PRIVILEGES ON $user.* TO '$user'@'%'
 	WITH GRANT OPTION;
 "
-elif [ $opt_db == 'pgsql' ]; then
+elif [ "$opt_db" = 'pgsql' ]; then
 echo "
 CREATE ROLE $user LOGIN ENCRYPTED PASSWORD '$pass';
 GRANT ALL ON DATABASE $user TO $user;
@@ -59,4 +59,3 @@ GRANT ALL ON DATABASE $user TO $user;
 else
 	echo "ERROR: unknown db $opt_db"
 fi
-

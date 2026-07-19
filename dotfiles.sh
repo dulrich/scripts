@@ -1,24 +1,16 @@
 #!/bin/bash
 set -euo pipefail
 
-# this is for detecting script's location
-#here=$( dirname $( realpath "${BASH_SOURCE[0]}" ) )
-here=$( pwd )
+# The project being managed is the caller's current directory.
+here=$(pwd)
 
+# These defaults retain the historical metadata layout. Tests and machines with a
+# different checkout may override the repository without editing this public file.
+meta_repo=${DOTFILES_META_REPO:-/home/fractal/code/meta_repo}
+meta_dotfiles=${DOTFILES_META_DOTFILES:-dot}
 
-# system install
-# ln -s $here/dotfiles.sh /usr/bin/dot
-
-meta_repo=/home/fractal/code/meta_repo
-meta_dotfiles=dot
-
-
-meta_real_dotfiles=$( realpath $meta_repo/$meta_dotfiles )
-mkdir -p $meta_real_dotfiles
-
-
-
-
+mkdir -p "$meta_repo/$meta_dotfiles"
+meta_real_dotfiles=$(realpath "$meta_repo/$meta_dotfiles")
 
 help_show() {
 	echo "usage: dot [-h|--help] [-a|add <file>]
@@ -29,215 +21,196 @@ help_show() {
 	[-s|snapshot]"
 }
 
+declare -a proj_names=()
+declare -a dot_list=()
 
-
-proj_path=$here
-
-proj_name_list() {
-	cd $meta_real_dotfiles
-	#printf -- "%s\n" $( pwd )
-	proj_paths=( $( find -maxdepth 1 -type d | ls ) )
-	#printf -- "paths are <%s>\n" $proj_paths
-	cd $here
-	
-	paths_max=$(( ${#proj_paths[@]} - 1 ))
-	#printf -- "${#proj_paths[@]} paths"
-	proj_names=()
-	for (( i=0; i<=$paths_max; i++ )); do
-		proj_name=${proj_paths[$i]}
-		#printf -- "proj name <%s>\n" $proj_name
-		proj_names+=( $proj_name )
-		#printf "added proj name <%s>\n" $proj_name
-	done
-	echo "${proj_names[@]}"
+load_project_names() {
+	mapfile -d '' -t proj_names < <(
+		find "$meta_real_dotfiles" -mindepth 1 -maxdepth 1 -type d \
+			! -name '.*' -printf '%f\0' |
+			sort -z
+	)
 }
-#echo "real dotfiles: <$meta_real_dotfiles>"
-
 
 proj_name_get() {
-	# list dotfile projects
-	# split path parts
-	# check path segments against projects in reverse
-	proj_names=( $( proj_name_list ) )
-	proj_name=$( basename $here )
-	names_max=$(( ${#proj_names[@]} -1 ))
-	 
-	for (( i=0; i<=$names_max; i++ )); do
-		name=${proj_names[$i]}
-		#printf "i: %d, name: <%s>, proj_name: <%s>\n" $i $name $proj_name
-		if [ "$proj_name" == "$name" ]; then
-			echo $proj_name
-			break
-		fi
-	done
-}
-proj_name=$( proj_name_get )
-#printf "project name: <%s>" $proj_name
+	local current_name
+	local name
 
-
-
-dotfile_add() {
-	filename="$1"
-	
-	cp $filename $meta_real_dotfiles/$proj_name/$filename
-	cd $meta_real_dotfiles
-	git add -f $proj_name/$filename
-	cd $here
-}
-
-
-
-dotfile_backup() {
-	proj_names=()
-	if [ $flag_all -eq 1 ]; then
-		proj_names+=( $( proj_name_list ) )
-	else
-		proj_names+=( $proj_name )
-	fi
-	#printf "project names are <%s>\n" "${proj_names[@]}"
-	dirmax=$(( ${#proj_names[@]} - 1 ))
-	for (( i=0; i<=$dirmax; i++ )); do
-		dirname=${proj_names[$i]}
-		cd $meta_real_dotfiles/$dirname 
-		dot_list=( $( find -type f | ls -A ) )
-		cd $here
-		
-		dotmax=$(( ${#dot_list[@]} - 1 ))
-		for (( j=0; j<=$dotmax; j++ )); do
-			dot=${dot_list[$j]}
-			printf -- "Checking <%s/%s>..." $dirname $dot
-			cp -n -u $dot $meta_real_dotfiles/$dirname/$filename 2> /dev/null
-			if [ $? -eq 0 ]; then
-				#printf -- "backed up <%s/%s>\n" $dirname $dot
-				printf "backed up\n"
-			else
-				printf "ok\n"
-			fi
-		done
-	done
-	cd $here
-}
-
-
-
-dotfile_restore() {
-	dotname="$1"
-	
-	dirname="$proj_name"
-	printf -- "[%s]\n" $dirname
-	cd $meta_real_dotfiles/$dirname
-	dot_list=( $( find -type f | ls -A ) )
-	dotmax=$(( ${#dot_list[@]} - 1 ))
-	for (( j=0; j<=$dotmax; j++ )); do
-		dot=${dot_list[$j]}
-		if [ "$dot" == "$dotname" ]; then
-			cp -n -u $dot $here/$dotname 2> /dev/null
-			printf -- "Restored <%s> from <%s>\n" $dotname $meta_real_dotfiles/$dirname/$dot
+	current_name=$(basename "$here")
+	load_project_names
+	for name in "${proj_names[@]}"; do
+		if [[ "$current_name" == "$name" ]]; then
+			printf '%s\n' "$current_name"
 			return
 		fi
 	done
-	printf -- "ERROR: unregistered dotfile <%s>\n" $dotname
-	
-	cd $here
-	exit 4
 }
 
+proj_name=$(proj_name_get)
 
+load_registered_entries() {
+	local project_name=$1
+
+	mapfile -d '' -t dot_list < <(
+		find "$meta_real_dotfiles/$project_name" -mindepth 1 \
+			\( -type f -o -type l \) -printf '%P\0' |
+			sort -z
+	)
+}
+
+project_path_for_name() {
+	local project_name=$1
+
+	if [[ "$project_name" == "$(basename "$here")" ]]; then
+		printf '%s\n' "$here"
+	else
+		printf '%s/%s\n' "$(dirname "$here")" "$project_name"
+	fi
+}
+
+dotfile_add() {
+	local filename=$1
+	local destination="$meta_real_dotfiles/$proj_name/$filename"
+
+	mkdir -p "$(dirname "$destination")"
+	cp -a --remove-destination -- "$filename" "$destination"
+	(
+		cd "$meta_real_dotfiles"
+		git add -f -- "$proj_name/$filename"
+	)
+}
+
+dotfile_backup() {
+	local dirname
+	local dot
+	local project_path
+	local source
+	local destination
+	local -a projects=()
+
+	if [[ "$flag_all" -eq 1 ]]; then
+		load_project_names
+		projects=("${proj_names[@]}")
+	else
+		projects=("$proj_name")
+	fi
+
+	for dirname in "${projects[@]}"; do
+		project_path=$(project_path_for_name "$dirname")
+		load_registered_entries "$dirname"
+		for dot in "${dot_list[@]}"; do
+			printf 'Checking <%s/%s>...' "$dirname" "$dot"
+			source="$project_path/$dot"
+			destination="$meta_real_dotfiles/$dirname/$dot"
+			if [[ -e "$source" || -L "$source" ]]; then
+				mkdir -p "$(dirname "$destination")"
+				cp -a --remove-destination -- "$source" "$destination"
+				printf 'backed up\n'
+			else
+				printf 'ok\n'
+			fi
+		done
+	done
+}
+
+dotfile_restore() {
+	local dotname=$1
+	local source="$meta_real_dotfiles/$proj_name/$dotname"
+	local destination="$here/$dotname"
+
+	printf '[%s]\n' "$proj_name"
+	if [[ -e "$source" || -L "$source" ]]; then
+		mkdir -p "$(dirname "$destination")"
+		if [[ ! -e "$destination" && ! -L "$destination" ]]; then
+			cp -a -- "$source" "$destination"
+		fi
+		printf 'Restored <%s> from <%s>\n' "$dotname" "$source"
+		return
+	fi
+
+	printf 'ERROR: unregistered dotfile <%s>\n' "$dotname"
+	return 4
+}
 
 dotfiles_show() {
-	proj_names=()
-	if [ $flag_all -eq 1 ]; then
-		proj_names+=( $( proj_name_list ) )
+	local dirname
+	local dot
+	local -a projects=()
+
+	if [[ "$flag_all" -eq 1 ]]; then
+		load_project_names
+		projects=("${proj_names[@]}")
 	else
-		proj_names+=( $proj_name )
+		projects=("$proj_name")
 	fi
-	#printf "project names are <%s>\n" "${proj_names[@]}"
-	dirmax=$(( ${#proj_names[@]} - 1 ))
-	for (( i=0; i<=$dirmax; i++ )); do
-		dirname=${proj_names[$i]}
-		printf -- "[%s]\n" $dirname
-		cd $meta_real_dotfiles/$dirname 
-		dot_list=( $( find -type f | ls -A ) )
-		dotmax=$(( ${#dot_list[@]} - 1 ))
-		for (( j=0; j<=$dotmax; j++ )); do
-			dot=${dot_list[$j]}
-			printf -- "* %s\n" $dot
+
+	for dirname in "${projects[@]}"; do
+		printf '[%s]\n' "$dirname"
+		load_registered_entries "$dirname"
+		for dot in "${dot_list[@]}"; do
+			printf '* %s\n' "$dot"
 		done
-		printf -- "\n"
+		printf '\n'
 	done
-	cd $here
 }
-
-
 
 snapshot_all() {
-	cd $meta_real_dotfiles
-	git add .
-	git commit -m "dotfiles snapshot"
-	
-	# pasted from git-aliases.sh
-	remotes=( $( git remote ) )
-	for name in "${remotes[@]}"
-	do
-		push_url=$(git remote get-url --push "$name")
-		if [ "$push_url" != "no_push" ]; then
-			echo "Pushing to remote $name..."
-			git push "$name"
-		fi
-	done
-	cd $here
-}
+	local name
+	local push_url
+	local -a remotes=()
 
+	(
+		cd "$meta_real_dotfiles"
+		git add .
+		git commit -m "dotfiles snapshot"
+		mapfile -t remotes < <(git remote)
+		for name in "${remotes[@]}"; do
+			push_url=$(git remote get-url --push "$name")
+			if [[ "$push_url" != "no_push" ]]; then
+				echo "Pushing to remote $name..."
+				git push "$name"
+			fi
+		done
+	)
+}
 
 status_show() {
-	cd $meta_real_dotfiles
-	git status
-	cd $here
+	(
+		cd "$meta_real_dotfiles"
+		git status
+	)
 }
-
-
 
 project_init() {
-	proj_name=$( basename $here )
-	mkdir -p $meta_real_dotfiles/$proj_name
+	proj_name=$(basename "$here")
+	mkdir -p "$meta_real_dotfiles/$proj_name"
 }
 
-
 guard_in_project() {
-	if [ "$proj_name" == "" ]; then
-		printf -- "ERROR: not in a registered project\n"
+	if [[ -z "$proj_name" ]]; then
+		printf 'ERROR: not in a registered project\n'
 		help_show
 		exit 3
 	fi
-	
-	#printf -- "project <%s>\n" $proj_name
 }
 
-
-
 flag_all=0
-
-orig_args=()
+translated_args=()
 for arg in "$@"; do
-	shift
-	orig_args+="$arg"
 	case "$arg" in
-		'--help')   set -- "$@" '-h' ;;
+		'--help')   translated_args+=('-h') ;;
 		'--all')    flag_all=1 ;;
-		'add')      set -- "$@" '-a' ;;
-		'backup')   set -- "$@" '-b' ;;
-		'list')     set -- "$@" '-l' ;;
-		'project')  set -- "$@" '-p' ;;
-		'restore')  set -- "$@" '-r' ;;
-		'snapshot') set -- "$@" '-s' ;;
-		'status')   set -- "$@" '-t' ;;
-		*)          set -- "$@" "$arg" ;;
+		'add')      translated_args+=('-a') ;;
+		'backup')   translated_args+=('-b') ;;
+		'list')     translated_args+=('-l') ;;
+		'project')  translated_args+=('-p') ;;
+		'restore')  translated_args+=('-r') ;;
+		'snapshot') translated_args+=('-s') ;;
+		'status')   translated_args+=('-t') ;;
+		*)          translated_args+=("$arg") ;;
 	esac
 done
-#printf -- "flag value <%d>\n" $flag_all
-
-
-
+set -- "${translated_args[@]}"
 
 while getopts ":a:r:bhlpst" opt; do
 	case $opt in
@@ -247,7 +220,7 @@ while getopts ":a:r:bhlpst" opt; do
 			exit 0
 			;;
 		b)
-			if [ $flag_all -eq 0 ] ; then
+			if [[ "$flag_all" -eq 0 ]]; then
 				guard_in_project
 			fi
 			dotfile_backup
@@ -258,7 +231,7 @@ while getopts ":a:r:bhlpst" opt; do
 			exit 0
 			;;
 		l)
-			if [ $flag_all -eq 0 ] ; then
+			if [[ "$flag_all" -eq 0 ]]; then
 				guard_in_project
 			fi
 			dotfiles_show
@@ -292,14 +265,7 @@ while getopts ":a:r:bhlpst" opt; do
 	esac
 done
 
-shift $((OPTIND-1))
+shift "$((OPTIND - 1))"
 
-printf "Unhandled command/argument sequences\n"
+printf 'Unhandled command/argument sequences\n'
 exit 2
-
-
-
-
-
-
-
