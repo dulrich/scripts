@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# This file is sourced palette data; gen.sh consumes these names through
+# indirect expansion (${!token}).
+# shellcheck disable=SC2034
 FOREGROUND="#c5c8c6ff"
 BACKGROUND="#000000bb"
 CURSOR="#c5c8c6ff"
@@ -35,5 +38,4 @@ CYAN_DARK="#5e8d87ff" # color 6
 
 WHITE_LITE="#c5c8c6ff" # color 15
 WHITE_DARK="#707880ff" # color 7
-
 

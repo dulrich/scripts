@@ -51,9 +51,13 @@ else
     TMP_ROOTS+=("${TMPDIR%/}")
   fi
 fi
+# The sourced common module consumes this router-owned fixture override.
+# shellcheck disable=SC2034
 HOSTS_FILE="${NPM_IOC_HOSTS_FILE:-/etc/hosts}"
 FOUND=0
 REVIEWS=0
+# The sourced section helper owns this shared counter.
+# shellcheck disable=SC2034
 SECTION=0
 
 # Prefer system tool locations over a user-controlled PATH. This cannot defeat a
@@ -64,11 +68,16 @@ PATH="/usr/sbin:/usr/bin:/sbin:/bin:${PATH:-}"
 # matter where scan.sh is invoked or symlinked from.
 SELF="$(realpath "${BASH_SOURCE[0]}" 2>/dev/null || readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || printf '%s' "${BASH_SOURCE[0]}")"
 LIBDIR="$(dirname "$SELF")/lib"
+# These runtime-resolved includes are followed by the smoke suite's `-x` pass;
+# the repository's per-file gate intentionally runs without external sources.
 # shellcheck source=lib/common.sh
+# shellcheck disable=SC1091
 . "$LIBDIR/common.sh"
 # shellcheck source=lib/npm.sh
+# shellcheck disable=SC1091
 . "$LIBDIR/npm.sh"
 # shellcheck source=lib/pypi.sh
+# shellcheck disable=SC1091
 . "$LIBDIR/pypi.sh"
 
 host="$(hostname 2>/dev/null || echo unknown)"

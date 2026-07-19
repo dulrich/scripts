@@ -1,1 +1,1 @@
-
+# shellcheck shell=bash

@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-here=$( dirname $( realpath "${BASH_SOURCE[0]}" ) )
+here=$(dirname "$(realpath "${BASH_SOURCE[0]}")")
 
 mode="run"
 
@@ -27,7 +27,7 @@ orig_args=()
 
 for arg in "$@"; do
 	shift
-	orig_args+="$arg"
+	orig_args+=("$arg")
 	case "$arg" in
 		'--help') set -- "$@" '-h' ;;
 		'--force') set -- "$@" '-f' ;;
@@ -142,9 +142,10 @@ sed -i -E -e "s;__SED_TOKEN_SOURCE_PATH;$dest_path_source;" "${sed_files[@]}"
 sed -i -E -e "s;__SED_TOKEN_CODE_NAME;$dest_name_code;" "${sed_files[@]}"
 
 
-echo "._build" >> "$dest_path_root/.gitignore"
-echo $( realpath --relative-to="$dest_path_root" "$dest_path_exe/$dest_name_exe" ) >> "$dest_path_root/.gitignore"
-echo "$dest_path_build/*" >> "$dest_path_root/.gitignore"
-
+{
+	echo "._build"
+	realpath --relative-to="$dest_path_root" "$dest_path_exe/$dest_name_exe"
+	echo "$dest_path_build/*"
+} >> "$dest_path_root/.gitignore"
 
 

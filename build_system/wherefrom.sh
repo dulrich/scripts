@@ -1,4 +1,4 @@
-
+#!/bin/bash
 
 DIR="$( dirname -- "${BASH_SOURCE[0]}"; )";   # Get the directory name
 DIR="$( realpath -e -- "$DIR"; )";    # Resolve its full path if need be
@@ -9,7 +9,7 @@ PRG="$0"
 
 # need this for relative symlinks
 while [ -h "$PRG" ] ; do
-   PRG=`readlink "$PRG"`
+   PRG=$(readlink "$PRG")
 done
 
 echo "$PRG"
@@ -23,6 +23,8 @@ FULL_PATH_TO_SCRIPT="$(realpath "${BASH_SOURCE[-1]}")"
 # if the script is called from within another bash function!
 # NB: if `"${BASH_SOURCE[-1]}"` doesn't give you quite what you want, use
 # `"${BASH_SOURCE[0]}"` instead in order to get the first element from the array.
+# Kept as a sourceable path-resolution example for callers to inspect.
+# shellcheck disable=SC2034
 FULL_PATH_TO_SCRIPT_KEEP_SYMLINKS="$(realpath -s "${BASH_SOURCE[-1]}")"
 
 # You can then also get the full path to the directory, and the base
@@ -35,13 +37,12 @@ echo "FULL_PATH_TO_SCRIPT = \"$FULL_PATH_TO_SCRIPT\""
 echo "SCRIPT_DIRECTORY    = \"$SCRIPT_DIRECTORY\""
 echo "SCRIPT_FILENAME     = \"$SCRIPT_FILENAME\""
 
-here=$( dirname $( realpath "${BASH_SOURCE[-1]}" ) )
+here=$(dirname "$(realpath "${BASH_SOURCE[-1]}")")
 
 echo "here is <$here>"
 
 
-there=$( dirname $( realpath "${BASH_SOURCE[0]}" ) )
+there=$(dirname "$(realpath "${BASH_SOURCE[0]}")")
 
 echo "there is <$there>"
-
 

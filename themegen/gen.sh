@@ -5,7 +5,11 @@ set -euo pipefail
 # load internal|external -> font config, transparency config
 
 # generate HEX24 and HEX32 output format strings
-source ./dark_pastel.sh
+# The selected palette is a sibling sourced-data fragment; the repo gate runs
+# without ShellCheck's external-source mode.
+# shellcheck source=dark_pastel.sh
+# shellcheck disable=SC1091
+source "$(dirname "$(realpath "${BASH_SOURCE[0]}")")/dark_pastel.sh"
 
 # dark_*.json
 # light_*.json
@@ -33,6 +37,8 @@ WHITE_LITE WHITE_DARK \
 )
 
 # do 32-bit rgba for json files
+# Retained for the disabled in-place generation command immediately below.
+# shellcheck disable=SC2034
 sed_rgba_files=( dark_pastel.json dark_saturated.json options.json )
 for token in "${SED_TOKENS[@]}" "${SED_COLOR_TOKENS[@]}"; do
 	echo "GEN_$token->${!token}"
@@ -41,6 +47,8 @@ done
 
 
 # chop alpha byte for Xresources: settings as-is, colors stripped to rgb
+# Retained for the disabled in-place generation commands immediately below.
+# shellcheck disable=SC2034
 sed_rgb_files=( Xresources )
 for token in "${SED_TOKENS[@]}"; do
 	echo "GEN_$token->${!token}"
@@ -51,5 +59,3 @@ for token in "${SED_COLOR_TOKENS[@]}"; do
 	echo "GEN_$token->${value::-2}"
 	#sed -i -E -e "s;GEN_$token;${value::-2};" "${sed_rgb_files[@]}"
 done
-
-
