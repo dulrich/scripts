@@ -11,19 +11,20 @@
 # `defarg "$*" 0 './'` -> first word, defaulting to ./
 defarg () {
 	local all=0
-	local args=($1)
+	local -a args=()
 	local which=$2
 	local def=$3
+	read -r -a args <<< "$1"
 
 	if [ "$which" == '@' ]; then
 		all=1
 		which=0
 	fi
 
-	if [ ${#args[@]} -gt $which ]; then
+	if [ "${#args[@]}" -gt "$which" ]; then
 		if [ $all -eq 1 ]; then echo "${args[@]}"
 		else echo "${args[$which]}"; fi
 	else
-		echo $def
+		echo "$def"
 	fi
 }
