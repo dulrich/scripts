@@ -1,3 +1,5 @@
+#!/bin/bash
+
 # config.example.sh: per-machine overrides for aliases.sh.
 # Copy to config.sh (gitignored) and edit. aliases.sh sources config.sh if
 # present, so anything set here overrides the defaults defined in aliases.sh.
