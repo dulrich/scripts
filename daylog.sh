@@ -49,40 +49,51 @@ while getopts ":b:cd:f:sy" opt; do
 	esac
 done
 
-shift $(($OPTIND - 1))
+shift "$((OPTIND - 1))"
 
 
 compute_time () {
 	local fp="$1"
-	local dstring=$(date -d "$2" +%Y-%m-%d)
+	local dstring
+	dstring=$(date -d "$2" +%Y-%m-%d)
 	local prev=0
 	local diff=0
+	local line
 	
-	while read l; do
-		if [ $prev -ne 0 ] ; then
-			diff=$(date -d @$(( $(date -d "${l:0:8}" +%s) - $prev )) -u +%H:%M)
+	while IFS= read -r line; do
+		if [ "$prev" -ne 0 ] ; then
+			diff=$(date -d "@$(( $(date -d "${line:0:8}" +%s) - prev ))" -u +%H:%M)
 			
 			echo "$diff"
 		fi
 		
-		echo "${l:9}"
+		echo "${line:9}"
 		
-		prev=$( date -d "${l:0:8}" +%s )
-	done < $fp
+		prev=$(date -d "${line:0:8}" +%s)
+	done < "$fp"
 	
 	if [ "$dstring" = "$(date +%Y-%m-%d)" ] ; then
-		diff=$(date -d @$(( $(date +%s) - $prev )) -u +%H:%M)
+		diff=$(date -d "@$(( $(date +%s) - prev ))" -u +%H:%M)
 		
 		echo "$diff $now_str"
 	fi
 }
 
 
-logpath="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )/$folder/"
+script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+if [[ "$folder" = /* ]]; then
+	logpath="${folder%/}/"
+else
+	logpath="$script_dir/${folder%/}/"
+fi
 name=$(date -d "$dstring" +%Y-%m-%d)
 now=$(date +%I:%M\ %P)
 if [ $# -gt 0 ] && $newmsg ; then
-	echo $now "===" "$@" >> $logpath$name.daylog
+	{
+		printf '%s ===' "$now"
+		printf ' %s' "$@"
+		printf '\n'
+	} >> "$logpath$name.daylog"
 fi
 
 if $silent ; then
@@ -90,11 +101,12 @@ if $silent ; then
 fi
 
 echo "[LOG FOR $name]"
-if [ -f $logpath$(date -d "$dstring" +%Y-%m-%d).daylog ] ; then
+logfile="$logpath$(date -d "$dstring" +%Y-%m-%d).daylog"
+if [ -f "$logfile" ] ; then
 	if $compute ; then
-		compute_time $logpath$(date -d "$dstring" +%Y-%m-%d).daylog "$dstring"
+		compute_time "$logfile" "$dstring"
 	else
-		cat $logpath$(date -d "$dstring" +%Y-%m-%d).daylog
+		cat "$logfile"
 	fi
 fi
 

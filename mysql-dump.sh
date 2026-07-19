@@ -13,8 +13,8 @@ if [ $# -eq 0 ]; then
 	exit 2
 fi
 
-zip=""
-unzip=""
+zip=()
+unzip=()
 ext=""
 
 import=0
@@ -29,13 +29,13 @@ link=""
 while getopts ":bgh:iIL:rs:u:U:" opt; do
 	case $opt in
 		b) # bzip compression
-			zip="bzip2"
-			unzip="bunzip2 -k"
+			zip=(bzip2)
+			unzip=(bunzip2 -k)
 			ext=".bz2"
 			;;
 		g) # gzip compression
-			zip="gzip -v -9"
-			unzip="gunzip"
+			zip=(gzip -v -9)
+			unzip=(gunzip)
 			ext=".gz"
 			;;
 		h) # ssh host
@@ -51,8 +51,8 @@ while getopts ":bgh:iIL:rs:u:U:" opt; do
 			link="$OPTARG"
 			;;
 		r) # no compression
-			zip="cat"
-			unzip="cat"
+			zip=(cat)
+			unzip=(cat)
 			ext=""
 			;;
 		s) # ssh user
@@ -75,23 +75,34 @@ while getopts ":bgh:iIL:rs:u:U:" opt; do
 	esac
 done
 
-shift $(($OPTIND - 1))
+shift "$((OPTIND - 1))"
 
-if [ "$zip" = "" ]; then
+if [ ${#zip[@]} -eq 0 ]; then
 	echo "A compression option [one of -b -g -r] is required"
 	exit 1
 fi
 
-dump="mysqldump -u \"$ruser\" -p \"$1\" | \"$zip\""
-
-if [ "$host" != "" ] && [ "$suser" != "" ]; then
-	ssh $suser@$host "eval $dump"  > "$1.sql$ext"
-elif [ "$link" != "" ]; then
-	wget "$link" -O "$1.sql$ext"
-elif [ $import -ne 2 ]; then
-	eval $dump > "$1.sql$ext"
+if [ $# -eq 0 ]; then
+	echo "USAGE: ./mysql-dump.sh -h SSH_HOST -s SSH_USER -[bgr] [-[iI]] CLIENT"
+	exit 2
 fi
 
-if [ $import -gt 0 ]; then
-	$unzip < "$1.sql$ext" | mysql -A -D "$1" -u "$luser" -p
+database=$1
+output_file="$database.sql$ext"
+dump=(mysqldump -u "$ruser" -p "$database")
+
+if [ "$host" != "" ] && [ "$suser" != "" ]; then
+	printf -v remote_dump '%q ' "${dump[@]}"
+	printf -v remote_zip '%q ' "${zip[@]}"
+	# The remote pipeline is deliberately assembled client-side from %q-escaped argv.
+	# shellcheck disable=SC2029
+	ssh "$suser@$host" "${remote_dump% } | ${remote_zip% }" > "$output_file"
+elif [ "$link" != "" ]; then
+	wget "$link" -O "$output_file"
+elif [ "$import" -ne 2 ]; then
+	"${dump[@]}" | "${zip[@]}" > "$output_file"
+fi
+
+if [ "$import" -gt 0 ]; then
+	"${unzip[@]}" < "$output_file" | mysql -A -D "$database" -u "$luser" -p
 fi
