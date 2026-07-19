@@ -64,7 +64,23 @@ do
 done
 
 
-alias cl="clear"
+unalias cl 2> /dev/null
+cl () {
+	local unpushed
+
+	clear
+	if git rev-parse --is-inside-work-tree > /dev/null 2>&1; then
+		unpushed=$(git rev-list --count '@{upstream}..HEAD' 2> /dev/null)
+		if [ "$unpushed" = 0 ]; then
+			echo "(nothing to push)"
+		else
+			git push
+		fi
+		git status -bs
+	else
+		echo "(not a git repository)"
+	fi
+}
 
 
 # time tracking script
