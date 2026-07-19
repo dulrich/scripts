@@ -15,15 +15,21 @@
 # (C2 accounts, magic search keywords, payload internals, the Hades PyPI fallback
 # discovery strings, and the run-once / SSH-propagation markers). Same stealer,
 # regardless of whether it was delivered via npm or PyPI.
+# Sibling ecosystem modules consume this constant after the router sources them.
+# shellcheck disable=SC2034
 IOC_RE='Miasma|Shai-Hulud|liuende501|thebeautifulmarchoftime|thebeautifulsnadsoftime|IfYouInvalidateThisTokenItWillNukeTheComputerOfTheOwner|gh-token-monitor|\.bun_ran|\.sshu-setup\.js'
 
 # Code markers found inside the obfuscated JS stealer payload (`_index.js` on
 # PyPI, root `index.js` on npm) and the weaponized npm binding.gyp. The Bun-
 # staged stealer is identical across both ecosystems.
+# Sibling ecosystem modules consume this constant after the router sources them.
+# shellcheck disable=SC2034
 PAYLOAD_MARKERS='globalThis\.getBunPath|createDecipheriv\("aes-128-gcm"|<!\(node index\.js|oven-sh/bun/releases/download/bun-v1\.3\.13'
 
 hr() { printf '%*s\n' 65 '' | tr ' ' '='; }
 section() { SECTION=$((SECTION+1)); printf '\n[%d] %s\n' "$SECTION" "$1"; }
+# This sourced helper mutates the router-owned verdict state.
+# shellcheck disable=SC2034
 hit() { FOUND=1; printf '  HIT: %s\n' "$*"; }
 review() { REVIEWS=$((REVIEWS+1)); printf '  REVIEW: %s\n' "$*"; }
 info() { printf '  %s\n' "$*"; }
