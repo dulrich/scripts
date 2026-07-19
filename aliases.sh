@@ -13,8 +13,8 @@ export PS1='\[\033]0;\u@\h \d \t\a\]\[\033[00;36m\]\t \w \$ \[\033[00m\]'
 
 
 # CONFIG VARIABLES
-code_path="~/code/"
-down_path="~/Downloads"
+code_path="$HOME/code/"
+down_path="$HOME/Downloads"
 ssh_cmd="ssh"
 work_user="username"
 EXTERNAL_OUTPUT="DP-1-3"
@@ -22,11 +22,13 @@ INTERNAL_OUTPUT="eDP-1-1"
 AUDIO_DEVICE="default" # pulse on systems using pulseaudio
 
 # https://github.com/ElectricRCAircraftGuy/eRCaGuy_hello_world/blob/master/bash/get_script_path.sh
-here=$( dirname $( realpath "${BASH_SOURCE[0]}" ) )
+here=$(dirname "$(realpath "${BASH_SOURCE[0]}")")
 
 
-if [ -f $here/config.sh ] ; then
-	source $here/config.sh
+if [ -f "$here/config.sh" ] ; then
+	# Optional machine-local overrides are deliberately not tracked.
+	# shellcheck source=/dev/null
+	source "$here/config.sh"
 fi
 
 # typing out the options every time gets old
@@ -40,15 +42,19 @@ debug () {
 }
 
 aliascd () {
+	local name=$1 path_q
+	printf -v path_q '%q' "$2"
 	eval "
-$1 () {
-	cd $2/\$(defarg \"\$*\" 0 '')
+${name} () {
+	local destination
+	destination=\$(defarg \"\$*\" 0 '')
+	cd ${path_q}/\"\$destination\"
 }
-_$1 () {
-	COMPREPLY=( \$(genpath $2 \"\${COMP_WORDS[COMP_CWORD]}\") )
+_${name} () {
+	COMPREPLY=( \$(genpath ${path_q} \"\${COMP_WORDS[COMP_CWORD]}\") )
 	return 0
 }
-_comp $1
+_comp ${name}
 	"
 }
 
@@ -58,9 +64,9 @@ cdpaths=( .. ../.. "$down_path" "$code_path" )
 
 cdmax=$(( ${#cdnames[@]} - 1 ))
 
-for (( i=0; i<=$cdmax; i++ ))
+for (( i=0; i<=cdmax; i++ ))
 do
-	aliascd ${cdnames[$i]} ${cdpaths[$i]}
+	aliascd "${cdnames[i]}" "${cdpaths[i]}"
 done
 
 
@@ -70,11 +76,11 @@ cl () {
 
 	clear
 	if git rev-parse --is-inside-work-tree > /dev/null 2>&1; then
-		unpushed=$(git rev-list --count '@{upstream}..HEAD' 2> /dev/null)
-		if [ "$unpushed" = 0 ]; then
-			echo "(nothing to push)"
-		else
+		if unpushed=$(git rev-list --count '@{upstream}..HEAD' 2> /dev/null) &&
+			[ "$unpushed" -gt 0 ]; then
 			git push
+		else
+			echo "(nothing to push)"
 		fi
 		git status -bs
 	else
@@ -84,41 +90,49 @@ cl () {
 
 
 # time tracking script
+# Each path is intentionally captured when the alias chain is sourced.
+# shellcheck disable=SC2139
 alias daylog="$here/daylog.sh"
+# shellcheck disable=SC2139
 alias dl="$here/daylog.sh"
+# shellcheck disable=SC2139
 alias dls="$here/daylog.sh -s"
 wl () {
 	for i in {7..1}
 	do
-		$here/daylog.sh -b $i
+		"$here/daylog.sh" -b "$i"
 		echo ""
 	done
 }
 dc () {
-	local battery_level=$( acpi )
-	$here/daylog.sh -f acpi "$battery_level"
+	local battery_level
+	battery_level=$(acpi)
+	"$here/daylog.sh" -f acpi "$battery_level"
 }
 
 # typing ./ is hard
+# The resolved path is intentionally captured when the alias chain is sourced.
+# shellcheck disable=SC2139
 alias lifi="$here/lifi.sh"
 
 # defarg args which default
 defarg () {
 	local all=0
-	local args=($1)
+	local -a args=()
 	local which=$2
 	local def=$3
+	read -r -a args <<< "$1"
 
 	if [ "$which" == '@' ]; then
 		all=1
 		which=0
 	fi
 
-	if [ ${#args[@]} -gt $which ]; then
+	if [ "${#args[@]}" -gt "$which" ]; then
 		if [ $all -eq 1 ]; then echo "${args[@]}"
 		else echo "${args[$which]}"; fi
 	else
-		echo $def
+		echo "$def"
 	fi
 }
 
@@ -130,18 +144,16 @@ genpath () {
 	opath=""
 	cur="$2"
 
-	IFS=/
-	path=($cur)
-	unset IFS
+	IFS=/ read -r -a path <<< "$cur"
 
 	if [ "${cur: -1}" == '/' ]; then
-		path[${#path[@]}]=""
+		path+=("")
 	fi
 
 	file=''
 	if [ ${#path[@]} -gt 0 ]; then
 		file=${path[${#path[@]}-1]}
-		unset path[${#path[@]}-1]
+		unset 'path[${#path[@]}-1]'
 	fi
 
 	for p in "${path[@]}"; do
@@ -150,9 +162,9 @@ genpath () {
 		else opath="$opath/$p"; fi
 	done
 
-	reply=( $(compgen -W "$(find $cpath -mindepth 1 -maxdepth 1 -type d -printf '%f/\t')" $file ) )
+	mapfile -t reply < <(compgen -W "$(find "$cpath" -mindepth 1 -maxdepth 1 -type d -printf '%f/\t')" -- "$file")
 
-	if [ ${#reply[@]} -eq 1 ] && [ "$opath" != "" ]; then
+	if [ "${#reply[@]}" -eq 1 ] && [ "$opath" != "" ]; then
 		reply=( "$opath/${reply[0]}" )
 	fi
 
@@ -161,16 +173,15 @@ genpath () {
 
 highfile () {
 	local max=0
-	local path=$(defarg "$*" 0 './')
+	local path name n
+	path=$(defarg "$*" 0 './')
 
-	IFS=$'\n'
-	local arr=( $(ls $path | grep -oP "^\d+") )
-	unset IFS
-
-	for n in "${arr[@]}"; do
-		n=$((10#$n))
-		((n > max)) && max=$n
-	done
+	while IFS= read -r name; do
+		if [[ "$name" =~ ^([0-9]+) ]]; then
+			n=$((10#${BASH_REMATCH[1]}))
+			((n > max)) && max=$n
+		fi
+	done < <(find "$path" -mindepth 1 -maxdepth 1 -printf '%f\n')
 
 	echo "High: $max"
 	max=$((max + 1))
@@ -212,39 +223,44 @@ venv\
 
 # raw grep (no excludes)
 ga () {
-	local path=$(defarg "$*" 1 './')
+	local path
+	path=$(defarg "$*" 1 './')
 
-	grep -iIRP ${grep_options[@]} $1 $path
+	grep -iIRP "${grep_options[@]}" "$1" "$path"
 }
 gac () {
-	local path=$(defarg "$*" 1 './')
+	local path
+	path=$(defarg "$*" 1 './')
 
-	grep -iIRPc ${grep_options[@]} $1 $path
+	grep -iIRPc "${grep_options[@]}" "$1" "$path"
 }
 
 
 # POSIX character classes can be a pain, especially if you forget egrep uses them
 gp () {
-	local path=$(defarg "$*" 1 './')
+	local path
+	path=$(defarg "$*" 1 './')
 
-	grep -P ${grep_options[@]} $1 $path
+	grep -P "${grep_options[@]}" "$1" "$path"
 }
 gpc () {
-	local path=$(defarg "$*" 1 './')
+	local path
+	path=$(defarg "$*" 1 './')
 
-	grep -Pc ${grep_options[@]} $1 $path | grep -E ':[^0]'
+	grep -Pc "${grep_options[@]}" "$1" "$path" | grep -E ':[^0]'
 }
 gpw () {
-	local path=$(defarg "$*" 1 './')
+	local path
+	path=$(defarg "$*" 1 './')
 
-	grep -P ${grep_options[@]} "\b$1\b" $path
+	grep -P "${grep_options[@]}" "\b$1\b" "$path"
 }
 
 
 # shortcut for mass rewrites
 rall () {
-	if [ $# -lt 2 ]; then
-		$2=''
+	if [ "$#" -lt 2 ]; then
+		set -- "${1:-}" ''
 	fi
 
 	find . -type f | grep -Ev '.git|node_modules|uploads|.png|.jpg|.jpeg' | xargs -d '\n' sed -i -r -e "s/$1/$2/g"
@@ -252,21 +268,24 @@ rall () {
 
 # mass permission changes
 dirperm () {
-	local path=$(defarg "$*" 0 '.')
+	local path
+	path=$(defarg "$*" 0 '.')
 
-	find $path -type d -exec chmod 755 {} +
+	find "$path" -type d -exec chmod 755 {} +
 }
 
 fileperm () {
-	local path=$(defarg "$*" 0 '.')
+	local path
+	path=$(defarg "$*" 0 '.')
 
-	find $path -type f -exec chmod 644 {} +
+	find "$path" -type f -exec chmod 644 {} +
 }
 
 alias pingg="ping 8.8.8.8"
 
 mydir () {
-	group=$( id -g -n $USER )
+	local group
+	group=$(id -g -n "$USER")
 
 	sudo mkdir -p "$1"
 	sudo chown "$USER":"$group" "$1"
@@ -291,11 +310,12 @@ complete -o nospace -F "_tar" "tar"
 
 
 trackfix () {
-	rename s/Track\ // *
-	rename -v 's/^(\d)\./0$1./' *
+	rename s/Track\ // -- *
+	rename -v 's/^(\d)\./0$1./' -- *
 }
 trackconv () {
-	local tracks=( $(ls) )
+	local -a tracks=()
+	mapfile -t tracks < <(find . -mindepth 1 -maxdepth 1 -printf '%f\n')
 
 	for t in "${tracks[@]}"; do
 		avconv -i "$t" "$t.mp3"
@@ -303,14 +323,15 @@ trackconv () {
 }
 mp3dir () {
 	mkdir -p "$1-mp3"
-	mv $1/*.mp3 $1-mp3/.
+	mv "$1"/*.mp3 "$1-mp3/."
 }
 
 
 gigs () {
-	local path=$(defarg "$*" 0 "/")
+	local path
+	path=$(defarg "$*" 0 "/")
 
-	du -h -t 1G $path 2> /dev/null
+	du -h -t 1G "$path" 2> /dev/null
 }
 
 
@@ -321,37 +342,40 @@ alias es="setxkbmap es"
 alias en="setxkbmap us"
 
 timer () {
-	local MIN=$(defarg "$*" 0 1)
+	local MIN
+	MIN=$(defarg "$*" 0 1)
 
-	for ((i=MIN*60;i>=0;i--)); do
+	for ((i=MIN*60; i>=0; i--)); do
 		echo -ne "\r$(date -d"0+$i sec" +%H:%M:%S)"
 		sleep 1
 	done
 }
 
 
+# HOME is intentionally captured when the alias chain is sourced.
+# shellcheck disable=SC2139
 alias xres="xrdb -merge $HOME/.Xresources"
 
 
 external () {
-    xrandr --verbose --output $EXTERNAL_OUTPUT --auto --output $INTERNAL_OUTPUT --off
+    xrandr --verbose --output "$EXTERNAL_OUTPUT" --auto --output "$INTERNAL_OUTPUT" --off
 	xrandr --newmode "1920x1080_60.00"  173.00  1920 2048 2248 2576  1080 1083 1088 1120 -hsync +vsync 2> /dev/null || true
-    xrandr --addmode $EXTERNAL_OUTPUT 1920x1080_60.00
-    xrandr --output $EXTERNAL_OUTPUT --mode "1920x1080_60.00"
+    xrandr --addmode "$EXTERNAL_OUTPUT" 1920x1080_60.00
+    xrandr --output "$EXTERNAL_OUTPUT" --mode "1920x1080_60.00"
 }
 internal () {
-    xrandr --output $INTERNAL_OUTPUT --auto --output $EXTERNAL_OUTPUT --off
+    xrandr --output "$INTERNAL_OUTPUT" --auto --output "$EXTERNAL_OUTPUT" --off
     xrandr --newmode "1920x1080_60.00"  173.00  1920 2048 2248 2576  1080 1083 1088 1120 -hsync +vsync 2> /dev/null || true
-    xrandr --addmode $INTERNAL_OUTPUT 1920x1080_60.00
-    xrandr --output $INTERNAL_OUTPUT --mode "1920x1080_60.00"
+    xrandr --addmode "$INTERNAL_OUTPUT" 1920x1080_60.00
+    xrandr --output "$INTERNAL_OUTPUT" --mode "1920x1080_60.00"
 }
 
 
 volume() {
-	if [ "$1" == "" ]; then
-		amixer -D $AUDIO_DEVICE sget Master | grep -iIoP "\[\d+%\]" | grep -iIoP --color=never "\d+%"
+	if [ "${1:-}" == "" ]; then
+		amixer -D "$AUDIO_DEVICE" sget Master | grep -iIoP "\[\d+%\]" | grep -iIoP --color=never "\d+%"
 	else
-		amixer -q -D $AUDIO_DEVICE sset Master $1%
+		amixer -q -D "$AUDIO_DEVICE" sset Master "$1%"
 	fi
 }
 alias vol="volume"
@@ -360,10 +384,12 @@ alias vol="volume"
 playdir() {
 	# options don't seem to work w/o interface?
 	# --key-play-pause " " --key-next "d" --key-prev "a"
-	cvlc --play-and-exit *.mp3
+	cvlc --play-and-exit ./*.mp3
 }
 
 alias gdbr="gdb -ex r"
+# The resolved path is intentionally captured when the alias chain is sourced.
+# shellcheck disable=SC2139
 alias gdbx="gdb -x $here/gdb.config"
 
 
@@ -385,37 +411,56 @@ alias size_here="du -sh .[^.]* * 2>/dev/null | sort -hr"
 
 
 reload() {
-	source $here/aliases.sh
+	# shellcheck source=aliases.sh
+	source "$here/aliases.sh"
 }
 
 
 # ensure bash completions are loaded
 if [ -f /etc/profile.d/bash_completion.sh ]; then
+	# System-provided optional completion support.
+	# shellcheck source=/dev/null
 	source /etc/profile.d/bash_completion.sh
 fi
 
 
 # load git aliases
-source $here/git-aliases.sh
+# shellcheck source=git-aliases.sh
+# The runtime-resolved sibling path works when aliases.sh is symlinked.
+# shellcheck disable=SC1091
+source "$here/git-aliases.sh"
 
 
 # util script router: `util <command> [args]` -> util/<command>[.sh]
-if [ -f $here/util/dispatch.sh ]; then
+if [ -f "$here/util/dispatch.sh" ]; then
+	# The resolved path is intentionally captured when the alias chain is sourced.
+	# shellcheck disable=SC2139
 	alias util="$here/util/dispatch.sh"
-	if [ -f $here/util/completions.sh ]; then
-		source $here/util/completions.sh
+	if [ -f "$here/util/completions.sh" ]; then
+		# shellcheck source=util/completions.sh
+		# The runtime-resolved sibling path works when aliases.sh is symlinked.
+		# shellcheck disable=SC1091
+		source "$here/util/completions.sh"
 	fi
 fi
 
 
 if [ -f /etc/debian_version ]; then
-	source $here/debian-aliases.sh
+	# shellcheck source=debian-aliases.sh
+	# The runtime-resolved sibling path works when aliases.sh is symlinked.
+	# shellcheck disable=SC1091
+	source "$here/debian-aliases.sh"
 fi
 
 if [ -f /etc/gentoo-release ]; then
-	source $here/gentoo-aliases.sh
+	# shellcheck source=gentoo-aliases.sh
+	# The runtime-resolved sibling path works when aliases.sh is symlinked.
+	# shellcheck disable=SC1091
+	source "$here/gentoo-aliases.sh"
 fi
 
-if [ -f $here/private/aliases.sh ]; then
-	source $here/private/aliases.sh
+if [ -f "$here/private/aliases.sh" ]; then
+	# Optional private overlay is deliberately not tracked.
+	# shellcheck source=/dev/null
+	source "$here/private/aliases.sh"
 fi
