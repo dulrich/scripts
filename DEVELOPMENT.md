@@ -8,6 +8,7 @@ initiative-visibility: hybrid
 initiative-status: active
 initiative-cadence: as-needed
 pending-plans:
+  - "[[debian-maintenance-shellcheck-rollout]]"
 initiative-title: Scripts
 initiative-slug: scripts
 ---
