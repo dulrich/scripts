@@ -7,8 +7,7 @@ tags: ""
 initiative-visibility: hybrid
 initiative-status: active
 initiative-cadence: as-needed
-pending-plans:
-  - "[[debian-maintenance-shellcheck-rollout]]"
+pending-plans: []
 initiative-title: Scripts
 initiative-slug: scripts
 ---
