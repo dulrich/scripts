@@ -7,8 +7,10 @@
 # CC0: This work has been marked as dedicated to the public domain.
 # https://creativecommons.org/publicdomain/zero/1.0/
 
-here=$( dirname $( realpath "${BASH_SOURCE[0]}" ) )
+here=$(dirname "$(realpath "${BASH_SOURCE[0]}")")
 
+# `here` is resolved dynamically so the router also works through a symlink.
+# shellcheck source=util/lib.sh
 source "$here/lib.sh"
 
 ###
@@ -33,7 +35,7 @@ _util_list() {
 	if [ -d "$priv" ]; then
 		for f in "$priv"/*.sh; do
 			[ -e "$f" ] || continue
-			echo "$( basename "$f" .sh )"
+			basename "$f" .sh
 		done
 	fi
 }

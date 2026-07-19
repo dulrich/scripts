@@ -8,35 +8,35 @@
 # https://creativecommons.org/publicdomain/zero/1.0/
 
 # resolved once at source time; the function reuses it on every completion
-_UTIL_DIR=$( dirname $( realpath "${BASH_SOURCE[0]}" ) )
+_UTIL_DIR=$(dirname "$(realpath "${BASH_SOURCE[0]}")")
 # optional private overlay (scripts-private symlinked in as ../private)
 _UTIL_PRIV="$_UTIL_DIR/../private/util"
 
 _util_complete() {
-	local cur cmds f name
+	local cur f name
+	local -a cmds=()
 	cur=${COMP_WORDS[COMP_CWORD]}
 
-	if [[ COMP_CWORD -eq 1 ]]; then
-		cmds=""
+	if [[ ${COMP_CWORD:-0} == 1 ]]; then
 		for f in "$_UTIL_DIR"/*.sh; do
 			[ -e "$f" ] || continue
 			name=$( basename "$f" .sh )
 			case "$name" in
 				dispatch|lib|completions) continue ;;
 			esac
-			cmds="$cmds $name"
+			cmds+=("$name")
 		done
 		# private overlay commands, if the overlay is present
 		if [ -d "$_UTIL_PRIV" ]; then
 			for f in "$_UTIL_PRIV"/*.sh; do
 				[ -e "$f" ] || continue
-				cmds="$cmds $( basename "$f" .sh )"
+				cmds+=("$(basename "$f" .sh)")
 			done
 		fi
-		COMPREPLY=( $( compgen -W "${cmds}" -- "${cur}" ) )
+		mapfile -t COMPREPLY < <(compgen -W "${cmds[*]}" -- "$cur")
 	else
 		# subcommand arguments are completed as filenames
-		COMPREPLY=( $( compgen -f -- "${cur}" ) )
+		mapfile -t COMPREPLY < <(compgen -f -- "$cur")
 	fi
 
 	return 0
