@@ -1,3 +1,11 @@
+---
+title: README
+created: 2026-07-11
+modified: 2026-07-19
+word-count: 343
+tags: ""
+---
+
 # scripts
 
 A personal collection of bash aliases, dotfiles, and small utility scripts.
