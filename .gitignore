@@ -14,3 +14,7 @@ config.sh
 private
 private/
 private/util
+
+
+.claude/
+.codex/
