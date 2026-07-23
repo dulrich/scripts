@@ -4,7 +4,7 @@ created: 2026-04-16
 modified: 2026-07-19
 word-count: 3
 tags: ""
-initiative-visibility: hybrid
+initiative-visibility: public
 initiative-status: active
 initiative-cadence: as-needed
 pending-plans: []
