@@ -82,6 +82,11 @@ cl () {
 		else
 			echo "(nothing to push)"
 		fi
+		# Public repos also carry a `github` remote; mirror there quietly.
+		# Absent on private repos, so swallow all output and errors.
+		if git remote get-url github > /dev/null 2>&1; then
+			git push github > /dev/null 2>&1
+		fi
 		git status -bs
 	else
 		echo "(not a git repository)"
