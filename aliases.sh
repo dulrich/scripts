@@ -72,20 +72,29 @@ done
 
 unalias cl 2> /dev/null
 cl () {
-	local unpushed
+	local unpushed branch ghpush
 
 	clear
 	if git rev-parse --is-inside-work-tree > /dev/null 2>&1; then
 		if unpushed=$(git rev-list --count '@{upstream}..HEAD' 2> /dev/null) &&
 			[ "$unpushed" -gt 0 ]; then
+			echo "(pushing $unpushed refs to origin)"
 			git push
 		else
 			echo "(nothing to push)"
 		fi
-		# Public repos also carry a `github` remote; mirror there quietly.
-		# Absent on private repos, so swallow all output and errors.
+		# Public repos also carry a `github` remote; mirror there too.
+		# Only the existence check is silenced (private repos lack it) —
+		# github's own push output is shown, never swallowed.
 		if git remote get-url github > /dev/null 2>&1; then
-			git push github > /dev/null 2>&1
+			branch=$(git rev-parse --abbrev-ref HEAD)
+			ghpush=$(git rev-list --count "github/$branch..HEAD" 2> /dev/null)
+			if [ -z "$ghpush" ] || [ "$ghpush" -gt 0 ]; then
+				echo "(pushing ${ghpush:-all} refs to github)"
+				git push github
+			else
+				echo "(nothing to push to github)"
+			fi
 		fi
 		git status -bs
 	else
