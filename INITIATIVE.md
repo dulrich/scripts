@@ -1,5 +1,5 @@
 ---
-title: Scripts Development Notes
+title: Scripts Control Plane
 created: 2026-04-16
 modified: 2026-07-19
 word-count: 3
