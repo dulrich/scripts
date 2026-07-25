@@ -139,6 +139,11 @@ m topic
 assert_eq 'merge --no-edit topic' "${git_calls[-1]}" 'm forwards an explicit branch'
 
 clear() { :; }
+ls() {
+	printf 'LS'
+	printf ' %q' "$@"
+	printf '\n'
+}
 git_mode=outside
 git() {
 	case "$1 ${2:-}" in
@@ -163,7 +168,8 @@ git() {
 }
 
 output=$(cl 2>&1)
-assert_eq '(not a git repository)' "$output" 'cl swallows Git errors outside a repository'
+assert_eq $'(not a git repository)\nLS -alF --color=auto' "$output" \
+	'cl reports the missing repository and falls back to the ll listing'
 
 git_mode=nothing
 output=$(cl 2>&1)

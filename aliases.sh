@@ -99,6 +99,7 @@ cl () {
 		git status -bs
 	else
 		echo "(not a git repository)"
+		ls -alF --color=auto
 	fi
 }
 
