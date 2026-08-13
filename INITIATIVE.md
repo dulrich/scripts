@@ -12,7 +12,7 @@ review-after-lines: 5000
 pending-plans: []
 initiative-title: Scripts
 initiative-slug: scripts
-snyk-tracking: track
+security-tracking: track
 ---
 
 ---
