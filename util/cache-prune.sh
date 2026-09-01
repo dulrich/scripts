@@ -44,6 +44,25 @@ confirm() {
     esac
 }
 
+# set_docker_until: validate a --docker-until window before accepting it.
+# Validation lives here, at parse time, rather than inside the docker size
+# probe where it used to sit as a side effect of the age-sum walk. Once that
+# walk was removed the string flowed unchecked into `docker builder prune
+# --filter`, leaving only the daemon to reject it -- after every other
+# runtime had already been reported. An invalid window is a usage error, so
+# it is caught before any work happens, like every other bad flag.
+set_docker_until() {
+    local window="$1"
+
+    if ! docker_window_seconds "$window" >/dev/null; then
+        die "invalid --docker-until window: '$window'" \
+            "(expected <number><s|m|h|d|w>, e.g. 168h)"
+        return 2
+    fi
+
+    DOCKER_UNTIL="$window"
+}
+
 # require_not_root: the load-bearing guard of this whole script. Takes the
 # EUID to check as an optional argument (real bash EUID is read-only, so
 # tests parameterize this instead of trying to fake the shell variable).
@@ -295,9 +314,10 @@ docker_system_df_bytes() {
 
 # rt_docker_size ignores its positional argument (docker has no cache-dir
 # resolver: its build cache is daemon-owned, not a directory this account
-# can `du`). It no longer reads $DOCKER_UNTIL at all -- see
-# docker_window_seconds above, which still validates the flag's format and
-# still drives rt_docker_prune's filter, but no longer feeds this report.
+# can `du`). It no longer reads $DOCKER_UNTIL at all: the window is
+# validated at parse time by set_docker_until and drives only
+# rt_docker_prune's filter, never this report. Age cannot predict reclaim
+# here -- see the DAG note on docker_buildx_du_bytes.
 #
 # Source order: `docker buildx du`'s trailing labelled lines first (a far
 # more stable parse than any table walk), plain `docker system df`'s Build
@@ -605,11 +625,11 @@ main() {
                     die "usage: $0 [--report|--yes] [--include-purge] [--docker-until <window>] [-h|--help]"
                     return 2
                 fi
-                DOCKER_UNTIL="$2"
+                set_docker_until "$2" || return 2
                 shift 2
                 ;;
             --docker-until=*)
-                DOCKER_UNTIL="${1#*=}"
+                set_docker_until "${1#*=}" || return 2
                 shift
                 ;;
             -h|--help)

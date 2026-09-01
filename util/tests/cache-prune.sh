@@ -707,5 +707,43 @@ status=$?
 set -e
 assert_eq "2" "$status" "an unknown flag exits 2"
 
+echo "[argument parsing] --docker-until is validated at parse time, in both spellings"
+# Regression guard: validation used to happen only as a side effect of the
+# docker age-sum size probe. When that probe was replaced (the age-sum has no
+# predictive power over real reclaim), an unvalidated window would have flowed
+# straight into `docker builder prune --filter`, leaving only the daemon to
+# reject it -- and only after every other runtime had already been reported.
+for bad_window in "bogus" "99x" "" "168"; do
+    set +e
+    ( main --docker-until "$bad_window" >/dev/null 2>&1 )
+    status=$?
+    set -e
+    assert_eq "2" "$status" "--docker-until '$bad_window' (space form) exits 2"
+
+    set +e
+    ( main "--docker-until=$bad_window" >/dev/null 2>&1 )
+    status=$?
+    set -e
+    assert_eq "2" "$status" "--docker-until=$bad_window (equals form) exits 2"
+done
+
+# A rejected window must never reach DOCKER_UNTIL, and must never be the
+# value a later prune filter is built from.
+DOCKER_UNTIL="168h"
+set +e
+set_docker_until "bogus" >/dev/null 2>&1
+status=$?
+set -e
+assert_eq "2" "$status" "set_docker_until reports 2 on an invalid window"
+assert_eq "168h" "$DOCKER_UNTIL" "a rejected window leaves DOCKER_UNTIL untouched"
+
+set +e
+set_docker_until "24h" >/dev/null 2>&1
+status=$?
+set -e
+assert_eq "0" "$status" "set_docker_until accepts a valid window"
+assert_eq "24h" "$DOCKER_UNTIL" "an accepted window is assigned"
+DOCKER_UNTIL="168h"
+
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
 ((FAIL == 0))
