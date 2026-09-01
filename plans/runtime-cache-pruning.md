@@ -2,7 +2,7 @@
 
 *Recommended model/effort — Claude implementation: Sonnet/medium (well-scoped shell implementation against a pinned spec; no novel architecture); Codex review: Terra/medium (destructive-operation review on a small, self-contained surface); plan audit: `gpt-5.6-sol`/medium (default tier)*
 
-**Status: PROVISIONAL 2026-08-31 (rev 1) — awaiting audit**
+**Status: AUDITED 2026-08-31 (rev 2; cycle-1 codex-david/gpt-5.6-sol/medium, 0 blocking / 3 material, dispositioned)**
 
 ## Context
 
@@ -12,7 +12,7 @@ The machine is under real disk pressure — `/` is at **75%** (88 G free) and ho
 
 Two findings reshape the naive reading of the todo:
 
-1. **The todo's premise is structurally wrong.** `util/debian-maintenance.sh` opens with `require_root`. Every runtime cache lives under `$HOME`. Adding `uv cache prune` to that script means running it as root, which prunes *root's* empty cache and reports success — a silent no-op. Runtime cache pruning cannot live in the root-run script.
+1. **The todo's premise is structurally wrong.** `util/debian-maintenance.sh` opens with `require_root`. The user-owned language-runtime caches all live under the invoking user's account (Docker's build cache is the exception — root-owned, and reached through the daemon rather than the filesystem). Adding `uv cache prune` to that script means running it as root, which prunes *root's* empty cache and reports success — a silent no-op. Runtime cache pruning cannot live in the root-run script.
 2. **The root script has a genuine, unrelated gap**: it never runs `apt-get autoclean`/`clean`, leaving 1.3 G of `.deb` archives in `/var/cache/apt/archives`. That work *does* belong in `debian-maintenance.sh`.
 
 So the todo splits into a new user-level tool and a small fix to the existing root tool.
@@ -55,7 +55,7 @@ Add `util/cache-prune.sh`, a user-level (explicitly **non-root**) subcommand tha
 ## Key Changes
 
 **WP-1 — `util/cache-prune.sh` + hermetic tests.**
-*~0.45 kSLOC touched · ~90k tokens · ~10 min wall · mid (Claude Sonnet/medium; Codex Terra/medium review-only) · Claude: subagent (60% saving; 56k dispatched vs 90k direct)*
+*~0.45 kSLOC touched · ~90k tokens (Codex review est. ~30k raw) · ~10 min wall · mid (Claude Sonnet/medium; Codex Terra/medium review-only) · Claude: subagent (60% saving; 56k dispatched vs 90k direct)*
 New user-level subcommand and its test suite. Files: `util/cache-prune.sh` (new), `util/tests/cache-prune.sh` (new), `tests/shell-gate.sh` (wire the new smoke), `AGENTS.md` (util section + gate list).
 
 Required behaviour:
@@ -68,15 +68,24 @@ Required behaviour:
 - **Docker preflight**: CLI present is not enough — `docker info` must succeed. A present CLI with a dead daemon must skip gracefully, not abort under `set -e`.
 - **Docker prune**: `docker builder prune --filter until=<window> --force`, window default `168h`, overridable via flag. Never `docker image prune`, never `docker system prune`.
 - **bun wrinkle**: `bun pm cache rm` fails outside a package directory (measured). Run it from a scratch dir holding a minimal `package.json`. If it still fails, report and skip — **never** fall back to a blind `rm -rf` of the cache path.
-- **Modes**: `--report` (sizes only; no prompts, no mutation; must work non-TTY, so it is usable from cron/monitoring), default interactive (per-runtime report → confirm → act), `--yes` (auto-confirm **safe** prunes only). Opt-in nukes require `--include-purge` *in addition to* `--yes`; `--yes` alone must never trigger pip/bun purges.
+- **Mode matrix** — this is the full contract; no combination is left undefined:
+
+  | Invocation | safe prunes (uv, npm, docker) | opt-in purges (pip, bun) |
+  |---|---|---|
+  | `--report` | report size only; no prompt, no mutation | report size only; no prompt, no mutation |
+  | *(default, interactive)* | per-runtime confirm → act | per-runtime confirm (prompt defaults to **No**) → act only on explicit yes |
+  | `--yes` | auto-confirmed → act | **skipped entirely**, without prompting |
+  | `--yes --include-purge` | auto-confirmed → act | auto-confirmed → act |
+
+  `--report` must work non-TTY (cron/monitoring-safe). `--include-purge` is meaningful **only** together with `--yes` — it is the non-interactive unlock, since interactive mode already offers purges via their own prompt; passing it interactively changes nothing. The load-bearing safety property: **`--yes` alone never purges pip or bun.**
 - **Reporting**: print reclaimed total per runtime and a grand total.
 - Style matches the sibling script: `set -euo pipefail`, `section()`/`die()`/`confirm()`/`require_tty()`, report-then-confirm, no destructive op without confirmation.
 - **Testability contract**: keep the `if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then main "$@"; fi` guard so tests can source the file, and invoke every external tool as a bare command so tests can stub it as a shell function — the exact pattern `util/tests/debian-maintenance.sh` already uses.
 
-Tests must cover: root refusal; graceful skip on absent runtime; docker daemon-down skip; `--report` mutates nothing (assert an empty command log); safe prunes fire under `--yes`; **pip/bun purges do NOT fire under `--yes` alone** (the load-bearing safety assertion); purges fire under `--yes --include-purge`; declined confirm executes nothing; docker prune carries the `until=` filter.
+Tests must cover: root refusal; graceful skip on absent runtime; docker daemon-down skip; `--report` mutates nothing — assert an empty **mutation** log, while explicitly permitting detection, cache-dir resolution and size-probe calls (`npm config get cache`, `pip cache dir`, `uv cache dir`, `du`, `docker info`, `docker system df`), which reporting necessarily makes; safe prunes fire under `--yes`; **pip/bun purges do NOT fire under `--yes` alone, and are skipped without prompting** (the load-bearing safety assertion); purges fire under `--yes --include-purge`; interactive purge prompts default to No and a declined prompt executes nothing; docker prune carries the `until=` filter.
 
 **WP-2 — apt archive cleanup in `debian-maintenance.sh`.** `after: wp-1`
-*~0.12 kSLOC touched · ~60k tokens · ~5 min wall · mid (Claude Sonnet/medium; Codex Terra/medium review-only) · Claude: subagent (60% saving; 44k dispatched vs 60k direct)*
+*~0.12 kSLOC touched · ~60k tokens (Codex review est. ~20k raw) · ~5 min wall · mid (Claude Sonnet/medium; Codex Terra/medium review-only) · Claude: subagent (60% saving; 44k dispatched vs 60k direct)*
 Add the missing apt cache stage to the root script. Files: `util/debian-maintenance.sh`, `util/tests/debian-maintenance.sh`, `AGENTS.md`.
 
 - New `run_apt_cache_cleanup()`, called from `main()` after `run_autoremove`, before the closing `Done` section.
@@ -142,6 +151,32 @@ Observable outcomes beyond green gates:
 
 ## Audit record
 
-*(pending — cycle 1 not yet dispatched)*
+**Cycle 1** — `codex-david` / `gpt-5.6-sol` / medium, read-only, at base commit `d652d7b`. Brief: `runs/dispatch/runtime-cache-pruning-plan-audit-brief.md`; report: `runs/dispatch/runtime-cache-pruning-plan-audit-report.md`. Verdict: **0 blocking — sound to execute / 3 material / 5 execution-level / 1 minor**.
+
+Auditor constraint recorded: `FEEDBACK.md` could not be read (deny-enforced for Codex), so the quoted todo text was not independently verified. Expected and correct — that file is user-owned.
+
+Every finding dispositioned:
+
+| # | Class | Finding | Disposition |
+|---|---|---|---|
+| 1 | material | Purge-mode contract internally inconsistent — default-interactive handling of pip/bun undefined between Decisions locked and the Modes bullet | **valid-actionable** — verified against plan text; the Modes bullet genuinely never defined interactive purge behaviour. Fixed in rev 2 with a full four-row mode matrix; no combination now undefined. |
+| 2 | material | `--report` test cannot assert an empty command log — reporting must invoke resolvers/probes | **valid-actionable** — verified; the assertion as written would have proven reporting never ran. Fixed: assertion is now an empty *mutation* log with probe calls explicitly permitted. |
+| 3 | material | ~20k Codex-path total not recomputable from the document | **valid-actionable** — verified; the raw review inputs existed only in the drafting session. Fixed: per-WP raw review estimates added to both tag lines plus an explicit derivation under the totals. |
+| 4 | execution-level | Docker report algorithm unpinned — needs verbose output and age-filtered derivation, not the `docker system df` summary | **valid-defer-to-execution** — true; pin the exact parse and fixture in WP-1's execution brief. Plan text unchanged. |
+| 5 | execution-level | cargo entry lacks a cache-dir resolver; must honour `CARGO_HOME` | **valid-defer-to-execution** — true and correct; resolver list omitted cargo because it is report-only. Brief instructs `${CARGO_HOME:-$HOME/.cargo}`. Plan text unchanged. |
+| 6 | execution-level | `require_tty()` placement could contradict the non-TTY `--report` invariant | **valid-defer-to-execution** — true; the invariant is already stated, and the resolution (call it after arg parsing, only for prompting modes) is within worker discretion. Carried to the brief. |
+| 7 | execution-level | Partial-failure exit semantics unspecified | **valid-defer-to-execution** — true; brief defines the aggregate policy (per-runtime failure warns and continues, grand total still printed, aggregate nonzero exit if any runtime failed). Plan text unchanged. |
+| 8 | execution-level | Final ShellCheck/`bash -n` coverage depends on the new scripts already being tracked (`git ls-files`) | **valid-defer-to-execution** — true, and an orchestrator-side commit-sequencing detail: stage the new scripts by explicit path *before* the final full-gate run. Carried into the WP-1 commit step. |
+| 9 | minor | "Every runtime cache lives under `$HOME`" overbroad — the plan itself treats Docker's cache as root-owned | **valid-actionable** — verified; the sentence sits in the load-bearing Context section, so worth correcting despite being minor. Reworded in rev 2. |
+
+**Convergence exit**: no cycle 2. No blocking finding invalidated a premise or forced an architecture change; no WP was rescoped or resized (all four corrections are bounded text fixes to a single bullet, one test assertion, two tag lines and one sentence); the user has not requested another cycle.
+
+**Residual risk** (the unaudited fold of the final cycle's corrections, accepted by design): the rev-2 mode matrix, the revised report-test assertion, the estimate-derivation paragraph and the reworded Context sentence have not themselves been audited. The mode matrix is the one that carries real weight — it defines the safety property that `--yes` alone never purges, and it is new text. WP-1's test suite is specified to assert exactly that property, so an implementation error in it fails the gate rather than reaching disk.
+
+### Execution-brief carry-ins
+
+Findings 4–8 are not plan defects but must not be lost — each is an instruction to the execution brief that WP-1 (4, 5, 6, 7) and the WP-1 commit step (8) must carry.
 
 **Total ≈ 0.57 kSLOC, ~150k raw tokens; ~100k Claude-path (implementation) Opus-equivalent tokens; ~20k Codex-path (review-estimate) Sol-equivalent tokens.**
+
+Estimate inputs, so the totals are recomputable: Claude path — raw 90k + 60k, dispatched to Sonnet (weight 0.4) with ~20k orchestrator overhead each at Opus weight 1.0 → 56k + 44k = **100k**. Codex path — raw review 30k + 20k at Terra weight 0.4 → 12k + 8k = **20k**. Both verified with `model-cost.mjs`.
