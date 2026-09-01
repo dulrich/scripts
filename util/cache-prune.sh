@@ -18,6 +18,7 @@ set -euo pipefail
 
 FAILED=0
 TOTAL_BYTES=0
+RECLAIMABLE_BYTES=0
 
 section() {
     printf '\n==== %s ====\n' "$1"
@@ -111,22 +112,37 @@ human_bytes() {
 }
 
 # generic size probe shared by every directory-backed runtime. A missing or
-# unreadable cache directory reports 0, never an error.
+# unreadable cache directory reports "0 0", never an error. Emits
+# "<total_bytes> <reclaimable_bytes>" from a single find pass, keyed by
+# inode: an inode is reclaimable only when every link to it lives inside
+# this tree (the count of links *seen* while walking equals the inode's own
+# st_nlink) -- if something outside the tree (a venv) also holds it, freeing
+# the cache copy returns nothing. Keying by inode also fixes the total
+# itself: a file hardlinked twice within the cache counts once, matching
+# what a prune would actually observe, not twice as a naive per-file sum
+# would. This replaces `du -sb` outright (measured faster on real trees, not
+# just more accurate -- see plans/cache-reporting-fidelity.md); note totals
+# will shift slightly versus `du -sb`, which also counted directory inodes,
+# while this sums regular files only -- expected, not a regression. `||
+# true` on the pipeline keeps a `find` failure (e.g. a permission-denied
+# subdirectory) from taking the whole script down under `set -e`: the awk
+# END block still emits a well-formed "<total> <reclaimable>" (partial or
+# "0 0") even when find's own exit status is non-zero.
 rt_generic_size() {
     local dir="$1"
     local raw
 
     if [[ -z "$dir" || ! -d "$dir" ]]; then
-        printf '0\n'
+        printf '0 0\n'
         return 0
     fi
 
-    if ! raw=$(du -sb "$dir" 2>/dev/null); then
-        printf '0\n'
-        return 0
-    fi
+    raw=$(find "$dir" -type f -printf '%n %i %s\n' 2>/dev/null |
+        awk '{n[$2]=$1; s[$2]=$3; c[$2]++}
+             END {for (i in s) {t += s[i]; if (c[i] == n[i]) r += s[i]}
+                  printf "%d %d\n", t+0, r+0}') || true
 
-    awk '{print $1}' <<< "$raw"
+    printf '%s\n' "$raw"
 }
 
 ### uv ########################################################################
@@ -262,6 +278,13 @@ docker_build_cache_bytes() {
 # can `du`). It reads $DOCKER_UNTIL directly, matching the sibling script's
 # style of reading module-level config globals rather than threading them
 # through every call.
+#
+# Emits "<bytes> <bytes>" -- the same figure twice -- to conform to the
+# two-value RT_SIZE contract mechanically, without changing the underlying
+# age-sum logic. This is a stopgap: the age-sum has no predictive power over
+# what a real prune returns (see plans/cache-reporting-fidelity.md), and a
+# follow-up work package replaces this body with a real total/reclaimable
+# split parsed from `docker buildx du`.
 rt_docker_size() {
     local raw window_seconds bytes
 
@@ -280,7 +303,7 @@ rt_docker_size() {
         return 0
     fi
 
-    printf '%s\n' "$bytes"
+    printf '%s %s\n' "$bytes" "$bytes"
 }
 
 # Never `docker image prune`, never `docker system prune` -- only the
@@ -450,6 +473,7 @@ process_runtime() {
     local prune_fn="${RT_PRUNE[$name]:-}"
     local cache_dir=""
     local size_out status
+    local total_bytes reclaimable_bytes
 
     section "$name"
 
@@ -485,8 +509,12 @@ process_runtime() {
     if [[ "$size_out" == unavailable ]]; then
         printf '%s cache size: unavailable\n' "$name"
     else
-        printf '%s cache size: %s (%d bytes)\n' "$name" "$(human_bytes "$size_out")" "$size_out"
-        TOTAL_BYTES=$((TOTAL_BYTES + size_out))
+        read -r total_bytes reclaimable_bytes <<< "$size_out"
+        printf '%s cache size: %s total (%d bytes), %s reclaimable (%d bytes)\n' \
+            "$name" "$(human_bytes "$total_bytes")" "$total_bytes" \
+            "$(human_bytes "$reclaimable_bytes")" "$reclaimable_bytes"
+        TOTAL_BYTES=$((TOTAL_BYTES + total_bytes))
+        RECLAIMABLE_BYTES=$((RECLAIMABLE_BYTES + reclaimable_bytes))
     fi
 
     if [[ "$class" == report ]]; then
@@ -521,6 +549,7 @@ main() {
     DOCKER_UNTIL="168h"
     FAILED=0
     TOTAL_BYTES=0
+    RECLAIMABLE_BYTES=0
 
     while (($#)); do
         case "$1" in
@@ -577,6 +606,8 @@ main() {
 
     section "Total"
     printf 'Total cache footprint seen: %s (%d bytes)\n' "$(human_bytes "$TOTAL_BYTES")" "$TOTAL_BYTES"
+    printf 'Estimated reclaimable:      %s (%d bytes)\n' "$(human_bytes "$RECLAIMABLE_BYTES")" "$RECLAIMABLE_BYTES"
+    printf 'Total counts bytes present; reclaimable counts what a prune would actually return.\n'
 
     if ((FAILED != 0)); then
         return 1
