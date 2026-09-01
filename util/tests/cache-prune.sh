@@ -2,9 +2,9 @@
 # Hermetic regression tests for ../cache-prune.sh.
 # Test doubles below replace sourced functions and are invoked indirectly.
 # SC2034 is disabled file-wide: MODE/INCLUDE_PURGE/DOCKER_UNTIL/FAILED/
-# TOTAL_BYTES/RECLAIMABLE_BYTES are globals consumed by process_runtime()
-# and friends in the sourced script, which ShellCheck cannot see past the
-# disabled SC1091.
+# TOTAL_BYTES/SAFE_RECLAIMABLE_BYTES/PURGE_RECLAIMABLE_BYTES/DELTA_BYTES are
+# globals consumed by process_runtime() and friends in the sourced script,
+# which ShellCheck cannot see past the disabled SC1091.
 # shellcheck disable=SC1091,SC2317,SC2034
 
 set -u
@@ -179,6 +179,45 @@ BUN_PURGE_RESULT=0
 #   error     -> npm itself exits nonzero, a genuine hard failure (exit 1)
 NPM_CACHE_DIR_MODE=ok
 
+# --- sequenced-probe infrastructure (WP-3) --------------------------------
+#
+# A before/after delta test needs a probe that returns a DIFFERENT value on
+# its second call than its first. A plain shell counter/index cannot do
+# this: process_runtime invokes a probe via `size_out=$("$size_fn" ...)`,
+# which forks a subshell to capture stdout, and any mutation the probe makes
+# to its own call-position state is lost the instant that subshell exits --
+# the identical hazard ALL_LOG_FILE above exists to work around. So, like
+# ALL_LOG_FILE, the queue itself is file-backed: each call pops the file's
+# first line, a mutation any subshell can make and have survive it, since
+# it lands on the real filesystem rather than in shell memory.
+SEQ_FILE="$SANDBOX/probe-sequence.log"
+: > "$SEQ_FILE"
+
+# queue_probe_sequence: load one "<total> <reclaimable>" (or "unavailable")
+# string per probe call, in call order. Pair with `RT_SIZE[<name>]=rt_size_from_queue`.
+queue_probe_sequence() {
+    printf '%s\n' "$@" > "$SEQ_FILE"
+}
+
+rt_size_from_queue() {
+    local line
+    line=$(head -n1 "$SEQ_FILE" 2>/dev/null)
+    sed -i '1d' "$SEQ_FILE" 2>/dev/null || true
+    printf '%s\n' "$line"
+}
+
+# DOCKER_SYSTEM_DF_CALL_FILE / DOCKER_SYSTEM_DF_FAIL_AFTER: the same
+# file-backed-counter idea, specialised for the docker source-match tests --
+# lets a test force `docker system df` to succeed on the before-probe (call
+# 0) and fail on the after-probe (call 1+), so rt_docker_size's primary
+# source genuinely changes between the two real calls process_runtime makes
+# inside a single process_runtime invocation, with no way for the test to
+# "step in" between them (both happen inside process_runtime's own call).
+# Empty/unset FAIL_AFTER means "never fail" (today's behaviour, unchanged).
+DOCKER_SYSTEM_DF_CALL_FILE="$SANDBOX/docker-system-df-calls.log"
+: > "$DOCKER_SYSTEM_DF_CALL_FILE"
+DOCKER_SYSTEM_DF_FAIL_AFTER=""
+
 reset_logs() {
     : > "$ALL_LOG_FILE"
     MUTATE_LOG=""
@@ -194,6 +233,9 @@ reset_logs() {
     DOCKER_BUILDX_DU_RESULT=0
     DOCKER_SYSTEM_DF_RESULT=0
     NPM_CACHE_DIR_MODE=ok
+    : > "$SEQ_FILE"
+    : > "$DOCKER_SYSTEM_DF_CALL_FILE"
+    DOCKER_SYSTEM_DF_FAIL_AFTER=""
 }
 
 confirm() {
@@ -288,6 +330,18 @@ docker() {
             return "$DOCKER_BUILDX_DU_RESULT"
             ;;
         "system df")
+            # DOCKER_SYSTEM_DF_FAIL_AFTER lets a test force this call to
+            # fail from a given 0-based call index onward -- see the
+            # sequenced-probe infrastructure above. Unset/empty (the
+            # default): never fails here, today's behaviour.
+            if [[ -n "$DOCKER_SYSTEM_DF_FAIL_AFTER" ]]; then
+                local df_call_n
+                df_call_n=$(wc -l < "$DOCKER_SYSTEM_DF_CALL_FILE")
+                printf '.\n' >> "$DOCKER_SYSTEM_DF_CALL_FILE"
+                if ((df_call_n >= DOCKER_SYSTEM_DF_FAIL_AFTER)); then
+                    return 1
+                fi
+            fi
             printf '%s\n' "$DOCKER_SYSTEM_DF_FIXTURE"
             return "$DOCKER_SYSTEM_DF_RESULT"
             ;;
@@ -394,7 +448,8 @@ all_present
 reset_logs
 FAILED=0
 TOTAL_BYTES=0
-RECLAIMABLE_BYTES=0
+SAFE_RECLAIMABLE_BYTES=0
+PURGE_RECLAIMABLE_BYTES=0
 DOCKER_INFO_RESULT=0
 DOCKER_BUILDX_DU_FIXTURE="$DOCKER_BUILDX_DU_FIXTURE_OK"
 MODE="report"
@@ -409,7 +464,10 @@ report_output="$(cat "$REPORT_OUTPUT_FILE")"
 assert_eq "" "$MUTATE_LOG" "--report performs no mutating calls"
 assert_contains "$(all_log)" "npm config get cache" "npm cache location is resolved during report"
 assert_contains "$(all_log)" "pip cache dir" "pip cache location is resolved during report"
-assert_contains "$report_output" "reclaimable (" "size probe runs during report and prints both total and reclaimable figures"
+assert_contains "$report_output" "total (" "size probe runs during report and prints the total figure"
+assert_contains "$report_output" "reclaimable via the purge verb" "the purge-tier estimate is printed and labelled with its verb during report"
+assert_contains "$report_output" "reclaimable via the safe verb" "the safe-tier estimate is printed and labelled with its verb during report"
+assert_not_contains "$report_output" "observed footprint change" "--report never prints a delta line -- there is no action to measure"
 assert_contains "$(all_log)" "docker info" "docker preflight runs during report"
 assert_contains "$(all_log)" "docker system df" "docker size parse runs during report"
 
@@ -642,7 +700,8 @@ all_present
 reset_logs
 FAILED=0
 TOTAL_BYTES=0
-RECLAIMABLE_BYTES=0
+SAFE_RECLAIMABLE_BYTES=0
+PURGE_RECLAIMABLE_BYTES=0
 ORIGINAL_RT_SIZE_UV="${RT_SIZE[uv]}"
 rt_malformed_size_single() { printf '12345\n'; }
 RT_SIZE[uv]=rt_malformed_size_single
@@ -652,19 +711,21 @@ process_runtime uv >/dev/null 2>"$GUARD_WARN_FILE" || true
 guard_warning="$(cat "$GUARD_WARN_FILE")"
 assert_contains "$guard_warning" "WARNING: uv:" "a single-value probe result warns"
 assert_eq "1" "$FAILED" "a single-value probe result sets FAILED, the same path a hard probe failure takes"
-assert_eq "0" "$RECLAIMABLE_BYTES" "a malformed probe never silently contributes to the reclaimable total"
+assert_eq "0" "$PURGE_RECLAIMABLE_BYTES" "a malformed probe never silently contributes to the purge-tier reclaimable total (uv is dual-verb)"
+assert_eq "0" "$SAFE_RECLAIMABLE_BYTES" "a malformed probe never silently contributes to the safe-tier reclaimable total"
 assert_eq "0" "$TOTAL_BYTES" "a malformed probe never silently contributes to the footprint total"
 RT_SIZE[uv]="$ORIGINAL_RT_SIZE_UV"
 
 reset_logs
 FAILED=0
 TOTAL_BYTES=0
-RECLAIMABLE_BYTES=0
+SAFE_RECLAIMABLE_BYTES=0
+PURGE_RECLAIMABLE_BYTES=0
 rt_malformed_size_junk() { printf 'abc def\n'; }
 RT_SIZE[uv]=rt_malformed_size_junk
 process_runtime uv >/dev/null 2>&1 || true
 assert_eq "1" "$FAILED" "a non-numeric probe pair is also treated as a probe failure"
-assert_eq "0" "$RECLAIMABLE_BYTES" "non-numeric junk never silently contributes to the reclaimable total"
+assert_eq "0" "$PURGE_RECLAIMABLE_BYTES" "non-numeric junk never silently contributes to the purge-tier reclaimable total"
 RT_SIZE[uv]="$ORIGINAL_RT_SIZE_UV"
 
 echo "[rt_generic_size] inode-complete link census"
@@ -699,19 +760,21 @@ mkdir -p "$CENSUS_EMPTY"
 assert_eq "0 0" "$(rt_generic_size "$CENSUS_EMPTY")" "an empty directory returns 0 0"
 assert_eq "0 0" "$(rt_generic_size "$SANDBOX/census-does-not-exist")" "a nonexistent path returns 0 0"
 
-echo "[process_runtime] prints both figures; footprint and reclaimable totals accumulate independently"
+echo "[process_runtime] prints both figures; footprint and purge-tier reclaimable totals accumulate independently"
 all_present
 reset_logs
 FAILED=0
 TOTAL_BYTES=0
-RECLAIMABLE_BYTES=0
+SAFE_RECLAIMABLE_BYTES=0
+PURGE_RECLAIMABLE_BYTES=0
 MODE="report"
 PROCESS_RUNTIME_OUTPUT_FILE="$SANDBOX/process-runtime-output.log"
 
 # A fully-shared cache double: 500 bytes present, 0 reclaimable -- as if
 # every byte were hardlinked into something outside the cache dir (e.g. a
 # live venv). Proves the footprint total moves without the reclaimable
-# total moving.
+# total moving. uv is dual-verb, so its reclaimable bytes are a purge-tier
+# estimate, never a safe-tier one (decision 4).
 rt_size_all_shared() { printf '500 0\n'; }
 RT_SIZE["uv"]=rt_size_all_shared
 
@@ -719,9 +782,10 @@ RT_SIZE["uv"]=rt_size_all_shared
 process_runtime uv >"$PROCESS_RUNTIME_OUTPUT_FILE" 2>&1 || true
 process_runtime_output="$(cat "$PROCESS_RUNTIME_OUTPUT_FILE")"
 assert_contains "$process_runtime_output" "500.0B total (500 bytes)" "process_runtime prints the total figure"
-assert_contains "$process_runtime_output" "0.0B reclaimable (0 bytes)" "process_runtime prints the reclaimable figure"
+assert_contains "$process_runtime_output" "reclaimable via the purge verb (0.0B, 0 bytes)" "process_runtime prints the purge-tier reclaimable figure, labelled with its verb"
 assert_eq "500" "$TOTAL_BYTES" "a fully-shared runtime still advances the footprint total"
-assert_eq "0" "$RECLAIMABLE_BYTES" "a fully-shared runtime does not advance the reclaimable total"
+assert_eq "0" "$PURGE_RECLAIMABLE_BYTES" "a fully-shared runtime does not advance the purge-tier reclaimable total"
+assert_eq "0" "$SAFE_RECLAIMABLE_BYTES" "uv's reclaimable bytes never touch the safe-tier total (its safe verb is unpredictable, decision 4)"
 
 RT_SIZE["uv"]=rt_generic_size
 
@@ -730,16 +794,19 @@ all_present
 reset_logs
 FAILED=0
 TOTAL_BYTES=12345
-RECLAIMABLE_BYTES=6789
+SAFE_RECLAIMABLE_BYTES=2222
+PURGE_RECLAIMABLE_BYTES=6789
 MODE="report"
 rt_size_unavailable() { printf 'unavailable\n'; }
 RT_SIZE["uv"]=rt_size_unavailable
 process_runtime uv >/dev/null 2>&1 || true
 assert_eq "12345" "$TOTAL_BYTES" "an unavailable size probe leaves the footprint total untouched"
-assert_eq "6789" "$RECLAIMABLE_BYTES" "an unavailable size probe leaves the reclaimable total untouched"
+assert_eq "2222" "$SAFE_RECLAIMABLE_BYTES" "an unavailable size probe leaves the safe-tier reclaimable total untouched"
+assert_eq "6789" "$PURGE_RECLAIMABLE_BYTES" "an unavailable size probe leaves the purge-tier reclaimable total untouched"
 RT_SIZE["uv"]=rt_generic_size
 TOTAL_BYTES=0
-RECLAIMABLE_BYTES=0
+SAFE_RECLAIMABLE_BYTES=0
+PURGE_RECLAIMABLE_BYTES=0
 
 echo "[cargo] report-only, never mutates"
 all_present
@@ -750,6 +817,32 @@ INCLUDE_PURGE=true
 process_runtime cargo >/dev/null 2>&1 || true
 assert_eq "" "$MUTATE_LOG" "cargo never has a mutating call, even under --yes --include-purge"
 assert_eq "" "${RT_PRUNE[cargo]+set}" "cargo intentionally has no prune-registry entry"
+
+echo "[cargo] reclaimable bytes count toward footprint only, never either reclaimable tier"
+all_present
+reset_logs
+FAILED=0
+TOTAL_BYTES=0
+SAFE_RECLAIMABLE_BYTES=0
+PURGE_RECLAIMABLE_BYTES=0
+MODE="report"
+rt_size_cargo_fixed() { printf '4000 4000\n'; }
+ORIGINAL_RT_SIZE_CARGO="${RT_SIZE[cargo]}"
+RT_SIZE[cargo]=rt_size_cargo_fixed
+CARGO_OUTPUT_FILE="$SANDBOX/cargo-output.log"
+: > "$CARGO_OUTPUT_FILE"
+process_runtime cargo >"$CARGO_OUTPUT_FILE" 2>&1 || true
+cargo_output="$(cat "$CARGO_OUTPUT_FILE")"
+# Regression guard for the exact defect named in the WP-3 brief: measured on
+# pre-WP-3 master, a cargo probe of "4000 4000" put 4000 bytes into the
+# headline estimate even though cargo has no prune verb in either registry.
+assert_eq "4000" "$TOTAL_BYTES" "cargo's bytes still count toward total footprint"
+assert_eq "0" "$SAFE_RECLAIMABLE_BYTES" "cargo's bytes never reach the safe-tier reclaimable total (it has no safe verb)"
+assert_eq "0" "$PURGE_RECLAIMABLE_BYTES" "cargo's bytes never reach the purge-tier reclaimable total (it has no purge verb)"
+assert_not_contains "$cargo_output" "reclaimable via" "cargo prints no per-verb reclaimable line at all -- no verb exists to report one against"
+assert_contains "$cargo_output" "no prune verb exists for cargo" "cargo's report-only note explains why it has no reclaimable figure"
+RT_SIZE[cargo]="$ORIGINAL_RT_SIZE_CARGO"
+TOTAL_BYTES=0
 
 echo "[registry] RT_PRUNE/RT_PURGE membership matches the safe/purge split"
 assert_eq "" "${RT_PRUNE[pip]+set}" "pip has no RT_PRUNE entry -- it migrated to RT_PURGE entirely"
@@ -764,12 +857,251 @@ assert_eq "set" "${RT_PRUNE[docker]+set}" "docker keeps its RT_PRUNE (safe) entr
 assert_eq "set" "${RT_PURGE[pip]+set}" "pip has an RT_PURGE entry (its only verb)"
 assert_eq "set" "${RT_PURGE[bun]+set}" "bun has an RT_PURGE entry (its only verb)"
 
+# =========================================================================
+# WP-3: the observed footprint delta (plans/cache-prune-reclaim-
+# effectiveness.md). Every block below sets its own MODE/INCLUDE_PURGE and
+# resets any probe-sequence state explicitly (reset_logs() clears SEQ_FILE,
+# DOCKER_SYSTEM_DF_CALL_FILE and DOCKER_SYSTEM_DF_FAIL_AFTER) -- the
+# ambient-state hazard both prior WPs in this plan hit.
+# =========================================================================
+
+echo "[delta] computed from real before/after probe values against a changing fixture"
+all_present
+reset_logs
+FAILED=0
+DELTA_BYTES=0
+MODE="yes"
+INCLUDE_PURGE=false
+queue_probe_sequence "500000 100000" "300000 100000"
+RT_SIZE[uv]=rt_size_from_queue
+DELTA_OUTPUT_FILE="$SANDBOX/delta-output.log"
+: > "$DELTA_OUTPUT_FILE"
+process_runtime uv >"$DELTA_OUTPUT_FILE" 2>&1 || true
+delta_output="$(cat "$DELTA_OUTPUT_FILE")"
+delta_line="$(grep 'observed footprint change' <<< "$delta_output")"
+assert_contains "$delta_line" "200000 bytes" "the delta line reports the real before/after difference (500000 - 300000), not a guess"
+assert_eq "200000" "$DELTA_BYTES" "the grand-total delta accumulator reflects the real computed value"
+RT_SIZE[uv]=rt_generic_size
+
+echo "[delta] edge case 1: an action that frees nothing reports 0B explicitly, never the estimate"
+all_present
+reset_logs
+FAILED=0
+DELTA_BYTES=0
+MODE="yes"
+INCLUDE_PURGE=false
+queue_probe_sequence "500000 424242" "500000 424242"
+RT_SIZE[uv]=rt_size_from_queue
+ZERO_OUTPUT_FILE="$SANDBOX/zero-delta-output.log"
+: > "$ZERO_OUTPUT_FILE"
+process_runtime uv >"$ZERO_OUTPUT_FILE" 2>&1 || true
+zero_output="$(cat "$ZERO_OUTPUT_FILE")"
+zero_delta_line="$(grep 'observed footprint change' <<< "$zero_output")"
+assert_contains "$zero_delta_line" "0.0B" "an action that frees nothing reports 0B explicitly"
+assert_contains "$zero_delta_line" "(0 bytes)" "the zero delta is the literal computed byte count, not omitted"
+assert_not_contains "$zero_delta_line" "424242" "the zero delta line never substitutes the (nonzero) reclaimable estimate"
+assert_eq "0" "$DELTA_BYTES" "the grand-total delta reflects the real zero, not the estimate"
+RT_SIZE[uv]=rt_generic_size
+
+echo "[delta] edge case 5: before-probe unavailable -- no delta at all, action still skipped (unchanged from today)"
+all_present
+reset_logs
+FAILED=0
+DELTA_BYTES=0
+MODE="yes"
+INCLUDE_PURGE=false
+queue_probe_sequence "unavailable"
+RT_SIZE[uv]=rt_size_from_queue
+UNAVAIL_BEFORE_FILE="$SANDBOX/unavail-before-output.log"
+: > "$UNAVAIL_BEFORE_FILE"
+process_runtime uv >"$UNAVAIL_BEFORE_FILE" 2>&1 || true
+unavail_before_output="$(cat "$UNAVAIL_BEFORE_FILE")"
+assert_not_contains "$unavail_before_output" "observed footprint change" "an unavailable before-probe never prints a delta line at all -- there is no action to measure"
+assert_not_contains "$MUTATE_LOG" "uv cache" "an unavailable before-probe still skips the action for safety"
+assert_eq "0" "$DELTA_BYTES" "an unavailable before-probe never contributes to the grand-total delta"
+RT_SIZE[uv]=rt_generic_size
+
+echo "[delta] edge case 3: post-action probe failure -- delta unavailable, FAILED not set, excluded from the grand total"
+all_present
+reset_logs
+FAILED=0
+DELTA_BYTES=0
+MODE="yes"
+INCLUDE_PURGE=false
+queue_probe_sequence "500000 100000" "unavailable"
+RT_SIZE[uv]=rt_size_from_queue
+POSTFAIL_FILE="$SANDBOX/post-probe-fail-output.log"
+: > "$POSTFAIL_FILE"
+process_runtime uv >"$POSTFAIL_FILE" 2>&1 || true
+postfail_output="$(cat "$POSTFAIL_FILE")"
+postfail_delta_line="$(grep 'observed footprint change' <<< "$postfail_output")"
+assert_contains "$postfail_delta_line" "unavailable" "a failed post-action probe reports the delta as unavailable"
+assert_contains "$postfail_delta_line" "post-action size probe failed" "the unavailable delta names the post-action probe as the reason"
+assert_eq "0" "$FAILED" "a post-action probe failure alone does not set FAILED -- the destructive action itself already succeeded"
+assert_eq "0" "$DELTA_BYTES" "a runtime with an unavailable post-action probe is excluded from the grand-total delta"
+RT_SIZE[uv]=rt_generic_size
+
+echo "[delta] edge case 4: a failed action with a changed probe still reports the delta, labelled partial, and still fails"
+all_present
+reset_logs
+FAILED=0
+DELTA_BYTES=0
+MODE="yes"
+INCLUDE_PURGE=false
+UV_PRUNE_RESULT=1
+queue_probe_sequence "1000000 500000" "700000 500000"
+RT_SIZE[uv]=rt_size_from_queue
+PARTIAL_FILE="$SANDBOX/partial-failed-output.log"
+: > "$PARTIAL_FILE"
+set +e
+process_runtime uv >"$PARTIAL_FILE" 2>&1
+partial_status=$?
+set -e
+partial_output="$(cat "$PARTIAL_FILE")"
+partial_delta_line="$(grep 'observed footprint change' <<< "$partial_output")"
+assert_contains "$partial_delta_line" "300000 bytes" "a failed action's partial delta is still the real measured difference (1000000 - 700000)"
+assert_contains "$partial_delta_line" "partial result" "a failed action's delta is labelled as a partial result"
+assert_eq "1" "$FAILED" "a failed verb still sets FAILED, unchanged, even though its delta was measured"
+assert_eq "1" "$partial_status" "process_runtime still returns nonzero when the verb it ran failed"
+assert_eq "300000" "$DELTA_BYTES" "a partial-but-genuinely-measured delta from a failed action is still summed into the grand total"
+RT_SIZE[uv]=rt_generic_size
+UV_PRUNE_RESULT=0
+
+echo "[delta] edge case 2: negative delta (cache grew between probes) is reported signed, not clamped, not a failure"
+all_present
+reset_logs
+FAILED=0
+DELTA_BYTES=0
+MODE="yes"
+INCLUDE_PURGE=false
+queue_probe_sequence "500000 100000" "700000 100000"
+RT_SIZE[uv]=rt_size_from_queue
+NEG_FILE="$SANDBOX/negative-delta-output.log"
+: > "$NEG_FILE"
+process_runtime uv >"$NEG_FILE" 2>&1 || true
+neg_output="$(cat "$NEG_FILE")"
+neg_delta_line="$(grep 'observed footprint change' <<< "$neg_output")"
+assert_contains "$neg_delta_line" "-200000 bytes" "a negative delta is reported signed, as observed, not clamped to zero"
+assert_contains "$neg_delta_line" "negative" "a negative delta carries a note that a concurrent write can grow the cache between probes"
+assert_eq "0" "$FAILED" "a negative delta is not treated as a failure"
+assert_eq "-200000" "$DELTA_BYTES" "the grand-total delta reflects the signed negative value"
+RT_SIZE[uv]=rt_generic_size
+
+echo "[delta] docker source-match: before/after from the same source computes a real delta"
+all_present
+reset_logs
+FAILED=0
+DELTA_BYTES=0
+MODE="yes"
+INCLUDE_PURGE=false
+DOCKER_INFO_RESULT=0
+DOCKER_SYSTEM_DF_FIXTURE="$DOCKER_SYSTEM_DF_FIXTURE_OK"
+DOCKER_SYSTEM_DF_FAIL_AFTER=""
+DOCKER_UNTIL=""
+SAME_SOURCE_FILE="$SANDBOX/docker-same-source-output.log"
+: > "$SAME_SOURCE_FILE"
+process_runtime docker >"$SAME_SOURCE_FILE" 2>&1 || true
+same_source_output="$(cat "$SAME_SOURCE_FILE")"
+same_source_delta_line="$(grep 'observed footprint change' <<< "$same_source_output")"
+assert_not_contains "$same_source_delta_line" "unavailable" "docker before/after from the same source (system df both times) computes a real delta, not unavailable"
+assert_contains "$same_source_delta_line" "0.0B (0 bytes)" "the fixture is unchanged between the two calls, so the same-source delta is a real, computed zero"
+
+echo "[delta] docker source-match: a source change between probes yields an unavailable delta, never a cross-source number"
+all_present
+reset_logs
+FAILED=0
+DELTA_BYTES=0
+MODE="yes"
+INCLUDE_PURGE=false
+DOCKER_INFO_RESULT=0
+DOCKER_SYSTEM_DF_FIXTURE="$DOCKER_SYSTEM_DF_FIXTURE_OK"
+DOCKER_BUILDX_DU_FIXTURE="$DOCKER_BUILDX_DU_FIXTURE_OK"
+DOCKER_SYSTEM_DF_FAIL_AFTER=1
+DOCKER_UNTIL=""
+SRC_CHANGE_FILE="$SANDBOX/docker-source-change-output.log"
+: > "$SRC_CHANGE_FILE"
+process_runtime docker >"$SRC_CHANGE_FILE" 2>&1 || true
+src_change_output="$(cat "$SRC_CHANGE_FILE")"
+src_change_delta_line="$(grep 'observed footprint change' <<< "$src_change_output")"
+assert_contains "$src_change_delta_line" "unavailable" "a docker source change between probes yields an unavailable delta"
+assert_contains "$src_change_delta_line" "source changed" "the unavailable delta names the source change as the reason"
+assert_contains "$src_change_delta_line" "system-df -> buildx-du" "the delta line names both the before and after sources"
+assert_eq "0" "$DELTA_BYTES" "a docker source-change delta is excluded from the grand-total delta, never computed across sources"
+DOCKER_SYSTEM_DF_FAIL_AFTER=""
+
+echo "[totals] safe-tier and purge-tier reclaimable accumulate independently and correctly across a full RUNTIME_ORDER pass"
+all_present
+reset_logs
+FAILED=0
+TOTAL_BYTES=0
+SAFE_RECLAIMABLE_BYTES=0
+PURGE_RECLAIMABLE_BYTES=0
+MODE="report"
+INCLUDE_PURGE=false
+DOCKER_INFO_RESULT=0
+DOCKER_SYSTEM_DF_FIXTURE="$DOCKER_SYSTEM_DF_FIXTURE_OK"
+DOCKER_SYSTEM_DF_FAIL_AFTER=""
+ORIGINAL_RT_SIZE_UV="${RT_SIZE[uv]}"
+ORIGINAL_RT_SIZE_NPM="${RT_SIZE[npm]}"
+ORIGINAL_RT_SIZE_PIP="${RT_SIZE[pip]}"
+ORIGINAL_RT_SIZE_BUN="${RT_SIZE[bun]}"
+ORIGINAL_RT_SIZE_CARGO_FOR_TOTALS="${RT_SIZE[cargo]}"
+rt_size_totals_uv() { printf '10000 1000\n'; }
+rt_size_totals_npm() { printf '20000 2000\n'; }
+rt_size_totals_pip() { printf '5000 5000\n'; }
+rt_size_totals_bun() { printf '6000 6000\n'; }
+rt_size_totals_cargo() { printf '7000 7000\n'; }
+RT_SIZE[uv]=rt_size_totals_uv
+RT_SIZE[npm]=rt_size_totals_npm
+RT_SIZE[pip]=rt_size_totals_pip
+RT_SIZE[bun]=rt_size_totals_bun
+RT_SIZE[cargo]=rt_size_totals_cargo
+for rt in "${RUNTIME_ORDER[@]}"; do
+    process_runtime "$rt" >/dev/null 2>&1 || true
+done
+assert_eq "10000048000" "$TOTAL_BYTES" "footprint total sums every runtime's total, including cargo's and docker's"
+assert_eq "6000000000" "$SAFE_RECLAIMABLE_BYTES" "safe-tier total is docker's reclaimable alone"
+assert_eq "14000" "$PURGE_RECLAIMABLE_BYTES" "purge-tier total sums uv+npm+pip+bun's reclaimable, excluding cargo (no verb) and docker (safe-only)"
+RT_SIZE[uv]="$ORIGINAL_RT_SIZE_UV"
+RT_SIZE[npm]="$ORIGINAL_RT_SIZE_NPM"
+RT_SIZE[pip]="$ORIGINAL_RT_SIZE_PIP"
+RT_SIZE[bun]="$ORIGINAL_RT_SIZE_BUN"
+RT_SIZE[cargo]="$ORIGINAL_RT_SIZE_CARGO_FOR_TOTALS"
+TOTAL_BYTES=0
+SAFE_RECLAIMABLE_BYTES=0
+PURGE_RECLAIMABLE_BYTES=0
+
+echo "[delta] dual-verb interactive, both confirms accepted: one delta spans both verbs, not two"
+all_present
+reset_logs
+FAILED=0
+DELTA_BYTES=0
+CONFIRM_RESULT=0
+MODE="interactive"
+INCLUDE_PURGE=true
+queue_probe_sequence "1000000 500000" "200000 500000"
+RT_SIZE[uv]=rt_size_from_queue
+DUAL_FILE="$SANDBOX/dual-verb-delta-output.log"
+: > "$DUAL_FILE"
+process_runtime uv >"$DUAL_FILE" 2>&1 || true
+dual_output="$(cat "$DUAL_FILE")"
+dual_delta_lines="$(grep -c 'observed footprint change' <<< "$dual_output")"
+assert_eq "uv cache prune|uv cache clean|" "$MUTATE_LOG" "both verbs actually ran (safe then purge) ahead of the delta section"
+assert_eq "1" "$dual_delta_lines" "exactly one delta line is printed for a dual-verb run, not one per verb"
+dual_delta_line="$(grep 'observed footprint change' <<< "$dual_output")"
+assert_contains "$dual_delta_line" "800000 bytes" "the single delta reflects the before/after pair spanning both verbs (1000000 - 200000), not an intermediate reading between them"
+assert_eq "800000" "$DELTA_BYTES" "the grand total reflects the one spanning delta, not two"
+RT_SIZE[uv]=rt_generic_size
+CONFIRM_RESULT=1
+
 echo "[partial failure] one failing runtime warns and is skipped; others still run; exit is nonzero"
 all_present
 reset_logs
 FAILED=0
 TOTAL_BYTES=0
-RECLAIMABLE_BYTES=0
+SAFE_RECLAIMABLE_BYTES=0
+PURGE_RECLAIMABLE_BYTES=0
+DELTA_BYTES=0
 DOCKER_INFO_RESULT=0
 DOCKER_BUILDX_DU_FIXTURE="$DOCKER_BUILDX_DU_FIXTURE_OK"
 UV_PRUNE_RESULT=1
@@ -794,7 +1126,9 @@ assert_eq "1" "$FAILED" "aggregate failure flag is set"
 reset_logs
 FAILED=0
 TOTAL_BYTES=0
-RECLAIMABLE_BYTES=0
+SAFE_RECLAIMABLE_BYTES=0
+PURGE_RECLAIMABLE_BYTES=0
+DELTA_BYTES=0
 UV_PRUNE_RESULT=1
 DOCKER_INFO_RESULT=0
 DOCKER_BUILDX_DU_FIXTURE="$DOCKER_BUILDX_DU_FIXTURE_OK"
@@ -854,6 +1188,37 @@ set -e
 assert_eq "0" "$status" "set_docker_until accepts a valid window"
 assert_eq "24h" "$DOCKER_UNTIL" "an accepted window is assigned"
 DOCKER_UNTIL="168h"
+
+echo "[main] full run smoke: --yes produces a per-tier Total section with an observed delta line"
+all_present
+reset_logs
+DOCKER_INFO_RESULT=0
+DOCKER_SYSTEM_DF_FIXTURE="$DOCKER_SYSTEM_DF_FIXTURE_OK"
+DOCKER_SYSTEM_DF_FAIL_AFTER=""
+MAIN_YES_FILE="$SANDBOX/main-yes-output.log"
+: > "$MAIN_YES_FILE"
+( main --yes >"$MAIN_YES_FILE" 2>&1 ) || true
+main_yes_output="$(cat "$MAIN_YES_FILE")"
+assert_contains "$main_yes_output" "Total cache footprint seen:" "the --yes Total section prints the footprint total"
+assert_contains "$main_yes_output" "Estimated safe-tier reclaimable" "the --yes Total section prints the safe-tier estimate, labelled"
+assert_contains "$main_yes_output" "Estimated purge-tier reclaimable" "the --yes Total section prints the purge-tier estimate, labelled"
+assert_contains "$main_yes_output" "Observed footprint change" "the --yes Total section prints the observed delta line, since an action ran"
+
+echo "[main] full run smoke: --report produces a per-tier Total section with no delta line"
+all_present
+reset_logs
+DOCKER_INFO_RESULT=0
+DOCKER_SYSTEM_DF_FIXTURE="$DOCKER_SYSTEM_DF_FIXTURE_OK"
+DOCKER_SYSTEM_DF_FAIL_AFTER=""
+MAIN_REPORT_FILE="$SANDBOX/main-report-output.log"
+: > "$MAIN_REPORT_FILE"
+( main --report >"$MAIN_REPORT_FILE" 2>&1 ) || true
+main_report_output="$(cat "$MAIN_REPORT_FILE")"
+assert_contains "$main_report_output" "Total cache footprint seen:" "the --report Total section prints the footprint total"
+assert_contains "$main_report_output" "Estimated safe-tier reclaimable" "the --report Total section prints the safe-tier estimate, labelled"
+assert_contains "$main_report_output" "Estimated purge-tier reclaimable" "the --report Total section prints the purge-tier estimate, labelled"
+assert_not_contains "$main_report_output" "Observed footprint change" "the --report Total section prints no delta line at all -- there was no action"
+assert_eq "" "$MUTATE_LOG" "a full --report run via main() still performs no mutating calls"
 
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
 ((FAIL == 0))
