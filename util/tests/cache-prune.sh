@@ -156,7 +156,10 @@ MUTATE_LOG=""
 CONFIRM_LOG=""
 CONFIRM_RESULT=1
 
+DOCKER_BUILDX_DU_FIXTURE=""
+DOCKER_BUILDX_DU_RESULT=0
 DOCKER_SYSTEM_DF_FIXTURE=""
+DOCKER_SYSTEM_DF_RESULT=0
 DOCKER_INFO_RESULT=0
 DOCKER_PRUNE_RESULT=0
 UV_PRUNE_RESULT=0
@@ -184,6 +187,8 @@ reset_logs() {
     PIP_PRUNE_RESULT=0
     BUN_PRUNE_RESULT=0
     DOCKER_PRUNE_RESULT=0
+    DOCKER_BUILDX_DU_RESULT=0
+    DOCKER_SYSTEM_DF_RESULT=0
     NPM_CACHE_DIR_MODE=ok
 }
 
@@ -255,17 +260,32 @@ bun() {
     return 0
 }
 
+# Matched on the full argument string ($*), not just $1: plain `docker
+# system df` (the fallback) and `docker system df -v` (the retiring
+# verbose table) must be told apart, or a bug that regresses rt_docker_size
+# back to -v would silently read the still-present system-df fixture
+# instead of failing loudly.
 docker() {
     printf 'docker %s|' "$*" >> "$ALL_LOG_FILE"
-    case "$1" in
+    case "$*" in
         info)
             return "$DOCKER_INFO_RESULT"
             ;;
-        system)
-            printf '%s\n' "$DOCKER_SYSTEM_DF_FIXTURE"
-            return 0
+        "buildx du")
+            printf '%s\n' "$DOCKER_BUILDX_DU_FIXTURE"
+            return "$DOCKER_BUILDX_DU_RESULT"
             ;;
-        builder)
+        "system df")
+            printf '%s\n' "$DOCKER_SYSTEM_DF_FIXTURE"
+            return "$DOCKER_SYSTEM_DF_RESULT"
+            ;;
+        "system df -v")
+            # Production code no longer requests -v; deliberately not
+            # wired to either fixture so an accidental regression fails
+            # loudly instead of silently misreading data.
+            return 1
+            ;;
+        builder*)
             MUTATE_LOG+="docker $*|"
             return "$DOCKER_PRUNE_RESULT"
             ;;
@@ -273,14 +293,25 @@ docker() {
     return 0
 }
 
-# A minimal, synthetic (no real machine) docker system df -v fixture. Window
-# default is 168h == 604800s.
-#   row 1: 10MB,  last used 200 hours ago (720000s, >= window) -> included
-#   row 2: 512kB, last used 10 minutes ago (600s, < window)    -> excluded
-#   row 3: 1GB,   last used 9 days ago (777600s, >= window)    -> included
-#   row 4: 100B,  last used 30 minutes ago (1800s, < window)   -> excluded
-DOCKER_DF_FIXTURE=$'Build cache usage: 0B\n\nCACHE ID       CACHE TYPE     SIZE      CREATED       LAST USED       USAGE     SHARED\naaaa1111aaaa   regular        10MB      2 weeks ago   200 hours ago   0         false\nbbbb2222bbbb   regular        512kB     3 days ago    10 minutes ago  1         true\ncccc3333cccc   regular        1GB       5 weeks ago   9 days ago      0         false\ndddd4444dddd   regular        100B      1 hours ago   30 minutes ago  2         true\n'
-DOCKER_DF_EXPECTED_BYTES=1010000000
+# Synthetic (no real machine) `docker buildx du` fixture: a per-record
+# table -- one row carrying the `*` shared-marker suffix on its own SIZE
+# field -- followed by the trailing "Label:<whitespace>value" summary
+# lines rt_docker_size actually parses. The varying tab-stop padding
+# ("Shared:" gets two tabs, "Private:" one, to align differing label
+# lengths) is deliberate: it is exactly what a label-anchored, field-split
+# parse must tolerate.
+DOCKER_BUILDX_DU_FIXTURE_OK=$'ID             RECLAIMABLE  SIZE       LAST ACCESSED\naaaa1111aaaa   true         2.5GB*     3 days ago\nbbbb2222bbbb   true         500MB      10 days ago\nShared:\t\t2.5GB\nPrivate:\t8GB\nReclaimable:\t4GB\nTotal:\t\t10GB\n'
+DOCKER_BUILDX_DU_EXPECTED_BYTES="10000000000 4000000000"
+
+# Synthetic fallback `docker system df` (plain, non -v) fixture: "Build
+# Cache" is a two-word label, exercising the $3..$6 field-offset trap, and
+# every RECLAIMABLE cell (including Build Cache's own) carries a trailing
+# "(NN%)" to exercise the defensive percentage strip.
+DOCKER_SYSTEM_DF_FIXTURE_OK=$'TYPE            TOTAL     ACTIVE    SIZE      RECLAIMABLE\nImages          12        4         3.2GB     1.1GB (34%)\nContainers      5         2         50MB      10MB (20%)\nLocal Volumes   8         3         500MB     50MB (10%)\nBuild Cache     42        0         10GB      6GB (60%)\n'
+DOCKER_SYSTEM_DF_EXPECTED_BYTES="10000000000 6000000000"
+
+DOCKER_BUILDX_DU_FIXTURE="$DOCKER_BUILDX_DU_FIXTURE_OK"
+DOCKER_SYSTEM_DF_FIXTURE="$DOCKER_SYSTEM_DF_FIXTURE_OK"
 
 # --- tests ---------------------------------------------------------------
 
@@ -353,7 +384,7 @@ FAILED=0
 TOTAL_BYTES=0
 RECLAIMABLE_BYTES=0
 DOCKER_INFO_RESULT=0
-DOCKER_SYSTEM_DF_FIXTURE="$DOCKER_DF_FIXTURE"
+DOCKER_BUILDX_DU_FIXTURE="$DOCKER_BUILDX_DU_FIXTURE_OK"
 MODE="report"
 INCLUDE_PURGE=false
 DOCKER_UNTIL="168h"
@@ -368,14 +399,14 @@ assert_contains "$(all_log)" "npm config get cache" "npm cache location is resol
 assert_contains "$(all_log)" "pip cache dir" "pip cache location is resolved during report"
 assert_contains "$report_output" "reclaimable (" "size probe runs during report and prints both total and reclaimable figures"
 assert_contains "$(all_log)" "docker info" "docker preflight runs during report"
-assert_contains "$(all_log)" "docker system df" "docker size parse runs during report"
+assert_contains "$(all_log)" "docker buildx du" "docker size parse runs during report"
 
 echo "[--yes] safe prunes fire; opt-in purges do not, and are never prompted"
 all_present
 reset_logs
 FAILED=0
 DOCKER_INFO_RESULT=0
-DOCKER_SYSTEM_DF_FIXTURE="$DOCKER_DF_FIXTURE"
+DOCKER_BUILDX_DU_FIXTURE="$DOCKER_BUILDX_DU_FIXTURE_OK"
 MODE="yes"
 INCLUDE_PURGE=false
 DOCKER_UNTIL="168h"
@@ -395,7 +426,7 @@ all_present
 reset_logs
 FAILED=0
 DOCKER_INFO_RESULT=0
-DOCKER_SYSTEM_DF_FIXTURE="$DOCKER_DF_FIXTURE"
+DOCKER_BUILDX_DU_FIXTURE="$DOCKER_BUILDX_DU_FIXTURE_OK"
 MODE="yes"
 INCLUDE_PURGE=true
 DOCKER_UNTIL="168h"
@@ -442,7 +473,7 @@ all_present
 reset_logs
 FAILED=0
 DOCKER_INFO_RESULT=0
-DOCKER_SYSTEM_DF_FIXTURE="$DOCKER_DF_FIXTURE"
+DOCKER_BUILDX_DU_FIXTURE="$DOCKER_BUILDX_DU_FIXTURE_OK"
 MODE="yes"
 DOCKER_UNTIL="24h"
 process_runtime docker >/dev/null 2>&1 || true
@@ -450,22 +481,96 @@ assert_contains "$MUTATE_LOG" "until=24h" "docker prune filter reflects --docker
 
 DOCKER_UNTIL="168h"
 
-echo "[docker parse] age-filtered byte sum, with unit normalization"
+echo "[docker parse] docker_window_seconds still validates the --docker-until format"
 window_seconds="$(docker_window_seconds "168h")"
 assert_eq "604800" "$window_seconds" "168h converts to 604800 seconds"
-bytes="$(docker_build_cache_bytes "$DOCKER_DF_FIXTURE" "$window_seconds")"
-assert_eq "$DOCKER_DF_EXPECTED_BYTES" "$bytes" "kB/MB/GB rows normalize and sum correctly, excluding rows younger than the window"
+assert_failure "an unrecognised window unit is rejected" docker_window_seconds "168x"
 
-echo "[docker parse] unparseable table reports unavailable, never a guess"
+echo "[docker parse] unit normalization: kB/MB/GB/TB and bare bytes"
+assert_eq "500" "$(docker_size_to_bytes "500B")" "bare bytes pass through unchanged"
+assert_eq "512000" "$(docker_size_to_bytes "512kB")" "kB converts at 1000x (decimal, not 1024)"
+assert_eq "2500000" "$(docker_size_to_bytes "2.5MB")" "MB converts and honours a fractional value"
+assert_eq "4000000000" "$(docker_size_to_bytes "4GB")" "GB converts at 1000^3"
+assert_eq "3000000000000" "$(docker_size_to_bytes "3TB")" "TB converts at 1000^4"
+
+echo "[docker parse] buildx primary: trailing labelled lines parse correctly"
+pair="$(docker_buildx_du_bytes "$DOCKER_BUILDX_DU_FIXTURE_OK")"
+assert_eq "$DOCKER_BUILDX_DU_EXPECTED_BYTES" "$pair" "Total:/Reclaimable: labels parse despite a preceding '*' shared-marker row"
+
 all_present
 reset_logs
 FAILED=0
 DOCKER_INFO_RESULT=0
-DOCKER_SYSTEM_DF_FIXTURE=$'Images space usage:\n\nno build-cache table here at all\n'
-MODE="report"
-process_runtime docker >/dev/null 2>&1 || true
+DOCKER_BUILDX_DU_FIXTURE="$DOCKER_BUILDX_DU_FIXTURE_OK"
 size_out="$(rt_docker_size "")"
-assert_eq "unavailable" "$size_out" "an unparseable docker df table reports unavailable"
+assert_eq "$DOCKER_BUILDX_DU_EXPECTED_BYTES" "$size_out" "rt_docker_size reports the buildx pair end to end"
+assert_contains "$(all_log)" "docker buildx du" "buildx is the source actually queried when it succeeds"
+assert_not_contains "$(all_log)" "docker system df" "system df is never queried when buildx already succeeded"
+
+echo "[docker parse] fallback: buildx failing falls through to system df's Build Cache row"
+pair="$(docker_system_df_bytes "$DOCKER_SYSTEM_DF_FIXTURE_OK")"
+assert_eq "$DOCKER_SYSTEM_DF_EXPECTED_BYTES" "$pair" "SIZE/RECLAIMABLE parse correctly from the two-word Build Cache row, percentage stripped"
+
+all_present
+reset_logs
+FAILED=0
+DOCKER_INFO_RESULT=0
+DOCKER_BUILDX_DU_RESULT=1
+DOCKER_BUILDX_DU_FIXTURE=""
+DOCKER_SYSTEM_DF_FIXTURE="$DOCKER_SYSTEM_DF_FIXTURE_OK"
+size_out="$(rt_docker_size "")"
+assert_eq "$DOCKER_SYSTEM_DF_EXPECTED_BYTES" "$size_out" "rt_docker_size falls back to system df end to end when buildx fails"
+assert_contains "$(all_log)" "docker buildx du" "buildx is attempted first even though it fails"
+assert_contains "$(all_log)" "docker system df" "the fallback is reached after buildx fails"
+DOCKER_BUILDX_DU_RESULT=0
+DOCKER_BUILDX_DU_FIXTURE="$DOCKER_BUILDX_DU_FIXTURE_OK"
+
+echo "[docker parse] both sources fail -> unavailable, action skipped for safety"
+all_present
+reset_logs
+FAILED=0
+DOCKER_INFO_RESULT=0
+DOCKER_BUILDX_DU_RESULT=1
+DOCKER_BUILDX_DU_FIXTURE=""
+DOCKER_SYSTEM_DF_FIXTURE=$'Images space usage:\n\nno build-cache row here at all\n'
+size_out="$(rt_docker_size "")"
+assert_eq "unavailable" "$size_out" "neither source parses, so rt_docker_size reports unavailable rather than a guess"
+MODE="yes"
+process_runtime docker >/dev/null 2>&1 || true
+assert_not_contains "$MUTATE_LOG" "docker builder prune" "an unavailable docker size skips the prune action for safety"
+DOCKER_BUILDX_DU_RESULT=0
+DOCKER_BUILDX_DU_FIXTURE="$DOCKER_BUILDX_DU_FIXTURE_OK"
+DOCKER_SYSTEM_DF_FIXTURE="$DOCKER_SYSTEM_DF_FIXTURE_OK"
+
+echo "[contract guard] a malformed (non-pair) probe result is a failure, not a silent 0"
+all_present
+reset_logs
+FAILED=0
+TOTAL_BYTES=0
+RECLAIMABLE_BYTES=0
+ORIGINAL_RT_SIZE_UV="${RT_SIZE[uv]}"
+rt_malformed_size_single() { printf '12345\n'; }
+RT_SIZE[uv]=rt_malformed_size_single
+GUARD_WARN_FILE="$SANDBOX/guard-warnings.log"
+: > "$GUARD_WARN_FILE"
+process_runtime uv >/dev/null 2>"$GUARD_WARN_FILE" || true
+guard_warning="$(cat "$GUARD_WARN_FILE")"
+assert_contains "$guard_warning" "WARNING: uv:" "a single-value probe result warns"
+assert_eq "1" "$FAILED" "a single-value probe result sets FAILED, the same path a hard probe failure takes"
+assert_eq "0" "$RECLAIMABLE_BYTES" "a malformed probe never silently contributes to the reclaimable total"
+assert_eq "0" "$TOTAL_BYTES" "a malformed probe never silently contributes to the footprint total"
+RT_SIZE[uv]="$ORIGINAL_RT_SIZE_UV"
+
+reset_logs
+FAILED=0
+TOTAL_BYTES=0
+RECLAIMABLE_BYTES=0
+rt_malformed_size_junk() { printf 'abc def\n'; }
+RT_SIZE[uv]=rt_malformed_size_junk
+process_runtime uv >/dev/null 2>&1 || true
+assert_eq "1" "$FAILED" "a non-numeric probe pair is also treated as a probe failure"
+assert_eq "0" "$RECLAIMABLE_BYTES" "non-numeric junk never silently contributes to the reclaimable total"
+RT_SIZE[uv]="$ORIGINAL_RT_SIZE_UV"
 
 echo "[rt_generic_size] inode-complete link census"
 # A real fixture tree under the sandbox (itself `mktemp -d`), with actual
@@ -558,7 +663,7 @@ FAILED=0
 TOTAL_BYTES=0
 RECLAIMABLE_BYTES=0
 DOCKER_INFO_RESULT=0
-DOCKER_SYSTEM_DF_FIXTURE="$DOCKER_DF_FIXTURE"
+DOCKER_BUILDX_DU_FIXTURE="$DOCKER_BUILDX_DU_FIXTURE_OK"
 UV_PRUNE_RESULT=1
 MODE="yes"
 INCLUDE_PURGE=false
@@ -584,7 +689,7 @@ TOTAL_BYTES=0
 RECLAIMABLE_BYTES=0
 UV_PRUNE_RESULT=1
 DOCKER_INFO_RESULT=0
-DOCKER_SYSTEM_DF_FIXTURE="$DOCKER_DF_FIXTURE"
+DOCKER_BUILDX_DU_FIXTURE="$DOCKER_BUILDX_DU_FIXTURE_OK"
 total_line="$( {
     for rt in "${RUNTIME_ORDER[@]}"; do
         process_runtime "$rt" || true
