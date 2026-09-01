@@ -2,7 +2,7 @@
 
 *Recommended model/effort — Claude implementation: Sonnet/medium (well-scoped shell implementation against a pinned spec; no novel architecture); Codex review: Terra/medium (destructive-operation review on a small, self-contained surface); plan audit: `gpt-5.6-sol`/medium (default tier)*
 
-**Status: AUDITED 2026-08-31 (rev 2; cycle-1 codex-david/gpt-5.6-sol/medium, 0 blocking / 3 material, dispositioned)**
+**Status: APPROVED 2026-08-31 (rev 2; cycle-1 codex-david/gpt-5.6-sol/medium, 0 blocking / 3 material, dispositioned). Execution in progress.**
 
 ## Context
 
