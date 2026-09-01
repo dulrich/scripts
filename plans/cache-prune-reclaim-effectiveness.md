@@ -2,7 +2,7 @@
 
 *Recommended model/effort — Claude implementation: Sonnet/high (registry restructuring + careful action-path changes in a script that deletes user data); Codex review: Terra/medium; plan audit: `gpt-5.6-sol`/medium*
 
-**Status: AUDITED 2026-09-01 (rev 2; cycle-1 codex-david/`gpt-5.6-sol`/medium, 1 blocking / 4 material / 1 execution-level, dispositioned)**
+**Status: APPROVED 2026-09-01 (rev 2; cycle-1 codex-david/`gpt-5.6-sol`/medium, 1 blocking / 4 material / 1 execution-level, dispositioned). Execution in progress.**
 
 ## Context
 
