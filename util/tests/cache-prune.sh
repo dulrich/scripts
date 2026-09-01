@@ -2,8 +2,9 @@
 # Hermetic regression tests for ../cache-prune.sh.
 # Test doubles below replace sourced functions and are invoked indirectly.
 # SC2034 is disabled file-wide: MODE/INCLUDE_PURGE/DOCKER_UNTIL/FAILED/
-# TOTAL_BYTES are globals consumed by process_runtime() and friends in the
-# sourced script, which ShellCheck cannot see past the disabled SC1091.
+# TOTAL_BYTES/RECLAIMABLE_BYTES are globals consumed by process_runtime()
+# and friends in the sourced script, which ShellCheck cannot see past the
+# disabled SC1091.
 # shellcheck disable=SC1091,SC2317,SC2034
 
 set -u
@@ -141,7 +142,7 @@ all_absent() {
 #
 # ALL_LOG is file-backed rather than an in-memory variable: the production
 # code reads several of these commands via `x=$(cmd)` command substitution
-# (cache-dir resolvers, `du`, `docker system df -v`), and each substitution
+# (cache-dir resolvers, `docker system df -v`), and each substitution
 # forks a subshell -- a plain shell-variable append made *inside* that
 # subshell would vanish the instant the substitution completes. A real file
 # survives the subshell boundary. The mutating calls (prune/purge/builder
@@ -155,7 +156,6 @@ MUTATE_LOG=""
 CONFIRM_LOG=""
 CONFIRM_RESULT=1
 
-DU_BYTES=12345
 DOCKER_SYSTEM_DF_FIXTURE=""
 DOCKER_INFO_RESULT=0
 DOCKER_PRUNE_RESULT=0
@@ -273,11 +273,6 @@ docker() {
     return 0
 }
 
-du() {
-    printf 'du %s|' "$*" >> "$ALL_LOG_FILE"
-    printf '%d\t%s\n' "$DU_BYTES" "$2"
-}
-
 # A minimal, synthetic (no real machine) docker system df -v fixture. Window
 # default is 168h == 604800s.
 #   row 1: 10MB,  last used 200 hours ago (720000s, >= window) -> included
@@ -356,18 +351,22 @@ all_present
 reset_logs
 FAILED=0
 TOTAL_BYTES=0
+RECLAIMABLE_BYTES=0
 DOCKER_INFO_RESULT=0
 DOCKER_SYSTEM_DF_FIXTURE="$DOCKER_DF_FIXTURE"
 MODE="report"
 INCLUDE_PURGE=false
 DOCKER_UNTIL="168h"
+REPORT_OUTPUT_FILE="$SANDBOX/report-output.log"
+: > "$REPORT_OUTPUT_FILE"
 for rt in "${RUNTIME_ORDER[@]}"; do
-    process_runtime "$rt" >/dev/null 2>&1 || true
+    process_runtime "$rt" >>"$REPORT_OUTPUT_FILE" 2>&1 || true
 done
+report_output="$(cat "$REPORT_OUTPUT_FILE")"
 assert_eq "" "$MUTATE_LOG" "--report performs no mutating calls"
 assert_contains "$(all_log)" "npm config get cache" "npm cache location is resolved during report"
 assert_contains "$(all_log)" "pip cache dir" "pip cache location is resolved during report"
-assert_contains "$(all_log)" "du -sb" "size probe runs during report"
+assert_contains "$report_output" "reclaimable (" "size probe runs during report and prints both total and reclaimable figures"
 assert_contains "$(all_log)" "docker info" "docker preflight runs during report"
 assert_contains "$(all_log)" "docker system df" "docker size parse runs during report"
 
@@ -468,6 +467,80 @@ process_runtime docker >/dev/null 2>&1 || true
 size_out="$(rt_docker_size "")"
 assert_eq "unavailable" "$size_out" "an unparseable docker df table reports unavailable"
 
+echo "[rt_generic_size] inode-complete link census"
+# A real fixture tree under the sandbox (itself `mktemp -d`), with actual
+# `ln` hardlinks -- trap-cleaned by the sandbox's own EXIT trap. Byte counts
+# are synthetic and small (no real machine cache sizes), chosen distinct
+# enough to catch a total/reclaimable mixup.
+
+CENSUS_PLAIN="$SANDBOX/census-plain"
+mkdir -p "$CENSUS_PLAIN"
+head -c 111 /dev/zero > "$CENSUS_PLAIN/plain.bin"
+assert_eq "111 111" "$(rt_generic_size "$CENSUS_PLAIN")" \
+    "a plain unlinked file counts toward both total and reclaimable"
+
+CENSUS_SHARED="$SANDBOX/census-shared"
+mkdir -p "$CENSUS_SHARED"
+head -c 222 /dev/zero > "$CENSUS_SHARED/a.bin"
+ln "$CENSUS_SHARED/a.bin" "$CENSUS_SHARED/b.bin"
+assert_eq "222 222" "$(rt_generic_size "$CENSUS_SHARED")" \
+    "a file hardlinked twice inside the tree counts once toward total and is fully reclaimable"
+
+CENSUS_EXTERNAL="$SANDBOX/census-external"
+CENSUS_EXTERNAL_OUTSIDE="$SANDBOX/census-external-outside"
+mkdir -p "$CENSUS_EXTERNAL" "$CENSUS_EXTERNAL_OUTSIDE"
+head -c 333 /dev/zero > "$CENSUS_EXTERNAL/inside.bin"
+ln "$CENSUS_EXTERNAL/inside.bin" "$CENSUS_EXTERNAL_OUTSIDE/outside.bin"
+assert_eq "333 0" "$(rt_generic_size "$CENSUS_EXTERNAL")" \
+    "a file with an additional link outside the tree counts toward total but contributes zero to reclaimable"
+
+CENSUS_EMPTY="$SANDBOX/census-empty"
+mkdir -p "$CENSUS_EMPTY"
+assert_eq "0 0" "$(rt_generic_size "$CENSUS_EMPTY")" "an empty directory returns 0 0"
+assert_eq "0 0" "$(rt_generic_size "$SANDBOX/census-does-not-exist")" "a nonexistent path returns 0 0"
+
+echo "[process_runtime] prints both figures; footprint and reclaimable totals accumulate independently"
+all_present
+reset_logs
+FAILED=0
+TOTAL_BYTES=0
+RECLAIMABLE_BYTES=0
+MODE="report"
+PROCESS_RUNTIME_OUTPUT_FILE="$SANDBOX/process-runtime-output.log"
+
+# A fully-shared cache double: 500 bytes present, 0 reclaimable -- as if
+# every byte were hardlinked into something outside the cache dir (e.g. a
+# live venv). Proves the footprint total moves without the reclaimable
+# total moving.
+rt_size_all_shared() { printf '500 0\n'; }
+RT_SIZE["uv"]=rt_size_all_shared
+
+: > "$PROCESS_RUNTIME_OUTPUT_FILE"
+process_runtime uv >"$PROCESS_RUNTIME_OUTPUT_FILE" 2>&1 || true
+process_runtime_output="$(cat "$PROCESS_RUNTIME_OUTPUT_FILE")"
+assert_contains "$process_runtime_output" "500.0B total (500 bytes)" "process_runtime prints the total figure"
+assert_contains "$process_runtime_output" "0.0B reclaimable (0 bytes)" "process_runtime prints the reclaimable figure"
+assert_eq "500" "$TOTAL_BYTES" "a fully-shared runtime still advances the footprint total"
+assert_eq "0" "$RECLAIMABLE_BYTES" "a fully-shared runtime does not advance the reclaimable total"
+
+RT_SIZE["uv"]=rt_generic_size
+
+echo "[process_runtime] the unavailable path still bypasses both accumulators"
+all_present
+reset_logs
+FAILED=0
+TOTAL_BYTES=12345
+RECLAIMABLE_BYTES=6789
+MODE="report"
+rt_size_unavailable() { printf 'unavailable\n'; }
+RT_SIZE["uv"]=rt_size_unavailable
+process_runtime uv >/dev/null 2>&1 || true
+assert_eq "12345" "$TOTAL_BYTES" "an unavailable size probe leaves the footprint total untouched"
+assert_eq "6789" "$RECLAIMABLE_BYTES" "an unavailable size probe leaves the reclaimable total untouched"
+RT_SIZE["uv"]=rt_generic_size
+TOTAL_BYTES=0
+RECLAIMABLE_BYTES=0
+
 echo "[cargo] report-only, never mutates"
 all_present
 reset_logs
@@ -483,6 +556,7 @@ all_present
 reset_logs
 FAILED=0
 TOTAL_BYTES=0
+RECLAIMABLE_BYTES=0
 DOCKER_INFO_RESULT=0
 DOCKER_SYSTEM_DF_FIXTURE="$DOCKER_DF_FIXTURE"
 UV_PRUNE_RESULT=1
@@ -507,6 +581,7 @@ assert_eq "1" "$FAILED" "aggregate failure flag is set"
 reset_logs
 FAILED=0
 TOTAL_BYTES=0
+RECLAIMABLE_BYTES=0
 UV_PRUNE_RESULT=1
 DOCKER_INFO_RESULT=0
 DOCKER_SYSTEM_DF_FIXTURE="$DOCKER_DF_FIXTURE"
