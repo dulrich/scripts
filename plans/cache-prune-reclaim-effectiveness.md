@@ -2,7 +2,7 @@
 
 *Recommended model/effort — Claude implementation: Sonnet/high (registry restructuring + careful action-path changes in a script that deletes user data); Codex review: Terra/medium; plan audit: `gpt-5.6-sol`/medium*
 
-**Status: PROVISIONAL 2026-08-31 (rev 1) — awaiting audit**
+**Status: AUDITED 2026-09-01 (rev 2; cycle-1 codex-david/`gpt-5.6-sol`/medium, 1 blocking / 4 material / 1 execution-level, dispositioned)**
 
 ## Context
 
@@ -23,22 +23,42 @@ Root cause per runtime, measured (see "Measured premises"):
 
 ## Decisions locked
 
-1. **Docker: drop the default age filter.** The safe tier runs `docker builder prune --force` unfiltered. `--docker-until` remains available as an opt-in narrowing and keeps its parse-time validation (`6aa7edc`), but is no longer applied by default. No new destructive verb — docker's own guarantee (never removes an ACTIVE record) is what makes this safe, and `--all` is explicitly **not** adopted.
+1. **Docker: drop the default age filter.** The safe tier runs `docker builder prune --force` unfiltered. `--docker-until` remains available as an opt-in narrowing and keeps its parse-time validation (`6aa7edc`), but is no longer applied by default. No new destructive verb — docker's own guarantee (never removes an ACTIVE record) is what makes this safe, and `--all` is explicitly **not** adopted. Measured basis: premise (a), not the DAG argument alone.
 2. **uv and npm join the opt-in purge tier** alongside pip and bun: `uv cache clean` and `npm cache clean --force`, behind the same explicit `--include-purge` confirm the existing purge runtimes already require. Their safe verbs stay exactly as they are for the safe tier.
-3. **Stop predicting what can be measured.** Every action path measures the cache before and after and reports **bytes actually freed**. Prediction has now failed twice in this codebase (the age-sum, and this plan's parent). Actual-freed is ground truth and needs no premise.
+3. **Stop predicting what can be measured.** Every action path measures the cache before and after and reports the **observed footprint delta** — deliberately not called "bytes actually freed": premise (a) measured docker's own reported 59.16 GB against 58.60 GB of real disk, a ~1% gap, and a concurrent cache write can even make a delta negative. The value is an observation, labelled as one, never an exact attribution. Prediction has now failed twice in this codebase (the age-sum, and this plan's parent). Actual-freed is ground truth and needs no premise.
 4. **The estimate column is relabelled to what it measures**, and is stated per tier rather than as one conflated "reclaimable" figure — the safe verb and the purge verb free different amounts and must not share a number.
-5. **`--all` is out of scope** (user-declined). The remaining ~9 GB gap between docker's `Reclaimable` and `Total` is the least valuable slice and is not worth the added blast radius.
+5. **`--all` is out of scope** (user-declined). Rev 1 justified this by claiming the residual ~9 GB *is* the `--all` slice; premise (a) shows that is false — the residual is `Shared`, and `--all` concerns internal/frontend images, a different axis. `--all` stays out of scope on blast-radius grounds alone, with **no claim** about what it would free.
+
+6. **`RT_PRUNE` becomes safe-only, and pip/bun migrate into `RT_PURGE`.** Today `RT_PRUNE` holds uv/npm/docker safe verbs *and* pip/bun destructive purges (`util/cache-prune.sh:461-467`); safety is carried separately by `RT_CLASS`. Adding `RT_PURGE` for uv/npm alone would leave two competing representations of a purge and force runtime-specific branches in `process_runtime`. So pip and bun move out of `RT_PRUNE` entirely, ending with a `RT_PURGE` entry and **no** `RT_PRUNE` entry, and `RT_PRUNE` means "the safe verb" only after that migration.
+7. **Dual-verb mode matrix, pinned** (a runtime may now hold both a safe and a purge verb):
+
+| mode | safe-only (docker) | dual-verb (uv, npm) | purge-only (pip, bun) | report-only (cargo) |
+|---|---|---|---|---|
+| `--report` | no action | no action | no action | no action |
+| `--yes` | safe verb | **safe verb only** | nothing | no action |
+| `--yes --include-purge` | safe verb | **purge verb only, not both** | purge verb | no action |
+| interactive | confirm safe | confirm safe; then a **separate** purge confirm, offered only when `--include-purge` was passed | confirm purge | no action |
+
+The purge verb supersedes the safe verb for a dual-verb runtime rather than running after it — the safe verb's work is a strict subset, so running both wastes time and muddies the freed-bytes accounting.
 
 ## Measured premises
 
 Taken live 2026-08-31. Load-bearing; do not re-derive by reasoning.
 
-**(a) Docker's filter, not its safety tier, is what blocks reclaim.**
+**(a) MEASURED — the unfiltered prune frees the Private slice exactly, and `system df` is its exact predictor.** Full record: `plans/cache-prune-docker-prune-spike.md` (user-authorised, destructive, **unrepeatable**).
+
 ```
-TYPE          TOTAL   ACTIVE   SIZE      RECLAIMABLE
-Build Cache   1625    0        68.26GB   59.16GB
+before: Total 68.26GB  Private 59.16GB  Shared 9.099GB   system df RECLAIMABLE 59.16GB
+  $ docker builder prune --force          # unfiltered, no --all
+after:  Total 9.099GB  Private 0B        Shared 9.099GB   system df RECLAIMABLE 0B
+docker reported freed 59.16GB; disk avail rose 58.60GB
 ```
-`ACTIVE 0` — nothing is pinned by a running build. `docker builder prune --help` confirms `-a, --all` means only "Include internal/frontend images", **not** "remove otherwise-retained cache". So the unfiltered default prune is already the correct safe verb; it is the `until=` filter that yields `Total: 0B`.
+
+Three consequences, all replacing claims rev 1 asserted without measurement:
+
+- **`system df`'s Build Cache RECLAIMABLE predicted the outcome exactly** (59.16 GB → 59.16 GB freed). `buildx du`'s `Reclaimable:` overstated by 9.10 GB. The estimate for this verb must come from `system df`, and this is now measured rather than argued.
+- **The residual 9.099 GB is exactly `Shared`, and is NOT "the `--all` slice"** — rev 1 conflated two different dimensions of docker's accounting, which the audit caught. After the prune docker reports `Reclaimable: 0B`: it considers nothing further reclaimable. Whether `--all` touches any of that 9.099 GB is **unmeasured and unclaimed**.
+- **Reported freed (59.16 GB) ≠ disk freed (58.60 GB), a ~1% gap.** Docker's accounting is quantised — it renders rounded tokens like `68.26GB` even under `--format json` — and does not reconcile exactly with the filesystem.
 
 **(b) No prune verb offers a dry run.** Neither `uv cache prune` nor `docker builder prune` has `--dry-run`. There is therefore **no way to predict** what the safe verbs would free short of running them. This is the direct justification for decision 3: measure the delta, do not model it.
 
@@ -62,14 +82,14 @@ Today `RT_CLASS` is single-valued and each runtime has exactly one `RT_PRUNE` ve
 
 **WP-3 — measured actual-freed reporting; retire the conflated estimate.**
 *~0.25 kSLOC touched · ~130k tokens · ~10 min wall · mid (Claude Sonnet/high; Codex Terra/medium review-only) · Claude: subagent (60% saving, 72k vs 130k normalized)*
-Measure each cache immediately before and after its action and print bytes actually freed, with a grand total of real reclaim at the end. Replace the single "reclaimable" column with a per-tier estimate labelled for the verb it corresponds to (safe vs purge), so no number is ever reported against a verb that will not free it. Docker's before/after comes from its own accounting rather than a directory census. Files: `util/cache-prune.sh`, `util/tests/cache-prune.sh`, `AGENTS.md`.
+Measure each cache immediately before and after its action and print the observed footprint delta (labelled as such per decision 3, never as exact attributed bytes), with a grand total at the end. Define behaviour for a non-decrease and for a negative delta rather than assuming reclaim. Replace the single "reclaimable" column with a per-tier estimate labelled for the verb it corresponds to (safe vs purge), so no number is ever reported against a verb that will not free it. Docker's before/after comes from its own accounting rather than a directory census. Files: `util/cache-prune.sh`, `util/tests/cache-prune.sh`, `AGENTS.md`.
 
 ## Public Interfaces
 
 - **`--docker-until`** — unchanged spelling and validation; changed default (was `168h`, now unset/no filter). This is a **behaviour change to a destructive action's scope** and is the single highest-risk item in this plan; it must be called out in `-h` and `AGENTS.md`.
 - **`--include-purge`** — unchanged spelling and confirm semantics; now additionally covers uv and npm.
 - **Probe contract** — the `"<total> <reclaimable>"` seam from the predecessor plan (`234637d`) still holds. WP-3 changes what the second value *means* per tier, not the wire format.
-- **Registry** — new `RT_PURGE` associative array. `RT_PRUNE` keeps its current meaning (the safe verb).
+- **Registry** — new `RT_PURGE` associative array; `RT_PRUNE` is **narrowed** to safe-only, with pip/bun migrating out of it (decision 6). This is a change to `RT_PRUNE`'s current meaning, not a preservation of it.
 
 ## Execution
 
@@ -94,7 +114,13 @@ Hermetic coverage required:
 - **WP-2** — safe mode runs the safe verb and never the purge verb for uv/npm; `--include-purge` runs the purge verb; a declined confirm executes neither; pip/bun behaviour is byte-identical to today. The existing "byte-identical before/after under `--yes` without `--include-purge`" safety property for pip/bun is the load-bearing regression here.
 - **WP-3** — actual-freed is computed from real before/after values against a fixture whose size changes between the two probes; a runtime whose action frees nothing reports `0B freed` rather than the estimate; an `unavailable` probe never fabricates a delta.
 
-**Acceptance (user-run, not orchestrator-run).** The plan is verified only by a live run showing real reclaim — expected on the order of ~59 GB from docker on the safe tier alone, and ~6 GB more from uv+npm under `--include-purge`. Reported actual-freed must agree with the observed change in `docker system df` / directory size. Until that run happens, this plan is implemented but **not** validated, and the `FEEDBACK.md` item stays open.
+**Acceptance (user-run, not orchestrator-run).** Revised after premise (a): docker's cache is now 9.099 GB with `RECLAIMABLE 0B`, so **a live run cannot reclaim ~59 GB again** and must not be judged against that figure. Acceptance is instead:
+
+1. On a *freshly accumulated* docker build cache, a `--yes` run reclaims what `system df` reported as RECLAIMABLE, within the ~1% quantisation gap premise (a) measured.
+2. `--yes --include-purge` reclaims uv's and npm's cache-only bytes (~1.8 GB and ~4.1 GB at last census).
+3. Every reported delta is labelled an observation, and no runtime reports a figure against a verb that will not free it.
+
+Until such a run happens the plan is implemented but **not** validated, and the `FEEDBACK.md` item stays open — it is user-owned and closes on the user's judgement, not the orchestrator's.
 
 **Public/CC0:** fixtures stay synthetic; no personal paths, hostnames, or real machine byte counts in code or assertions.
 
@@ -111,10 +137,22 @@ Hermetic coverage required:
 - `ACTIVE 0` is a snapshot. A prune run concurrently with a live build will simply free less — safe, not dangerous.
 - uv/npm purge verbs force re-download on next use. That is the accepted cost of an opt-in tier the user must explicitly request.
 - Build cache is rebuildable by definition; the cost of pruning it is slower subsequent builds, never lost data.
-- Left for the audit: whether WP-3's actual-freed measurement should also cover the report-only path (measuring twice with no action between, to prove the measurement itself is stable), and whether docker's estimate should switch to `system df`'s RECLAIMABLE for *all* modes or only when unfiltered.
+- ~~Left for the audit~~ — both closed. Docker's estimate uses `system df`'s RECLAIMABLE, now measured as the exact predictor (premise (a)). The report-only stability check is folded into WP-3's coverage.
+- **Residual risk accepted at this exit** (the unaudited fold of cycle 1's revision): premise (a) is a single measurement on one host at one cache state. It establishes correspondence for `system df` RECLAIMABLE against the unfiltered verb; it does not prove that correspondence holds at every cache state, and in particular it says nothing about a cache with `ACTIVE > 0`.
 
 ## Audit record
 
-*(pending — cycle 1 dispatching to codex-david @ `gpt-5.6-sol`/medium)*
+**cycle 1 — codex-david, `gpt-5.6-sol`, medium.** Verdict: **1 blocking / 4 material / 1 execution-level / 0 minor**. Report: `runs/dispatch/cache-prune-reclaim-effectiveness-plan-audit-report.md`. Every finding was verified against source by the orchestrator before disposition.
+
+| # | class | finding | disposition |
+|---|---|---|---|
+| 1 | blocking | The 59 GB expectation, the `system df`→verb correspondence, and the "~9 GB is the `--all` slice" claim were all unmeasured; Shared and internal/frontend are different dimensions | **valid-actionable.** Verified: `68.26 − 59.16 = 9.10` is exactly `Shared`, so the `--all` attribution was false. Routed to a measurement spike per the empirical-premise rule rather than another prose cycle. Spike run under user authorisation; premise (a) rewritten from measurement, `--all` claim deleted. |
+| 2 | material | Dropping the default filter silently widens an existing `--yes` run's blast radius; `should_act` returns 0 for `yes:safe` with no prompt | **valid-trade-off, rejected by user.** Verified accurate against `util/cache-prune.sh:486-489`. User's call, quoted: *"'existing scripts' is completely hypothetical, the feature hasn't even left development testing yet"* — the tool shipped one day earlier and has a single user. Default stays unfiltered; no compensating confirm added. |
+| 3 | material | `RT_PRUNE` does not currently mean "the safe verb" — it holds pip/bun purges too, so an `RT_PURGE` added only for uv/npm leaves two competing representations | **valid-actionable.** Verified at `util/cache-prune.sh:461-467`. Decision 6 added: pip/bun migrate out of `RT_PRUNE` into `RT_PURGE`; `RT_PRUNE` becomes safe-only. Public Interfaces corrected — this is a change to its meaning, not a preservation. |
+| 4 | material | A before/after delta is an observed, quantised accounting delta, not "bytes actually freed"; docker parses rounded human tokens and concurrent writes can make it negative | **valid-actionable, and independently confirmed by the spike**: docker reported 59.16 GB freed against 58.60 GB of real disk, a 1.0% gap. Decision 3 and WP-3 relabelled to "observed footprint delta"; non-decrease and negative-delta behaviour now explicitly in scope. |
+| 5 | material | The dual-verb action matrix is undefined — whether `--yes --include-purge` runs safe-then-purge or purge-only, and how interactive exposes the new uv/npm purges | **valid-actionable.** Decision 7 added as an explicit mode × runtime-kind matrix. Pinned: purge **supersedes** safe for dual-verb runtimes rather than running after it, since the safe verb's work is a strict subset. |
+| 6 | execution-level | Post-action probe failure and failed-action-with-changed-probe are unpinned | **valid-defer-to-execution.** Carried into WP-3's execution brief as a required decision rather than left to worker discretion, per fleet convention. |
+
+**Convergence exit.** No cycle 2. The blocking finding invalidated a premise, but the revision **pinned measured values rather than restructuring** — WP boundaries, ordering, and sizing are unchanged, and no WP moved by >30%. Exit condition (a) is therefore not met, and the plan proceeds to approval carrying these dispositions and the residual-risk note in Assumptions.
 
 **Total ≈ 0.65 kSLOC, ~350k raw tokens; ~200k Claude-path (implementation) Opus-equivalent tokens; ~200k Codex-path (review-estimate) Sol-equivalent tokens.**
