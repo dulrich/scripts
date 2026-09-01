@@ -105,7 +105,12 @@ Modes:
 the opt-in purges already get their own confirm prompt.
 
 Options:
-  --docker-until <window>  age filter for docker builder prune (default: 168h)
+  --docker-until <window>  narrow the docker builder prune to records at
+                           least that old (default: no filter -- the safe
+                           prune targets the full build cache docker
+                           itself reports as reclaimable). This widens the
+                           tool's previous default scope and is its single
+                           highest-risk behaviour change.
   -h, --help               show this help and exit
 
 Notes:
@@ -212,7 +217,9 @@ rt_npm_prune() {
 
 ### docker ####################################################################
 
-DOCKER_UNTIL="168h"
+# Empty by default: the safe prune runs unfiltered. --docker-until (parsed
+# by set_docker_until) opts into an age window; see rt_docker_prune.
+DOCKER_UNTIL=""
 
 # Detection folds in the daemon preflight: a present CLI with a dead daemon
 # (or no permission to talk to it) must be a graceful skip, not an error, so
@@ -317,26 +324,31 @@ docker_system_df_bytes() {
 # can `du`). It no longer reads $DOCKER_UNTIL at all: the window is
 # validated at parse time by set_docker_until and drives only
 # rt_docker_prune's filter, never this report. Age cannot predict reclaim
-# here -- see the DAG note on docker_buildx_du_bytes.
+# here -- see the DAG note on rt_docker_prune.
 #
-# Source order: `docker buildx du`'s trailing labelled lines first (a far
-# more stable parse than any table walk), plain `docker system df`'s Build
-# Cache row second, "unavailable" if both fail -- never a partial pair.
-# The two sources measure different things and *will* disagree on the same
-# machine: buildx's Reclaimable counts records shared with other build
-# state, system df's excludes them. Both are legitimate upper bounds over
-# what a real prune returns (see plans/cache-reporting-fidelity.md); this
-# function deliberately does not try to reconcile them, it just picks per
-# the order above.
+# Source order: plain `docker system df`'s Build Cache row first, `docker
+# buildx du`'s trailing labelled lines second as a fallback, "unavailable"
+# if both fail -- never a partial pair. The order tracks correspondence
+# with the verb rt_docker_prune actually runs, not parse stability: measured
+# live against an unfiltered prune (premise (a),
+# plans/cache-prune-reclaim-effectiveness.md), system df's Build Cache
+# RECLAIMABLE predicted the freed bytes exactly, while buildx du's
+# Reclaimable overstated by the Shared slice it additionally counts. The
+# two sources still measure different things and *will* disagree on the
+# same machine: buildx's Reclaimable counts records shared with other
+# build state, system df's excludes them. Both are legitimate upper bounds
+# over what a real prune returns (see plans/cache-reporting-fidelity.md);
+# this function deliberately does not try to reconcile them, it just picks
+# per the order above.
 rt_docker_size() {
     local raw pair
 
-    if raw=$(docker buildx du 2>/dev/null) && pair=$(docker_buildx_du_bytes "$raw"); then
+    if raw=$(docker system df 2>/dev/null) && pair=$(docker_system_df_bytes "$raw"); then
         printf '%s\n' "$pair"
         return 0
     fi
 
-    if raw=$(docker system df 2>/dev/null) && pair=$(docker_system_df_bytes "$raw"); then
+    if raw=$(docker buildx du 2>/dev/null) && pair=$(docker_buildx_du_bytes "$raw"); then
         printf '%s\n' "$pair"
         return 0
     fi
@@ -345,9 +357,23 @@ rt_docker_size() {
 }
 
 # Never `docker image prune`, never `docker system prune` -- only the
-# build-cache prune, bounded by the same age window the report above used.
+# build-cache prune. Unfiltered by default: the `until=168h` age filter
+# this used to carry blocked most of what docker itself calls reclaimable,
+# because the build-cache DAG retains an old parent record whenever it has
+# a recent child, regardless of the parent's own age. Measured live
+# (premise (a), plans/cache-prune-reclaim-effectiveness.md): an unfiltered
+# prune freed the reported Private slice exactly and touched nothing
+# docker considers ACTIVE. That guarantee -- a prune never removes an
+# ACTIVE record -- is the safety basis for the unfiltered default, not the
+# age window. --docker-until still narrows the prune to records at least
+# that old when a caller explicitly opts in; DOCKER_UNTIL is empty by
+# default, so no --filter argument is passed at all, not an empty one.
 rt_docker_prune() {
-    docker builder prune --filter "until=${DOCKER_UNTIL}" --force
+    if [[ -n "$DOCKER_UNTIL" ]]; then
+        docker builder prune --filter "until=${DOCKER_UNTIL}" --force
+    else
+        docker builder prune --force
+    fi
 }
 
 ### pip (opt-in) ##############################################################
@@ -601,7 +627,7 @@ process_runtime() {
 main() {
     MODE="interactive"
     INCLUDE_PURGE=false
-    DOCKER_UNTIL="168h"
+    DOCKER_UNTIL=""
     FAILED=0
     TOTAL_BYTES=0
     RECLAIMABLE_BYTES=0

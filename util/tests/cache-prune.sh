@@ -387,7 +387,7 @@ DOCKER_INFO_RESULT=0
 DOCKER_BUILDX_DU_FIXTURE="$DOCKER_BUILDX_DU_FIXTURE_OK"
 MODE="report"
 INCLUDE_PURGE=false
-DOCKER_UNTIL="168h"
+DOCKER_UNTIL=""
 REPORT_OUTPUT_FILE="$SANDBOX/report-output.log"
 : > "$REPORT_OUTPUT_FILE"
 for rt in "${RUNTIME_ORDER[@]}"; do
@@ -399,7 +399,7 @@ assert_contains "$(all_log)" "npm config get cache" "npm cache location is resol
 assert_contains "$(all_log)" "pip cache dir" "pip cache location is resolved during report"
 assert_contains "$report_output" "reclaimable (" "size probe runs during report and prints both total and reclaimable figures"
 assert_contains "$(all_log)" "docker info" "docker preflight runs during report"
-assert_contains "$(all_log)" "docker buildx du" "docker size parse runs during report"
+assert_contains "$(all_log)" "docker system df" "docker size parse runs during report"
 
 echo "[--yes] safe prunes fire; opt-in purges do not, and are never prompted"
 all_present
@@ -409,7 +409,7 @@ DOCKER_INFO_RESULT=0
 DOCKER_BUILDX_DU_FIXTURE="$DOCKER_BUILDX_DU_FIXTURE_OK"
 MODE="yes"
 INCLUDE_PURGE=false
-DOCKER_UNTIL="168h"
+DOCKER_UNTIL=""
 for rt in "${RUNTIME_ORDER[@]}"; do
     process_runtime "$rt" >/dev/null 2>&1 || true
 done
@@ -429,7 +429,7 @@ DOCKER_INFO_RESULT=0
 DOCKER_BUILDX_DU_FIXTURE="$DOCKER_BUILDX_DU_FIXTURE_OK"
 MODE="yes"
 INCLUDE_PURGE=true
-DOCKER_UNTIL="168h"
+DOCKER_UNTIL=""
 for rt in "${RUNTIME_ORDER[@]}"; do
     process_runtime "$rt" >/dev/null 2>&1 || true
 done
@@ -468,6 +468,19 @@ MODE="interactive"
 process_runtime uv >/dev/null 2>&1 || true
 assert_contains "$MUTATE_LOG" "uv cache prune" "an accepted interactive confirm prunes uv"
 
+echo "[docker] the default safe prune is unfiltered -- no --filter argument at all"
+all_present
+reset_logs
+FAILED=0
+DOCKER_INFO_RESULT=0
+DOCKER_SYSTEM_DF_FIXTURE="$DOCKER_SYSTEM_DF_FIXTURE_OK"
+MODE="yes"
+DOCKER_UNTIL=""
+process_runtime docker >/dev/null 2>&1 || true
+assert_contains "$MUTATE_LOG" "docker builder prune" "the default safe prune still runs docker builder prune"
+assert_not_contains "$MUTATE_LOG" "--filter" "the default prune passes no --filter argument at all"
+assert_not_contains "$MUTATE_LOG" "until=" "the default prune carries no until= age window"
+
 echo "[docker] --docker-until is honoured by the prune filter"
 all_present
 reset_logs
@@ -479,7 +492,7 @@ DOCKER_UNTIL="24h"
 process_runtime docker >/dev/null 2>&1 || true
 assert_contains "$MUTATE_LOG" "until=24h" "docker prune filter reflects --docker-until"
 
-DOCKER_UNTIL="168h"
+DOCKER_UNTIL=""
 
 echo "[docker parse] docker_window_seconds still validates the --docker-until format"
 window_seconds="$(docker_window_seconds "168h")"
@@ -493,37 +506,39 @@ assert_eq "2500000" "$(docker_size_to_bytes "2.5MB")" "MB converts and honours a
 assert_eq "4000000000" "$(docker_size_to_bytes "4GB")" "GB converts at 1000^3"
 assert_eq "3000000000000" "$(docker_size_to_bytes "3TB")" "TB converts at 1000^4"
 
-echo "[docker parse] buildx primary: trailing labelled lines parse correctly"
+echo "[docker parse] buildx du: trailing labelled lines parse correctly"
 pair="$(docker_buildx_du_bytes "$DOCKER_BUILDX_DU_FIXTURE_OK")"
 assert_eq "$DOCKER_BUILDX_DU_EXPECTED_BYTES" "$pair" "Total:/Reclaimable: labels parse despite a preceding '*' shared-marker row"
 
-all_present
-reset_logs
-FAILED=0
-DOCKER_INFO_RESULT=0
-DOCKER_BUILDX_DU_FIXTURE="$DOCKER_BUILDX_DU_FIXTURE_OK"
-size_out="$(rt_docker_size "")"
-assert_eq "$DOCKER_BUILDX_DU_EXPECTED_BYTES" "$size_out" "rt_docker_size reports the buildx pair end to end"
-assert_contains "$(all_log)" "docker buildx du" "buildx is the source actually queried when it succeeds"
-assert_not_contains "$(all_log)" "docker system df" "system df is never queried when buildx already succeeded"
-
-echo "[docker parse] fallback: buildx failing falls through to system df's Build Cache row"
+echo "[docker parse] system df: SIZE/RECLAIMABLE parses from the Build Cache row"
 pair="$(docker_system_df_bytes "$DOCKER_SYSTEM_DF_FIXTURE_OK")"
 assert_eq "$DOCKER_SYSTEM_DF_EXPECTED_BYTES" "$pair" "SIZE/RECLAIMABLE parse correctly from the two-word Build Cache row, percentage stripped"
 
+echo "[docker] rt_docker_size: system df is the primary source and is used when it succeeds"
 all_present
 reset_logs
 FAILED=0
 DOCKER_INFO_RESULT=0
-DOCKER_BUILDX_DU_RESULT=1
-DOCKER_BUILDX_DU_FIXTURE=""
 DOCKER_SYSTEM_DF_FIXTURE="$DOCKER_SYSTEM_DF_FIXTURE_OK"
 size_out="$(rt_docker_size "")"
-assert_eq "$DOCKER_SYSTEM_DF_EXPECTED_BYTES" "$size_out" "rt_docker_size falls back to system df end to end when buildx fails"
-assert_contains "$(all_log)" "docker buildx du" "buildx is attempted first even though it fails"
-assert_contains "$(all_log)" "docker system df" "the fallback is reached after buildx fails"
-DOCKER_BUILDX_DU_RESULT=0
+assert_eq "$DOCKER_SYSTEM_DF_EXPECTED_BYTES" "$size_out" "rt_docker_size reports the system df pair end to end"
+assert_contains "$(all_log)" "docker system df" "system df is the source actually queried when it succeeds"
+assert_not_contains "$(all_log)" "docker buildx du" "buildx du is never queried when system df already succeeded"
+
+echo "[docker] rt_docker_size: system df failing falls back to buildx du"
+all_present
+reset_logs
+FAILED=0
+DOCKER_INFO_RESULT=0
+DOCKER_SYSTEM_DF_RESULT=1
+DOCKER_SYSTEM_DF_FIXTURE=""
 DOCKER_BUILDX_DU_FIXTURE="$DOCKER_BUILDX_DU_FIXTURE_OK"
+size_out="$(rt_docker_size "")"
+assert_eq "$DOCKER_BUILDX_DU_EXPECTED_BYTES" "$size_out" "rt_docker_size falls back to buildx du end to end when system df fails"
+assert_contains "$(all_log)" "docker system df" "system df is attempted first even though it fails"
+assert_contains "$(all_log)" "docker buildx du" "the fallback is reached after system df fails"
+DOCKER_SYSTEM_DF_RESULT=0
+DOCKER_SYSTEM_DF_FIXTURE="$DOCKER_SYSTEM_DF_FIXTURE_OK"
 
 echo "[docker parse] both sources fail -> unavailable, action skipped for safety"
 all_present
@@ -667,7 +682,7 @@ DOCKER_BUILDX_DU_FIXTURE="$DOCKER_BUILDX_DU_FIXTURE_OK"
 UV_PRUNE_RESULT=1
 MODE="yes"
 INCLUDE_PURGE=false
-DOCKER_UNTIL="168h"
+DOCKER_UNTIL=""
 # stderr goes to a file, not a command substitution, so that FAILED/
 # MUTATE_LOG mutations made by process_runtime in this same shell are not
 # lost to a subshell the way an outer $( ... ) around the loop would lose
