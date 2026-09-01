@@ -1,0 +1,589 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# cache-prune.sh: report and (optionally) prune rebuildable language-runtime
+# caches for the *invoking user*. Every cache here (uv, npm, pip, bun, cargo)
+# lives under the calling account, and docker's build cache is reachable only
+# through the daemon the calling account can talk to -- running this as root
+# would report and prune root's own (almost always empty) caches while
+# silently leaving the real ones untouched. Hence require_not_root below,
+# the mirror of debian-maintenance.sh's require_root.
+#
+# Runtimes are described by a small registry (name -> detect / cache-dir /
+# size-probe / prune functions, plus a safety class). Adding an ecosystem is
+# adding a registry entry, not editing the dispatch logic in process_runtime.
+#
+# CC0: This work has been marked as dedicated to the public domain.
+# https://creativecommons.org/publicdomain/zero/1.0/
+
+FAILED=0
+TOTAL_BYTES=0
+
+section() {
+    printf '\n==== %s ====\n' "$1"
+}
+
+die() {
+    printf 'ERROR: %s\n' "$*" >&2
+    return 1
+}
+
+warn() {
+    printf 'WARNING: %s\n' "$*" >&2
+}
+
+confirm() {
+    local prompt="${1:-Continue?}"
+    local reply
+
+    read -r -p "$prompt [y/N] " reply
+    case "$reply" in
+        y|Y|yes|YES) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+# require_not_root: the load-bearing guard of this whole script. Takes the
+# EUID to check as an optional argument (real bash EUID is read-only, so
+# tests parameterize this instead of trying to fake the shell variable).
+# shellcheck disable=SC2120  # main() intentionally calls this with no args
+require_not_root() {
+    local euid="${1:-$EUID}"
+
+    if ((euid == 0)); then
+        die "Refusing to run as root: uv/npm/pip/bun/cargo caches live under" \
+            "the invoking user's account, not root's -- running this as root" \
+            "would report and prune root's own empty caches. Re-run as your" \
+            "normal user."
+    fi
+}
+
+require_tty() {
+    if [[ ! -t 0 || ! -t 1 ]]; then
+        die "An interactive terminal is required for this mode. Use --report" \
+            "or --yes for non-interactive use."
+    fi
+}
+
+usage() {
+    cat <<'EOF'
+usage: cache-prune [--report | --yes [--include-purge]]
+                    [--docker-until <window>] [-h|--help]
+
+Reports (and, outside --report, optionally prunes) rebuildable
+language-runtime caches for the invoking user. Refuses to run as root.
+
+Modes:
+  (default)              interactive; per-runtime confirm (default: No)
+  --report               report cache sizes only; never prompts, never mutates
+  --yes                  auto-confirm safe prunes (uv, npm, docker); the
+                         opt-in purges (pip, bun) are skipped entirely and
+                         never prompted
+  --yes --include-purge  also auto-confirm the opt-in purges (pip, bun)
+
+--include-purge only changes behaviour together with --yes: interactively
+the opt-in purges already get their own confirm prompt.
+
+Options:
+  --docker-until <window>  age filter for docker builder prune (default: 168h)
+  -h, --help               show this help and exit
+
+Honoured environment:
+  BUN_INSTALL   overrides bun's install prefix (cache under install/cache)
+  CARGO_HOME    overrides cargo's home (registry cache is reported, never
+                pruned -- there is no safe cargo prune verb yet)
+EOF
+}
+
+# human_bytes: render a byte count as a short human-readable size.
+human_bytes() {
+    local bytes="$1"
+
+    awk -v n="$bytes" 'BEGIN {
+        split("B KB MB GB TB PB", units, " ")
+        i = 1
+        while (n >= 1024 && i < 6) {
+            n /= 1024
+            i++
+        }
+        printf "%.1f%s", n, units[i]
+    }'
+}
+
+# generic size probe shared by every directory-backed runtime. A missing or
+# unreadable cache directory reports 0, never an error.
+rt_generic_size() {
+    local dir="$1"
+    local raw
+
+    if [[ -z "$dir" || ! -d "$dir" ]]; then
+        printf '0\n'
+        return 0
+    fi
+
+    if ! raw=$(du -sb "$dir" 2>/dev/null); then
+        printf '0\n'
+        return 0
+    fi
+
+    awk '{print $1}' <<< "$raw"
+}
+
+### uv ########################################################################
+
+rt_uv_detect() {
+    command -v uv >/dev/null 2>&1
+}
+
+rt_uv_cache_dir() {
+    local dir
+
+    dir=$(uv cache dir) || return 1
+    [[ "$dir" == /* ]] || return 2
+    printf '%s\n' "$dir"
+}
+
+rt_uv_prune() {
+    uv cache prune
+}
+
+### npm #######################################################################
+
+rt_npm_detect() {
+    command -v npm >/dev/null 2>&1
+}
+
+# npm here is nvm-managed: its cache location is PATH-dependent, so it is
+# always asked for, never hardcoded. `npm config get cache` can print
+# "undefined" on some configurations -- treat any non-absolute-path result
+# as unresolvable and skip that runtime (exit 2), rather than treating it as
+# a hard failure (exit 1, reserved for the command itself erroring out).
+rt_npm_cache_dir() {
+    local dir
+
+    dir=$(npm config get cache) || return 1
+    [[ "$dir" == /* ]] || return 2
+    printf '%s\n' "$dir"
+}
+
+rt_npm_prune() {
+    npm cache verify
+}
+
+### docker ####################################################################
+
+DOCKER_UNTIL="168h"
+
+# Detection folds in the daemon preflight: a present CLI with a dead daemon
+# (or no permission to talk to it) must be a graceful skip, not an error, so
+# `docker info` succeeding is part of the detect predicate itself.
+rt_docker_detect() {
+    command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1
+}
+
+# docker_window_seconds: parse a duration like "168h" into seconds. Supports
+# s/m/h/d/w suffixes. Returns nonzero on anything it doesn't recognise.
+docker_window_seconds() {
+    local window="$1"
+
+    if [[ ! "$window" =~ ^([0-9]+)(s|m|h|d|w)$ ]]; then
+        return 1
+    fi
+
+    local num="${BASH_REMATCH[1]}"
+    local unit="${BASH_REMATCH[2]}"
+
+    case "$unit" in
+        s) printf '%d\n' "$num" ;;
+        m) printf '%d\n' $((num * 60)) ;;
+        h) printf '%d\n' $((num * 3600)) ;;
+        d) printf '%d\n' $((num * 86400)) ;;
+        w) printf '%d\n' $((num * 604800)) ;;
+    esac
+}
+
+# docker_build_cache_bytes: sum the SIZE column of `docker system df -v`'s
+# build-cache table over rows whose LAST USED age is >= window_seconds.
+#
+# Deliberately NOT `docker system df` (unverbose): its build-cache RECLAIMABLE
+# figure is unfiltered and does not correspond to the `until=<window>` prune
+# we actually run. Deliberately NOT the image table -- images are entirely
+# out of scope and must never be pruned by this script.
+#
+# Sizes carry B/kB/MB/GB/TB suffixes (decimal, matching docker's own
+# human-size rendering) and are normalized to bytes. Ages read as
+# "N minutes|hours|days|weeks ago". If the CACHE ID header is never found,
+# the table could not be located at all -- exit nonzero so the caller reports
+# "unavailable" rather than guessing a number. A header found with zero
+# qualifying rows is a legitimate zero, not an error.
+docker_build_cache_bytes() {
+    local raw="$1"
+    local window_seconds="$2"
+
+    awk -v window="$window_seconds" '
+        function unit_multiplier(u) {
+            if (u == "kB") return 1000
+            if (u == "MB") return 1000 * 1000
+            if (u == "GB") return 1000 * 1000 * 1000
+            if (u == "TB") return 1000 * 1000 * 1000 * 1000
+            return 1
+        }
+        function age_seconds(n, unit) {
+            if (unit ~ /^minute/) return n * 60
+            if (unit ~ /^hour/) return n * 3600
+            if (unit ~ /^day/) return n * 86400
+            if (unit ~ /^week/) return n * 604800
+            return -1
+        }
+        BEGIN { header_seen = 0; in_table = 0; total = 0 }
+        /^CACHE ID[ \t]/ { header_seen = 1; in_table = 1; next }
+        in_table && NF == 0 { in_table = 0 }
+        in_table && NF >= 9 {
+            size_field = $3
+            num = size_field
+            gsub(/[A-Za-z]+$/, "", num)
+            unit = size_field
+            gsub(/^[0-9.]+/, "", unit)
+
+            secs = age_seconds($7, $8)
+            if (secs >= 0 && secs >= window) {
+                total += num * unit_multiplier(unit)
+            }
+        }
+        END {
+            if (!header_seen) exit 1
+            printf "%d\n", total
+        }
+    ' <<< "$raw"
+}
+
+# rt_docker_size ignores its positional argument (docker has no cache-dir
+# resolver: its build cache is daemon-owned, not a directory this account
+# can `du`). It reads $DOCKER_UNTIL directly, matching the sibling script's
+# style of reading module-level config globals rather than threading them
+# through every call.
+rt_docker_size() {
+    local raw window_seconds bytes
+
+    if ! raw=$(docker system df -v 2>/dev/null); then
+        printf 'unavailable\n'
+        return 0
+    fi
+
+    if ! window_seconds=$(docker_window_seconds "$DOCKER_UNTIL"); then
+        printf 'unavailable\n'
+        return 0
+    fi
+
+    if ! bytes=$(docker_build_cache_bytes "$raw" "$window_seconds"); then
+        printf 'unavailable\n'
+        return 0
+    fi
+
+    printf '%s\n' "$bytes"
+}
+
+# Never `docker image prune`, never `docker system prune` -- only the
+# build-cache prune, bounded by the same age window the report above used.
+rt_docker_prune() {
+    docker builder prune --filter "until=${DOCKER_UNTIL}" --force
+}
+
+### pip (opt-in) ##############################################################
+
+rt_pip_detect() {
+    command -v pip >/dev/null 2>&1
+}
+
+rt_pip_cache_dir() {
+    local dir
+
+    dir=$(pip cache dir) || return 1
+    [[ "$dir" == /* ]] || return 2
+    printf '%s\n' "$dir"
+}
+
+rt_pip_prune() {
+    pip cache purge
+}
+
+### bun (opt-in) ##############################################################
+
+rt_bun_detect() {
+    command -v bun >/dev/null 2>&1
+}
+
+rt_bun_cache_dir() {
+    printf '%s\n' "${BUN_INSTALL:-$HOME/.bun}/install/cache"
+}
+
+# `bun pm cache rm` fails outside a package directory (measured: "No
+# package.json was found for directory ..."), so it is run from a scratch
+# directory holding a minimal package.json. If it still fails, warn and skip
+# -- never fall back to deleting the cache path ourselves.
+rt_bun_prune() {
+    local scratch
+    local status
+    local oldpwd="$PWD"
+
+    scratch=$(mktemp -d) || return 1
+    printf '{}\n' > "$scratch/package.json"
+
+    if ! cd "$scratch"; then
+        rm -rf "$scratch"
+        return 1
+    fi
+
+    status=0
+    bun pm cache rm || status=$?
+
+    cd "$oldpwd" || true
+    rm -rf "$scratch"
+    return "$status"
+}
+
+### cargo (report-only) #######################################################
+
+rt_cargo_detect() {
+    command -v cargo >/dev/null 2>&1
+}
+
+rt_cargo_cache_dir() {
+    printf '%s\n' "${CARGO_HOME:-$HOME/.cargo}/registry"
+}
+
+### registry ##################################################################
+
+RUNTIME_ORDER=(uv npm docker pip bun cargo)
+
+declare -A RT_CLASS=(
+    [uv]=safe
+    [npm]=safe
+    [docker]=safe
+    [pip]=optin
+    [bun]=optin
+    [cargo]=report
+)
+
+declare -A RT_DETECT=(
+    [uv]=rt_uv_detect
+    [npm]=rt_npm_detect
+    [docker]=rt_docker_detect
+    [pip]=rt_pip_detect
+    [bun]=rt_bun_detect
+    [cargo]=rt_cargo_detect
+)
+
+# docker intentionally has no entry here: its cache is daemon-owned, not a
+# directory this account can resolve or `du`.
+declare -A RT_CACHE_DIR=(
+    [uv]=rt_uv_cache_dir
+    [npm]=rt_npm_cache_dir
+    [pip]=rt_pip_cache_dir
+    [bun]=rt_bun_cache_dir
+    [cargo]=rt_cargo_cache_dir
+)
+
+declare -A RT_SIZE=(
+    [uv]=rt_generic_size
+    [npm]=rt_generic_size
+    [docker]=rt_docker_size
+    [pip]=rt_generic_size
+    [bun]=rt_generic_size
+    [cargo]=rt_generic_size
+)
+
+# cargo intentionally has no entry here: report-only, no safe prune verb
+# exists yet (cargo-cache is not installed). A future `command -v
+# cargo-cache` check could add an entry (and flip cargo's class to safe)
+# without restructuring anything else.
+declare -A RT_PRUNE=(
+    [uv]=rt_uv_prune
+    [npm]=rt_npm_prune
+    [docker]=rt_docker_prune
+    [pip]=rt_pip_prune
+    [bun]=rt_bun_prune
+)
+
+### mode matrix ###############################################################
+
+MODE="interactive"
+INCLUDE_PURGE=false
+
+# should_act: decide, for one runtime's safety class, whether to act this
+# run. This is the executable form of the mode matrix:
+#
+#   --report              -> never (report mode never mutates)
+#   --yes, safe            -> always
+#   --yes, optin            -> only with --include-purge (no prompt either way)
+#   --yes --include-purge, optin -> always
+#   interactive, safe/optin -> per-runtime confirm, default No
+should_act() {
+    local class="$1"
+    local name="$2"
+
+    case "$MODE:$class" in
+        yes:safe)
+            return 0
+            ;;
+        yes:optin)
+            [[ "$INCLUDE_PURGE" == true ]]
+            ;;
+        interactive:safe)
+            confirm "Prune $name cache?"
+            ;;
+        interactive:optin)
+            confirm "Purge $name cache? (opt-in, destructive)"
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+process_runtime() {
+    local name="$1"
+    local class="${RT_CLASS[$name]}"
+    local detect_fn="${RT_DETECT[$name]}"
+    local dir_fn="${RT_CACHE_DIR[$name]:-}"
+    local size_fn="${RT_SIZE[$name]}"
+    local prune_fn="${RT_PRUNE[$name]:-}"
+    local cache_dir=""
+    local size_out status
+
+    section "$name"
+
+    if ! "$detect_fn"; then
+        printf 'skip: %s not detected\n' "$name"
+        return 0
+    fi
+
+    if [[ -n "$dir_fn" ]]; then
+        # `$?` inside a negated `if !`/`&&`/`||` reflects the status of that
+        # logical operator, not of the command it wraps -- so the resolver's
+        # real exit code (needed here to distinguish a hard failure, 1, from
+        # an unresolvable-result skip, 2) must be captured via `|| status=$?`
+        # instead, with `status` reset to 0 first.
+        status=0
+        cache_dir=$("$dir_fn") || status=$?
+        if ((status == 2)); then
+            printf 'skip: %s cache location unresolved\n' "$name"
+            return 0
+        elif ((status != 0)); then
+            warn "$name: failed to resolve cache location"
+            FAILED=1
+            return 1
+        fi
+    fi
+
+    if ! size_out=$("$size_fn" "$cache_dir"); then
+        warn "$name: failed to determine cache size"
+        FAILED=1
+        return 1
+    fi
+
+    if [[ "$size_out" == unavailable ]]; then
+        printf '%s cache size: unavailable\n' "$name"
+    else
+        printf '%s cache size: %s (%d bytes)\n' "$name" "$(human_bytes "$size_out")" "$size_out"
+        TOTAL_BYTES=$((TOTAL_BYTES + size_out))
+    fi
+
+    if [[ "$class" == report ]]; then
+        printf 'note: no safe %s prune verb is available yet; report-only.\n' "$name"
+        return 0
+    fi
+
+    if [[ "$size_out" == unavailable ]]; then
+        printf 'skip: %s size unavailable, skipping action for safety.\n' "$name"
+        return 0
+    fi
+
+    if [[ "$MODE" == report ]]; then
+        return 0
+    fi
+
+    if should_act "$class" "$name"; then
+        if ! "$prune_fn"; then
+            warn "$name: prune failed"
+            FAILED=1
+            return 1
+        fi
+        printf '%s: prune complete.\n' "$name"
+    else
+        printf '%s: skipped.\n' "$name"
+    fi
+}
+
+main() {
+    MODE="interactive"
+    INCLUDE_PURGE=false
+    DOCKER_UNTIL="168h"
+    FAILED=0
+    TOTAL_BYTES=0
+
+    while (($#)); do
+        case "$1" in
+            --report)
+                MODE="report"
+                shift
+                ;;
+            --yes)
+                MODE="yes"
+                shift
+                ;;
+            --include-purge)
+                INCLUDE_PURGE=true
+                shift
+                ;;
+            --docker-until)
+                if (($# < 2)); then
+                    die "usage: $0 [--report|--yes] [--include-purge] [--docker-until <window>] [-h|--help]"
+                    return 2
+                fi
+                DOCKER_UNTIL="$2"
+                shift 2
+                ;;
+            --docker-until=*)
+                DOCKER_UNTIL="${1#*=}"
+                shift
+                ;;
+            -h|--help)
+                usage
+                return 0
+                ;;
+            *)
+                die "usage: $0 [--report|--yes] [--include-purge] [--docker-until <window>] [-h|--help]"
+                return 2
+                ;;
+        esac
+    done
+
+    # shellcheck disable=SC2119  # no args: checks the real $EUID, by design
+    require_not_root
+
+    # --report must work non-TTY (cron/monitoring-safe); --yes without any
+    # purge prompt likewise needs no TTY. Only the interactive mode can
+    # prompt, so only it requires one -- calling require_tty unconditionally
+    # here would break the --report invariant.
+    if [[ "$MODE" == interactive ]]; then
+        require_tty
+    fi
+
+    local name
+    for name in "${RUNTIME_ORDER[@]}"; do
+        process_runtime "$name" || true
+    done
+
+    section "Total"
+    printf 'Total cache footprint seen: %s (%d bytes)\n' "$(human_bytes "$TOTAL_BYTES")" "$TOTAL_BYTES"
+
+    if ((FAILED != 0)); then
+        return 1
+    fi
+    return 0
+}
+
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+    main "$@"
+fi
