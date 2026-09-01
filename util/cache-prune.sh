@@ -96,13 +96,23 @@ language-runtime caches for the invoking user. Refuses to run as root.
 Modes:
   (default)              interactive; per-runtime confirm (default: No)
   --report               report cache sizes only; never prompts, never mutates
-  --yes                  auto-confirm safe prunes (uv, npm, docker); the
-                         opt-in purges (pip, bun) are skipped entirely and
-                         never prompted
-  --yes --include-purge  also auto-confirm the opt-in purges (pip, bun)
+  --yes                  auto-confirm the safe verb for uv, npm, docker;
+                         pip and bun have no safe verb and are skipped
+                         entirely, never prompted
+  --yes --include-purge  purges pip and bun (their only verb); for uv and
+                         npm this instead runs their purge verb in place
+                         of their safe verb, not in addition to it
 
---include-purge only changes behaviour together with --yes: interactively
-the opt-in purges already get their own confirm prompt.
+uv and npm each carry two verbs: a conservative safe verb (uv cache prune,
+npm cache verify) that frees little by design, and a destructive purge
+verb (uv cache clean, npm cache clean --force) that clears the whole
+cache and forces a re-download on next use -- the cache-only bytes this
+tool reports as reclaimable are mostly only reachable via the purge verb.
+pip and bun have only the destructive purge verb. Interactively, each
+destructive purge gets its own separate confirm: pip/bun are offered
+theirs unconditionally (it is their only verb), uv/npm are offered theirs
+only when --include-purge was also passed -- without it, plain interactive
+use never risks their caches.
 
 Options:
   --docker-until <window>  narrow the docker builder prune to records at
@@ -192,6 +202,14 @@ rt_uv_prune() {
     uv cache prune
 }
 
+# rt_uv_purge: the destructive purge verb (RT_PURGE). Clears the whole
+# cache and forces a re-download on next use -- see rt_uv_prune's near-no-op
+# behaviour (premise (c), plans/cache-prune-reclaim-effectiveness.md) for
+# why this is the verb that actually reaches the reported reclaimable bytes.
+rt_uv_purge() {
+    uv cache clean
+}
+
 ### npm #######################################################################
 
 rt_npm_detect() {
@@ -213,6 +231,14 @@ rt_npm_cache_dir() {
 
 rt_npm_prune() {
     npm cache verify
+}
+
+# rt_npm_purge: the destructive purge verb (RT_PURGE). Clears the whole
+# cache and forces a re-download on next use -- see rt_npm_prune's near-no-op
+# behaviour (premise (c), plans/cache-prune-reclaim-effectiveness.md) for
+# why this is the verb that actually reaches the reported reclaimable bytes.
+rt_npm_purge() {
+    npm cache clean --force
 }
 
 ### docker ####################################################################
@@ -390,7 +416,7 @@ rt_pip_cache_dir() {
     printf '%s\n' "$dir"
 }
 
-rt_pip_prune() {
+rt_pip_purge() {
     pip cache purge
 }
 
@@ -408,7 +434,7 @@ rt_bun_cache_dir() {
 # package.json was found for directory ..."), so it is run from a scratch
 # directory holding a minimal package.json. If it still fails, warn and skip
 # -- never fall back to deleting the cache path ourselves.
-rt_bun_prune() {
+rt_bun_purge() {
     local scratch
     local status
     local oldpwd="$PWD"
@@ -443,6 +469,12 @@ rt_cargo_cache_dir() {
 
 RUNTIME_ORDER=(uv npm docker pip bun cargo)
 
+# RT_CLASS describes how a runtime participates in the *safe* tier only
+# (RT_PRUNE below) -- it says nothing about purge-tier (RT_PURGE) membership,
+# which a safe runtime may or may not also have (uv/npm carry both):
+#   safe   -- has a safe verb that runs unprompted under --yes
+#   optin  -- has no safe verb; reachable only through the purge tier
+#   report -- has no verbs at all
 declare -A RT_CLASS=(
     [uv]=safe
     [npm]=safe
@@ -480,16 +512,28 @@ declare -A RT_SIZE=(
     [cargo]=rt_generic_size
 )
 
-# cargo intentionally has no entry here: report-only, no safe prune verb
-# exists yet (cargo-cache is not installed). A future `command -v
+# RT_PRUNE holds *only* safe verbs now -- pip and bun's destructive purges
+# migrated to RT_PURGE below, ending the old conflation where this array
+# held both. cargo intentionally has no entry here: report-only, no safe
+# prune verb exists yet (cargo-cache is not installed). A future `command -v
 # cargo-cache` check could add an entry (and flip cargo's class to safe)
 # without restructuring anything else.
 declare -A RT_PRUNE=(
     [uv]=rt_uv_prune
     [npm]=rt_npm_prune
     [docker]=rt_docker_prune
-    [pip]=rt_pip_prune
-    [bun]=rt_bun_prune
+)
+
+# RT_PURGE holds destructive purge verbs. uv and npm carry both a safe verb
+# above and a purge verb here; pip and bun have no safe verb and live only
+# here; docker and cargo have no entry -- docker has no destructive verb at
+# all (its safe prune is the only action), and cargo has neither verb (see
+# RT_CLASS above).
+declare -A RT_PURGE=(
+    [uv]=rt_uv_purge
+    [npm]=rt_npm_purge
+    [pip]=rt_pip_purge
+    [bun]=rt_bun_purge
 )
 
 ### mode matrix ###############################################################
@@ -497,35 +541,87 @@ declare -A RT_PRUNE=(
 MODE="interactive"
 INCLUDE_PURGE=false
 
-# should_act: decide, for one runtime's safety class, whether to act this
-# run. This is the executable form of the mode matrix:
+# safe_elected / purge_elected: decide, per runtime, whether this run acts
+# through the safe verb (RT_PRUNE) and/or the purge verb (RT_PURGE). Split
+# in two -- rather than one should_act -- because a runtime may now carry
+# both verbs (uv, npm) and the two elections are independently gated: see
+# process_runtime's action block for how the two combine per mode.
 #
-#   --report              -> never (report mode never mutates)
-#   --yes, safe            -> always
-#   --yes, optin            -> only with --include-purge (no prompt either way)
-#   --yes --include-purge, optin -> always
-#   interactive, safe/optin -> per-runtime confirm, default No
-should_act() {
-    local class="$1"
-    local name="$2"
+# Each returns false outright when the runtime has no entry in its own
+# registry array, regardless of mode -- a runtime with no RT_PRUNE entry
+# (pip, bun) can never be safe_elected, and one with no RT_PURGE entry
+# (docker, cargo) can never be purge_elected.
+#
+#   safe_elected:  --report -> never; --yes -> always; interactive ->
+#                  confirm "Prune $name cache?"
+#   purge_elected: --report -> never; --yes -> only with --include-purge;
+#                  interactive, class optin (pip/bun, purge-only) ->
+#                  confirm unconditionally, same as today -- suppressing
+#                  this would make interactive mode silently do nothing for
+#                  them, since the purge verb is their *only* verb;
+#                  interactive, class safe (uv/npm, dual-verb) -> confirm
+#                  only when --include-purge was also passed -- otherwise a
+#                  plain interactive run would start prompting to blow away
+#                  caches nobody asked to touch. This asymmetry is
+#                  deliberate; do not unify the two interactive branches.
+safe_elected() {
+    local name="$1"
 
-    case "$MODE:$class" in
-        yes:safe)
+    [[ -n "${RT_PRUNE[$name]:-}" ]] || return 1
+
+    case "$MODE" in
+        yes)
             return 0
             ;;
-        yes:optin)
-            [[ "$INCLUDE_PURGE" == true ]]
-            ;;
-        interactive:safe)
+        interactive)
             confirm "Prune $name cache?"
-            ;;
-        interactive:optin)
-            confirm "Purge $name cache? (opt-in, destructive)"
             ;;
         *)
             return 1
             ;;
     esac
+}
+
+purge_elected() {
+    local name="$1"
+    local class="${RT_CLASS[$name]}"
+
+    [[ -n "${RT_PURGE[$name]:-}" ]] || return 1
+
+    case "$MODE" in
+        yes)
+            [[ "$INCLUDE_PURGE" == true ]]
+            ;;
+        interactive)
+            case "$class" in
+                safe)
+                    [[ "$INCLUDE_PURGE" == true ]] && confirm "Purge $name cache? (opt-in, destructive)"
+                    ;;
+                *)
+                    confirm "Purge $name cache? (opt-in, destructive)"
+                    ;;
+            esac
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+# run_verb: execute one verb function (either tier), with the shared
+# failure/success reporting both share. Wording says "prune" even for a
+# purge -- imprecise, left as-is: pip/bun must stay byte-identical to
+# 4b9652d, and WP-3 owns the reporting rewrite.
+run_verb() {
+    local name="$1"
+    local verb_fn="$2"
+
+    if ! "$verb_fn"; then
+        warn "$name: prune failed"
+        FAILED=1
+        return 1
+    fi
+    printf '%s: prune complete.\n' "$name"
 }
 
 process_runtime() {
@@ -534,7 +630,6 @@ process_runtime() {
     local detect_fn="${RT_DETECT[$name]}"
     local dir_fn="${RT_CACHE_DIR[$name]:-}"
     local size_fn="${RT_SIZE[$name]}"
-    local prune_fn="${RT_PRUNE[$name]:-}"
     local cache_dir=""
     local size_out status
     local total_bytes reclaimable_bytes
@@ -612,14 +707,37 @@ process_runtime() {
         return 0
     fi
 
-    if should_act "$class" "$name"; then
-        if ! "$prune_fn"; then
-            warn "$name: prune failed"
-            FAILED=1
-            return 1
+    # Election helpers prompt as a side effect (confirm()), so evaluation
+    # order here *is* the behaviour, not just style -- see safe_elected/
+    # purge_elected above and the pinned mode-matrix resolution (Decision 7,
+    # plans/cache-prune-reclaim-effectiveness.md). Under --yes, a purge
+    # election supersedes the safe verb for a dual-verb runtime and the safe
+    # verb never runs -- its work is a strict subset, so running both would
+    # waste time and muddy a freed-bytes accounting WP-3 adds. Interactively
+    # each elected verb runs, safe first: interactive mode is confirm-driven,
+    # so a user who accepts both prompts explicitly asked for both.
+    local acted=false
+
+    if [[ "$MODE" == yes ]]; then
+        if purge_elected "$name"; then
+            run_verb "$name" "${RT_PURGE[$name]}" || return 1
+            acted=true
+        elif safe_elected "$name"; then
+            run_verb "$name" "${RT_PRUNE[$name]}" || return 1
+            acted=true
         fi
-        printf '%s: prune complete.\n' "$name"
     else
+        if safe_elected "$name"; then
+            run_verb "$name" "${RT_PRUNE[$name]}" || return 1
+            acted=true
+        fi
+        if purge_elected "$name"; then
+            run_verb "$name" "${RT_PURGE[$name]}" || return 1
+            acted=true
+        fi
+    fi
+
+    if [[ "$acted" == false ]]; then
         printf '%s: skipped.\n' "$name"
     fi
 }
