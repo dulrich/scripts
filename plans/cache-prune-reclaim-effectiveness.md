@@ -2,7 +2,7 @@
 
 *Recommended model/effort — Claude implementation: Sonnet/high (registry restructuring + careful action-path changes in a script that deletes user data); Codex review: Terra/medium; plan audit: `gpt-5.6-sol`/medium*
 
-**Status: APPROVED 2026-09-01 (rev 2; cycle-1 codex-david/`gpt-5.6-sol`/medium, 1 blocking / 4 material / 1 execution-level, dispositioned). Execution in progress.**
+**Status: IMPLEMENTED 2026-08-31 (rev 2; cycle-1 codex-david/`gpt-5.6-sol`/medium, 1 blocking / 4 material / 1 execution-level, dispositioned). All three WPs landed: WP-1 `4b9652d`, WP-2 `8c7c0b7`, WP-3 this commit. NOT YET VALIDATED — the live `--yes` acceptance run is the user's to make (`hold-for-user`), and the `FEEDBACK.md` item stays open until they judge the result.**
 
 ## Context
 

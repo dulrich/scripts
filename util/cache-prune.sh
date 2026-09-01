@@ -18,7 +18,31 @@ set -euo pipefail
 
 FAILED=0
 TOTAL_BYTES=0
-RECLAIMABLE_BYTES=0
+# The old single RECLAIMABLE_BYTES conflated a safe-verb prediction with a
+# purge-verb one under one figure -- split per tier (WP-3, decision 4 of
+# plans/cache-prune-reclaim-effectiveness.md): a runtime's census reclaimable
+# bytes are routed into exactly one of these (or neither, for cargo, which
+# has no verb at all) by process_runtime, never both.
+SAFE_RECLAIMABLE_BYTES=0
+PURGE_RECLAIMABLE_BYTES=0
+# DELTA_BYTES: the grand-total observed footprint change, summed only over
+# runtimes that produced a usable delta (see process_runtime). Signed --
+# a concurrent cache write can make an individual runtime's delta negative.
+DELTA_BYTES=0
+# DOCKER_SIZE_SOURCE_FILE: the module-level record of which of
+# rt_docker_size's two sources (system-df / buildx-du / unavailable)
+# produced its most recent result -- decision 3's source-match invariant
+# needs this to refuse a delta built across sources. A plain variable
+# assigned inside rt_docker_size cannot serve this role: rt_docker_size
+# normally runs inside the subshell a command substitution
+# (`size_out=$(rt_docker_size ...)`) forks to capture its stdout, and an
+# assignment made there does not survive that subshell exiting -- the same
+# hazard util/tests/cache-prune.sh's own ALL_LOG_FILE works around for the
+# same reason. A real file does survive it. Empty by default (a no-op for
+# every runtime but docker); process_runtime points this at a scratch file
+# only around docker's before/after probes -- see there and
+# docker_record_source.
+DOCKER_SIZE_SOURCE_FILE=""
 
 section() {
     printf '\n==== %s ====\n' "$1"
@@ -124,9 +148,20 @@ Options:
   -h, --help               show this help and exit
 
 Notes:
-  Docker's reported reclaimable figure is an upper bound (Docker's own
-  "not pinned by an active build" definition), not a guarantee of what a
-  prune will actually free.
+  Reclaimable is reported per tier, never as one combined figure: docker's
+  safe-tier figure is an upper bound (Docker's own "not pinned by an active
+  build" definition), not a guarantee of what a prune will actually free;
+  uv/npm/pip/bun's purge-tier figure is what a full clean would free, and is
+  never printed against their safe verb -- uv/npm's safe verb frees an
+  unpredictable amount by design (no dry run exists for it) and is reported
+  as such rather than with a number attached to it.
+
+  Every action (outside --report) measures the affected cache immediately
+  before and after and reports the observed footprint change -- a
+  measurement, not an exact attribution: docker's own accounting has been
+  measured to disagree with real disk freed by about 1%, and a concurrent
+  cache write can make the delta negative. A run that frees nothing reports
+  0B explicitly rather than falling back to the estimate.
 
 Honoured environment:
   BUN_INSTALL   overrides bun's install prefix (cache under install/cache)
@@ -148,6 +183,25 @@ human_bytes() {
         }
         printf "%.1f%s", n, units[i]
     }'
+}
+
+# human_bytes_signed: like human_bytes, but tolerates a negative byte count.
+# An observed footprint delta can be negative (a concurrent cache write
+# growing the cache between the before/after probes -- see process_runtime),
+# and human_bytes's own magnitude comparison (`n >= 1024`) is never true for
+# a negative n, so a large negative delta would otherwise render as a bare
+# "-5000000000.0B" instead of converting units. Strip the sign, format the
+# magnitude, reattach it.
+human_bytes_signed() {
+    local bytes="$1"
+    local sign=""
+
+    if ((bytes < 0)); then
+        sign="-"
+        bytes=$((-bytes))
+    fi
+
+    printf '%s%s' "$sign" "$(human_bytes "$bytes")"
 }
 
 # generic size probe shared by every directory-backed runtime. A missing or
@@ -366,19 +420,38 @@ docker_system_df_bytes() {
 # over what a real prune returns (see plans/cache-reporting-fidelity.md);
 # this function deliberately does not try to reconcile them, it just picks
 # per the order above.
+#
+# Also records which source produced the result, via docker_record_source
+# (decision 3's source-match invariant, plans/cache-prune-reclaim-
+# effectiveness.md): a before/after delta built from a system-df reading and
+# a buildx-du reading is not a measurement, it is two different measurements
+# subtracted, and premise (d) put their disagreement at ~9 GB on the same
+# cache. process_runtime compares the before/after source before trusting a
+# docker delta.
+docker_record_source() {
+    local source_label="$1"
+
+    if [[ -n "$DOCKER_SIZE_SOURCE_FILE" ]]; then
+        printf '%s\n' "$source_label" > "$DOCKER_SIZE_SOURCE_FILE"
+    fi
+}
+
 rt_docker_size() {
     local raw pair
 
     if raw=$(docker system df 2>/dev/null) && pair=$(docker_system_df_bytes "$raw"); then
+        docker_record_source "system-df"
         printf '%s\n' "$pair"
         return 0
     fi
 
     if raw=$(docker buildx du 2>/dev/null) && pair=$(docker_buildx_du_bytes "$raw"); then
+        docker_record_source "buildx-du"
         printf '%s\n' "$pair"
         return 0
     fi
 
+    docker_record_source "unavailable"
     printf 'unavailable\n'
 }
 
@@ -611,7 +684,12 @@ purge_elected() {
 # run_verb: execute one verb function (either tier), with the shared
 # failure/success reporting both share. Wording says "prune" even for a
 # purge -- imprecise, left as-is: pip/bun must stay byte-identical to
-# 4b9652d, and WP-3 owns the reporting rewrite.
+# 4b9652d, and WP-3 owns the reporting rewrite. Failure handling here is
+# unchanged by WP-3 (warn, FAILED=1, return 1): it is process_runtime's use
+# of this return value that changed, not run_verb itself -- see the
+# `verb_failed` handling below, which defers the early return past the
+# post-action size probe instead of returning immediately the way
+# `run_verb ... || return 1` used to.
 run_verb() {
     local name="$1"
     local verb_fn="$2"
@@ -659,16 +737,40 @@ process_runtime() {
         fi
     fi
 
+    # DOCKER_SIZE_SOURCE_FILE: shadows the script-level global of the same
+    # name for the rest of this call only, pointed at a scratch file so
+    # rt_docker_size's source recording survives the command-substitution
+    # subshell both the before- and after-probe calls below fork (see
+    # docker_record_source). Every other runtime leaves this at its
+    # script-level default (""), so docker_record_source is a no-op for
+    # them. The RETURN trap fires on every exit from this specific
+    # invocation, whichever of the several return points below is taken --
+    # verified: a trap set this way is scoped per call, not leaked across
+    # process_runtime's many calls in RUNTIME_ORDER or across the test
+    # suite's repeated direct calls.
+    local DOCKER_SIZE_SOURCE_FILE=""
+    local docker_before_source="" docker_after_source=""
+    if [[ "$name" == docker ]]; then
+        DOCKER_SIZE_SOURCE_FILE=$(mktemp) || DOCKER_SIZE_SOURCE_FILE=""
+        if [[ -n "$DOCKER_SIZE_SOURCE_FILE" ]]; then
+            trap 'rm -f "$DOCKER_SIZE_SOURCE_FILE"' RETURN
+        fi
+    fi
+
     if ! size_out=$("$size_fn" "$cache_dir"); then
         warn "$name: failed to determine cache size"
         FAILED=1
         return 1
     fi
 
+    if [[ "$name" == docker && -n "$DOCKER_SIZE_SOURCE_FILE" ]]; then
+        docker_before_source=$(cat "$DOCKER_SIZE_SOURCE_FILE" 2>/dev/null || true)
+    fi
+
     # Seam-contract guard: a probe must return either "unavailable" or
     # exactly two non-negative decimal integers. Without this, a probe that
     # regresses to a single value would have `read -r total reclaimable`
-    # leave reclaimable empty, and `$((RECLAIMABLE_BYTES + ))` would
+    # leave reclaimable empty, and `$((SAFE_RECLAIMABLE_BYTES + ))` would
     # evaluate that as 0 silently -- no crash, just a quietly wrong
     # reclaimable total, which is exactly the failure class this whole
     # reporting-fidelity effort exists to eliminate. Treat it as a probe
@@ -683,18 +785,39 @@ process_runtime() {
         printf '%s cache size: unavailable\n' "$name"
     else
         read -r total_bytes reclaimable_bytes <<< "$size_out"
-        printf '%s cache size: %s total (%d bytes), %s reclaimable (%d bytes)\n' \
-            "$name" "$(human_bytes "$total_bytes")" "$total_bytes" \
-            "$(human_bytes "$reclaimable_bytes")" "$reclaimable_bytes"
+        printf '%s cache size: %s total (%d bytes)\n' \
+            "$name" "$(human_bytes "$total_bytes")" "$total_bytes"
         TOTAL_BYTES=$((TOTAL_BYTES + total_bytes))
-        RECLAIMABLE_BYTES=$((RECLAIMABLE_BYTES + reclaimable_bytes))
-        if [[ "$name" == docker ]]; then
-            printf 'note: docker reclaimable is an upper bound (not pinned by an active build), not a guarantee of what a prune will free.\n'
+
+        # Per-tier estimate routing (WP-3 decision 4: never one conflated
+        # figure). Which tier a runtime's census reclaimable bytes belong to
+        # follows purely from registry membership, matching the pinned
+        # per-runtime-kind table exactly: a runtime with a purge verb
+        # (uv/npm dual-verb, pip/bun purge-only) reports it as a purge-tier
+        # estimate -- for uv/npm this is the *only* figure printed, because
+        # their safe verb cannot be predicted (premises (b)/(c)); a runtime
+        # with only a safe verb (docker) reports it safe-tier; a runtime
+        # with neither (cargo) reports neither -- its bytes already went
+        # into TOTAL_BYTES above and stop there.
+        if [[ -n "${RT_PURGE[$name]:-}" ]]; then
+            printf '%s reclaimable via the purge verb (%s, %d bytes) -- requires --include-purge\n' \
+                "$name" "$(human_bytes "$reclaimable_bytes")" "$reclaimable_bytes"
+            PURGE_RECLAIMABLE_BYTES=$((PURGE_RECLAIMABLE_BYTES + reclaimable_bytes))
+            if [[ -n "${RT_PRUNE[$name]:-}" ]]; then
+                printf 'note: %s'"'"'s safe verb cannot be predicted (no dry run exists) -- it is not represented by any reclaimable figure here.\n' "$name"
+            fi
+        elif [[ -n "${RT_PRUNE[$name]:-}" ]]; then
+            printf '%s reclaimable via the safe verb (%s, %d bytes)\n' \
+                "$name" "$(human_bytes "$reclaimable_bytes")" "$reclaimable_bytes"
+            SAFE_RECLAIMABLE_BYTES=$((SAFE_RECLAIMABLE_BYTES + reclaimable_bytes))
+            if [[ "$name" == docker ]]; then
+                printf 'note: docker reclaimable is an upper bound (not pinned by an active build), not a guarantee of what a prune will free.\n'
+            fi
         fi
     fi
 
     if [[ "$class" == report ]]; then
-        printf 'note: no safe %s prune verb is available yet; report-only.\n' "$name"
+        printf 'note: no prune verb exists for %s yet; report-only -- these bytes count toward total footprint only, never a reclaimable tier.\n' "$name"
         return 0
     fi
 
@@ -713,32 +836,105 @@ process_runtime() {
     # plans/cache-prune-reclaim-effectiveness.md). Under --yes, a purge
     # election supersedes the safe verb for a dual-verb runtime and the safe
     # verb never runs -- its work is a strict subset, so running both would
-    # waste time and muddy a freed-bytes accounting WP-3 adds. Interactively
+    # waste time and muddy the freed-bytes accounting below. Interactively
     # each elected verb runs, safe first: interactive mode is confirm-driven,
     # so a user who accepts both prompts explicitly asked for both.
+    #
+    # `verb_failed` (not an immediate `return 1`) is WP-3's restructuring of
+    # this block: a failed verb must still be measured (edge case 4, the
+    # brief), so the failure is recorded and checked at the very end of this
+    # function, after the post-action probe/delta section below runs -- not
+    # here. A failed safe verb still short-circuits the purge election that
+    # would otherwise follow it, exactly as the old `|| return 1` did (see
+    # the `verb_failed == false` guard on the second `if` in the interactive
+    # branch): the difference is only *when* process_runtime finally returns
+    # 1, never *whether* the purge election is skipped after a safe-verb
+    # failure.
     local acted=false
+    local verb_failed=false
 
     if [[ "$MODE" == yes ]]; then
         if purge_elected "$name"; then
-            run_verb "$name" "${RT_PURGE[$name]}" || return 1
             acted=true
+            run_verb "$name" "${RT_PURGE[$name]}" || verb_failed=true
         elif safe_elected "$name"; then
-            run_verb "$name" "${RT_PRUNE[$name]}" || return 1
             acted=true
+            run_verb "$name" "${RT_PRUNE[$name]}" || verb_failed=true
         fi
     else
         if safe_elected "$name"; then
-            run_verb "$name" "${RT_PRUNE[$name]}" || return 1
             acted=true
+            run_verb "$name" "${RT_PRUNE[$name]}" || verb_failed=true
         fi
-        if purge_elected "$name"; then
-            run_verb "$name" "${RT_PURGE[$name]}" || return 1
+        if [[ "$verb_failed" == false ]] && purge_elected "$name"; then
             acted=true
+            run_verb "$name" "${RT_PURGE[$name]}" || verb_failed=true
         fi
     fi
 
     if [[ "$acted" == false ]]; then
         printf '%s: skipped.\n' "$name"
+    else
+        # Part A -- the observed footprint delta (WP-3, decision 3 of
+        # plans/cache-prune-reclaim-effectiveness.md). One post-action probe
+        # spans every verb that ran above: a dual-verb runtime gets exactly
+        # one before-probe and one after-probe covering both, never a probe
+        # between them. Runs whether or not a verb above reported failure --
+        # a failed verb can still have done partial work (edge case 4), and
+        # the destructive step already happened regardless of whether it can
+        # be measured (edge case 3), so neither is a reason to skip
+        # measuring.
+        local after_out after_status
+        after_status=0
+        after_out=$("$size_fn" "$cache_dir") || after_status=$?
+
+        if [[ "$name" == docker && -n "$DOCKER_SIZE_SOURCE_FILE" ]]; then
+            docker_after_source=$(cat "$DOCKER_SIZE_SOURCE_FILE" 2>/dev/null || true)
+        fi
+
+        if ((after_status != 0)) || [[ "$after_out" == unavailable ]] || [[ ! "$after_out" =~ ^[0-9]+\ [0-9]+$ ]]; then
+            # Edge case 3: the action itself already happened and the
+            # user's caches are fine either way -- only the *measurement*
+            # failed, so this does not set FAILED and this runtime is
+            # excluded from DELTA_BYTES below (nothing is added to it).
+            printf '%s: observed footprint change: unavailable (the post-action size probe failed)\n' "$name"
+        elif [[ "$name" == docker && "$docker_before_source" != "$docker_after_source" ]]; then
+            # Source-match invariant: a delta built from a system-df before
+            # and a buildx-du after (or vice versa) is not a measurement of
+            # anything -- premise (d) put the two sources' disagreement at
+            # ~9 GB on the same cache. Never computed across sources;
+            # excluded from DELTA_BYTES exactly like an unavailable probe.
+            printf '%s: observed footprint change: unavailable (docker size source changed between probes: %s -> %s)\n' \
+                "$name" "${docker_before_source:-none}" "${docker_after_source:-none}"
+        else
+            local after_total delta delta_note
+            read -r after_total _ <<< "$after_out"
+            delta=$((total_bytes - after_total))
+            DELTA_BYTES=$((DELTA_BYTES + delta))
+
+            delta_note=""
+            if [[ "$verb_failed" == true ]]; then
+                # Edge case 4: a failed verb may still have done partial
+                # work. Reported, not suppressed -- and still summed into
+                # DELTA_BYTES, since it is a genuine measurement, just of a
+                # partial result.
+                delta_note=" -- partial result: the action above reported failure"
+            elif ((delta < 0)); then
+                # Edge case 2: reported signed, as observed -- never
+                # clamped to zero, never treated as a failure.
+                delta_note=" -- negative: the cache grew between probes (a concurrent write can do this)"
+            fi
+            # Edge case 1: a zero delta prints "0.0B" here via the normal
+            # path below, exactly like any other value -- never substituted
+            # with the estimate, because this is always the freshly
+            # computed real number, not a fallback.
+            printf '%s: observed footprint change: %s (%d bytes)%s\n' \
+                "$name" "$(human_bytes_signed "$delta")" "$delta" "$delta_note"
+        fi
+    fi
+
+    if [[ "$verb_failed" == true ]]; then
+        return 1
     fi
 }
 
@@ -748,7 +944,10 @@ main() {
     DOCKER_UNTIL=""
     FAILED=0
     TOTAL_BYTES=0
-    RECLAIMABLE_BYTES=0
+    SAFE_RECLAIMABLE_BYTES=0
+    PURGE_RECLAIMABLE_BYTES=0
+    DELTA_BYTES=0
+    DOCKER_SIZE_SOURCE_FILE=""
 
     while (($#)); do
         case "$1" in
@@ -804,9 +1003,14 @@ main() {
     done
 
     section "Total"
-    printf 'Total cache footprint seen: %s (%d bytes)\n' "$(human_bytes "$TOTAL_BYTES")" "$TOTAL_BYTES"
-    printf 'Estimated reclaimable:      %s (%d bytes)\n' "$(human_bytes "$RECLAIMABLE_BYTES")" "$RECLAIMABLE_BYTES"
-    printf 'Total counts bytes present; reclaimable counts what a prune would actually return.\n'
+    printf 'Total cache footprint seen:                   %s (%d bytes)\n' "$(human_bytes "$TOTAL_BYTES")" "$TOTAL_BYTES"
+    printf 'Estimated safe-tier reclaimable (upper bound): %s (%d bytes)\n' "$(human_bytes "$SAFE_RECLAIMABLE_BYTES")" "$SAFE_RECLAIMABLE_BYTES"
+    printf 'Estimated purge-tier reclaimable (--include-purge): %s (%d bytes)\n' "$(human_bytes "$PURGE_RECLAIMABLE_BYTES")" "$PURGE_RECLAIMABLE_BYTES"
+    if [[ "$MODE" != report ]]; then
+        printf 'Observed footprint change (measured, not predicted): %s (%d bytes)\n' \
+            "$(human_bytes_signed "$DELTA_BYTES")" "$DELTA_BYTES"
+    fi
+    printf 'Total counts every byte present, including cargo'"'"'s (it has no prune verb); the safe- and purge-tier figures are separate per-verb estimates and are never summed into one number; the observed footprint change is what was actually measured before/after acting, not a prediction.\n'
 
     if ((FAILED != 0)); then
         return 1
