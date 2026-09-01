@@ -89,6 +89,11 @@ Options:
   --docker-until <window>  age filter for docker builder prune (default: 168h)
   -h, --help               show this help and exit
 
+Notes:
+  Docker's reported reclaimable figure is an upper bound (Docker's own
+  "not pinned by an active build" definition), not a guarantee of what a
+  prune will actually free.
+
 Honoured environment:
   BUN_INSTALL   overrides bun's install prefix (cache under install/cache)
   CARGO_HOME    overrides cargo's home (registry cache is reported, never
@@ -218,25 +223,15 @@ docker_window_seconds() {
     esac
 }
 
-# docker_build_cache_bytes: sum the SIZE column of `docker system df -v`'s
-# build-cache table over rows whose LAST USED age is >= window_seconds.
-#
-# Deliberately NOT `docker system df` (unverbose): its build-cache RECLAIMABLE
-# figure is unfiltered and does not correspond to the `until=<window>` prune
-# we actually run. Deliberately NOT the image table -- images are entirely
-# out of scope and must never be pruned by this script.
-#
-# Sizes carry B/kB/MB/GB/TB suffixes (decimal, matching docker's own
-# human-size rendering) and are normalized to bytes. Ages read as
-# "N minutes|hours|days|weeks ago". If the CACHE ID header is never found,
-# the table could not be located at all -- exit nonzero so the caller reports
-# "unavailable" rather than guessing a number. A header found with zero
-# qualifying rows is a legitimate zero, not an error.
-docker_build_cache_bytes() {
-    local raw="$1"
-    local window_seconds="$2"
+# docker_size_to_bytes: normalize one docker-rendered size token (e.g.
+# "68.26GB", "500MB", "100B") to an integer byte count. Docker's own
+# human-size rendering is decimal (1000-based), matching the retiring
+# docker_build_cache_bytes's unit_multiplier -- preserved here rather than
+# re-derived.
+docker_size_to_bytes() {
+    local size="$1"
 
-    awk -v window="$window_seconds" '
+    awk -v size="$size" '
         function unit_multiplier(u) {
             if (u == "kB") return 1000
             if (u == "MB") return 1000 * 1000
@@ -244,66 +239,89 @@ docker_build_cache_bytes() {
             if (u == "TB") return 1000 * 1000 * 1000 * 1000
             return 1
         }
-        function age_seconds(n, unit) {
-            if (unit ~ /^minute/) return n * 60
-            if (unit ~ /^hour/) return n * 3600
-            if (unit ~ /^day/) return n * 86400
-            if (unit ~ /^week/) return n * 604800
-            return -1
-        }
-        BEGIN { header_seen = 0; in_table = 0; total = 0 }
-        /^CACHE ID[ \t]/ { header_seen = 1; in_table = 1; next }
-        in_table && NF == 0 { in_table = 0 }
-        in_table && NF >= 9 {
-            size_field = $3
-            num = size_field
+        BEGIN {
+            num = size
             gsub(/[A-Za-z]+$/, "", num)
-            unit = size_field
+            unit = size
             gsub(/^[0-9.]+/, "", unit)
+            printf "%d\n", num * unit_multiplier(unit)
+        }
+    '
+}
 
-            secs = age_seconds($7, $8)
-            if (secs >= 0 && secs >= window) {
-                total += num * unit_multiplier(unit)
-            }
-        }
-        END {
-            if (!header_seen) exit 1
-            printf "%d\n", total
-        }
-    ' <<< "$raw"
+# docker_buildx_du_bytes: parse `docker buildx du`'s trailing "Label:<ws>
+# value" summary lines for Total and Reclaimable. Matched by label at line
+# start (awk's default whitespace field-splitting absorbs the varying
+# tab-stop padding docker uses to align "Shared:"/"Private:"/"Total:" of
+# different lengths), never by field position or offset from the end --
+# the per-record rows above the summary vary in count and some carry a `*`
+# shared-marker suffix on their own SIZE field (e.g. "2.052GB*"), which a
+# label-anchored match is naturally immune to. Exits nonzero if either
+# label is never found, so the caller falls back rather than reporting a
+# partial pair.
+docker_buildx_du_bytes() {
+    local raw="$1"
+    local total reclaimable
+
+    total=$(awk '/^Total:/ { v = $2 } END { print v }' <<< "$raw")
+    reclaimable=$(awk '/^Reclaimable:/ { v = $2 } END { print v }' <<< "$raw")
+
+    [[ -n "$total" && -n "$reclaimable" ]] || return 1
+
+    printf '%d %d\n' "$(docker_size_to_bytes "$total")" "$(docker_size_to_bytes "$reclaimable")"
+}
+
+# docker_system_df_bytes: fallback parse of plain `docker system df`'s
+# (non -v) Build Cache row, for hosts without buildx. "Build Cache" is two
+# whitespace-separated words, so with the row's own label occupying $1/$2
+# the numeric columns (TOTAL/ACTIVE/SIZE/RECLAIMABLE) sit at $3..$6, not
+# $2..$5 as a one-word label would put them. SIZE ($5) is total_bytes,
+# RECLAIMABLE ($6) is reclaimable_bytes. A reclaimable cell may carry a
+# trailing "(NN%)" (seen on sibling rows in this table); stripped
+# defensively even though fixed-field indexing already keeps it out of $6
+# when it is space-separated. Exits nonzero if no Build Cache row is found.
+docker_system_df_bytes() {
+    local raw="$1"
+    local total reclaimable
+
+    total=$(awk '$1 == "Build" && $2 == "Cache" { v = $5 } END { print v }' <<< "$raw")
+    reclaimable=$(awk '$1 == "Build" && $2 == "Cache" { v = $6 } END { print v }' <<< "$raw")
+    reclaimable="${reclaimable%%(*}"
+
+    [[ -n "$total" && -n "$reclaimable" ]] || return 1
+
+    printf '%d %d\n' "$(docker_size_to_bytes "$total")" "$(docker_size_to_bytes "$reclaimable")"
 }
 
 # rt_docker_size ignores its positional argument (docker has no cache-dir
 # resolver: its build cache is daemon-owned, not a directory this account
-# can `du`). It reads $DOCKER_UNTIL directly, matching the sibling script's
-# style of reading module-level config globals rather than threading them
-# through every call.
+# can `du`). It no longer reads $DOCKER_UNTIL at all -- see
+# docker_window_seconds above, which still validates the flag's format and
+# still drives rt_docker_prune's filter, but no longer feeds this report.
 #
-# Emits "<bytes> <bytes>" -- the same figure twice -- to conform to the
-# two-value RT_SIZE contract mechanically, without changing the underlying
-# age-sum logic. This is a stopgap: the age-sum has no predictive power over
-# what a real prune returns (see plans/cache-reporting-fidelity.md), and a
-# follow-up work package replaces this body with a real total/reclaimable
-# split parsed from `docker buildx du`.
+# Source order: `docker buildx du`'s trailing labelled lines first (a far
+# more stable parse than any table walk), plain `docker system df`'s Build
+# Cache row second, "unavailable" if both fail -- never a partial pair.
+# The two sources measure different things and *will* disagree on the same
+# machine: buildx's Reclaimable counts records shared with other build
+# state, system df's excludes them. Both are legitimate upper bounds over
+# what a real prune returns (see plans/cache-reporting-fidelity.md); this
+# function deliberately does not try to reconcile them, it just picks per
+# the order above.
 rt_docker_size() {
-    local raw window_seconds bytes
+    local raw pair
 
-    if ! raw=$(docker system df -v 2>/dev/null); then
-        printf 'unavailable\n'
+    if raw=$(docker buildx du 2>/dev/null) && pair=$(docker_buildx_du_bytes "$raw"); then
+        printf '%s\n' "$pair"
         return 0
     fi
 
-    if ! window_seconds=$(docker_window_seconds "$DOCKER_UNTIL"); then
-        printf 'unavailable\n'
+    if raw=$(docker system df 2>/dev/null) && pair=$(docker_system_df_bytes "$raw"); then
+        printf '%s\n' "$pair"
         return 0
     fi
 
-    if ! bytes=$(docker_build_cache_bytes "$raw" "$window_seconds"); then
-        printf 'unavailable\n'
-        return 0
-    fi
-
-    printf '%s %s\n' "$bytes" "$bytes"
+    printf 'unavailable\n'
 }
 
 # Never `docker image prune`, never `docker system prune` -- only the
@@ -506,6 +524,20 @@ process_runtime() {
         return 1
     fi
 
+    # Seam-contract guard: a probe must return either "unavailable" or
+    # exactly two non-negative decimal integers. Without this, a probe that
+    # regresses to a single value would have `read -r total reclaimable`
+    # leave reclaimable empty, and `$((RECLAIMABLE_BYTES + ))` would
+    # evaluate that as 0 silently -- no crash, just a quietly wrong
+    # reclaimable total, which is exactly the failure class this whole
+    # reporting-fidelity effort exists to eliminate. Treat it as a probe
+    # failure, the same path a hard failure above already takes.
+    if [[ "$size_out" != unavailable && ! "$size_out" =~ ^[0-9]+\ [0-9]+$ ]]; then
+        warn "$name: cache size probe returned a malformed result"
+        FAILED=1
+        return 1
+    fi
+
     if [[ "$size_out" == unavailable ]]; then
         printf '%s cache size: unavailable\n' "$name"
     else
@@ -515,6 +547,9 @@ process_runtime() {
             "$(human_bytes "$reclaimable_bytes")" "$reclaimable_bytes"
         TOTAL_BYTES=$((TOTAL_BYTES + total_bytes))
         RECLAIMABLE_BYTES=$((RECLAIMABLE_BYTES + reclaimable_bytes))
+        if [[ "$name" == docker ]]; then
+            printf 'note: docker reclaimable is an upper bound (not pinned by an active build), not a guarantee of what a prune will free.\n'
+        fi
     fi
 
     if [[ "$class" == report ]]; then
