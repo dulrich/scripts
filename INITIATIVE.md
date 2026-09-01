@@ -9,7 +9,8 @@ initiative-status: active
 initiative-cadence: as-needed
 review-after-commits: 10
 review-after-lines: 5000
-pending-plans: []
+pending-plans:
+  - "[[cache-prune-reclaim-effectiveness]]"
 initiative-title: Scripts
 initiative-slug: scripts
 security-tracking: track
