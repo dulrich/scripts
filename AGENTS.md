@@ -44,6 +44,7 @@ It optionally loads (not in repo, gitignored):
 | `lifi.sh` | Adds license/copyright headers to new source files. Reads license texts from `licenses/`. Configured per-project via `config.lifi`. |
 | `dotfiles.sh` | Manages dotfiles across machines via a `meta_repo`. Commands: `add`, `backup`, `restore`, `snapshot`, `list`. |
 | `build_system/build.sh` | C build system (public domain, from yzziizzy). `mkproject` bootstraps new C projects. Aliases `x` = `./build.sh`, `xd` = `./debug.sh`. |
+| `util/cache-prune.sh` (`util cache-prune`) | Reports and prunes rebuildable language-runtime caches (uv, npm, docker build cache, pip, bun, cargo) for the invoking user. Refuses to run as root — every cache here lives under the calling account. `--report` shows sizes only; safe prunes (uv/npm/docker) run interactively-confirmed or via `--yes`; opt-in purges (pip/bun) need `--yes --include-purge` or an explicit interactive confirm; cargo is report-only. See `-h` for the full mode matrix. |
 
 ### Subdirectories
 
@@ -70,15 +71,16 @@ bash tests/shell-gate.sh
 
 The gate enumerates public tracked scripts with `git ls-files -z '*.sh'`, then
 runs ShellCheck and `bash -n` over that exact set. It also runs the Debian
-maintenance, util router, alias-chain, root-utility, and `pkg-ioc` smoke suites,
-followed by the build-system and theme-generation checks. Gitignored private
-overlays are intentionally outside this public repository gate.
+maintenance, util router, cache-prune, alias-chain, root-utility, and `pkg-ioc`
+smoke suites, followed by the build-system and theme-generation checks.
+Gitignored private overlays are intentionally outside this public repository gate.
 
 For focused iteration, the component smoke commands are:
 
 ```bash
 bash util/tests/debian-maintenance.sh
 bash util/tests/util-router.sh
+bash util/tests/cache-prune.sh
 bash tests/aliases-smoke.sh
 bash tests/root-utils-smoke.sh
 bash pkg-ioc/tests/smoke.sh

@@ -29,6 +29,9 @@ bash util/tests/debian-maintenance.sh
 section 'util router smoke'
 bash util/tests/util-router.sh
 
+section 'cache-prune smoke'
+bash util/tests/cache-prune.sh
+
 section 'alias-chain smoke'
 bash tests/aliases-smoke.sh
 
