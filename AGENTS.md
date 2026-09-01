@@ -45,6 +45,7 @@ It optionally loads (not in repo, gitignored):
 | `dotfiles.sh` | Manages dotfiles across machines via a `meta_repo`. Commands: `add`, `backup`, `restore`, `snapshot`, `list`. |
 | `build_system/build.sh` | C build system (public domain, from yzziizzy). `mkproject` bootstraps new C projects. Aliases `x` = `./build.sh`, `xd` = `./debug.sh`. |
 | `util/cache-prune.sh` (`util cache-prune`) | Reports and prunes rebuildable language-runtime caches (uv, npm, docker build cache, pip, bun, cargo) for the invoking user. Refuses to run as root — every cache here lives under the calling account. `--report` shows sizes only; safe prunes (uv/npm/docker) run interactively-confirmed or via `--yes`; opt-in purges (pip/bun) need `--yes --include-purge` or an explicit interactive confirm; cargo is report-only. See `-h` for the full mode matrix. |
+| `util/debian-maintenance.sh` | Root-run, interactive APT maintenance: update, upgrade, full-upgrade, old-kernel cleanup, autoremove, then an apt archive cleanup stage — root-owned, unlike the user-level caches `cache-prune.sh` handles. The archive stage previews with `apt-get -s autoclean` (matched via a `Del `-line-aware check, distinct from the `Inst`/`Remv` parser used elsewhere in the file) and runs it behind one confirm; a full `apt-get clean` is offered behind its own separate confirm. Every destructive step in the script requires its own explicit confirmation. |
 
 ### Subdirectories
 
