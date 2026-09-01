@@ -332,6 +332,48 @@ run_autoremove() {
     fi
 }
 
+# apt-get -s autoclean emits `Del ` lines, not the `Inst`/`Remv` lines that
+# transaction_has_changes/extract_removals match — deliberately a separate
+# helper rather than reusing those, which would silently see "no changes"
+# forever.
+archive_transaction_has_changes() {
+    grep -Eq '^Del ' <<< "$1"
+}
+
+run_apt_cache_cleanup() {
+    local archive_dir="/var/cache/apt/archives"
+    local usage
+    local simulation
+
+    section "APT archive cleanup"
+
+    if usage="$(du -sh "$archive_dir" 2>&1)"; then
+        printf '%s\n' "$usage"
+    else
+        echo "Unable to read archive footprint for $archive_dir; skipping cache cleanup."
+        return 0
+    fi
+
+    simulation="$(apt-get -s autoclean)"
+    printf '%s\n' "$simulation"
+
+    if ! archive_transaction_has_changes "$simulation"; then
+        echo "No cached .debs eligible for autoclean."
+    elif confirm "Remove cached .debs that can no longer be downloaded?"; then
+        apt-get -y autoclean
+    else
+        echo "Skipping autoclean."
+    fi
+
+    # Independent of stage one: a "no" here is normal and leaves stage one's
+    # result intact.
+    if confirm "Also clear ALL cached .debs (forces re-download on next install)?"; then
+        apt-get -y clean
+    else
+        echo "Skipping full cache clear."
+    fi
+}
+
 main() {
     if (($# != 0)); then
         die "usage: $0"
@@ -350,6 +392,7 @@ main() {
     apt-get check
     run_kernel_cleanup
     run_autoremove
+    run_apt_cache_cleanup
 
     section "Done"
 }

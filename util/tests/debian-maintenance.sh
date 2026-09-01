@@ -180,5 +180,57 @@ APT_LOG=""
 run_autoremove >/dev/null 2>&1
 assert_eq "-y autoremove --purge|" "$APT_LOG" "approved benign autoremove runs once"
 
+echo "[archive cleanup] Del-format parser (the autoclean trap)"
+assert_success "Del-format preview is recognised as archive work" \
+    archive_transaction_has_changes $'Del chatgpt 26.818.61809 [389 MB]'
+assert_failure "Inst/Remv-only preview is not treated as archive work" \
+    archive_transaction_has_changes $'Inst package-a\nRemv obsolete-library'
+
+echo "[archive cleanup] run_apt_cache_cleanup stages"
+du() { printf '1.0K\t%s\n' "$1"; }
+
+# confirm() is queue-driven here so the two independent confirms (autoclean,
+# then clean) can be scripted separately per test case.
+declare -a CONFIRM_QUEUE=()
+confirm() {
+    local result="${CONFIRM_QUEUE[0]:-1}"
+    CONFIRM_QUEUE=("${CONFIRM_QUEUE[@]:1}")
+    return "$result"
+}
+
+APT_SIMULATION=""
+APT_LOG=""
+CONFIRM_QUEUE=(1)
+run_apt_cache_cleanup >/dev/null 2>&1
+assert_eq "" "$APT_LOG" "empty/no-op preview plus declined clean: nothing executes"
+
+APT_SIMULATION=$'Del chatgpt 26.818.61809 [389 MB]'
+APT_LOG=""
+CONFIRM_QUEUE=(0 1)
+run_apt_cache_cleanup >/dev/null 2>&1
+assert_eq "-y autoclean|" "$APT_LOG" "confirmed autoclean runs apt-get -y autoclean exactly once"
+
+APT_SIMULATION=$'Del chatgpt 26.818.61809 [389 MB]'
+APT_LOG=""
+CONFIRM_QUEUE=(1 1)
+run_apt_cache_cleanup >/dev/null 2>&1
+assert_eq "" "$APT_LOG" "declined autoclean executes nothing"
+
+APT_SIMULATION=$'Del chatgpt 26.818.61809 [389 MB]'
+APT_LOG=""
+CONFIRM_QUEUE=(0 1)
+run_apt_cache_cleanup >/dev/null 2>&1
+case "$APT_LOG" in
+    *autoclean*clean*) bad "clean must not run before its own separate confirm (log: $APT_LOG)" ;;
+    *autoclean*) ok "clean runs only after its own separate confirm" ;;
+    *) bad "expected autoclean in log, got: $APT_LOG" ;;
+esac
+
+APT_SIMULATION=$'Del chatgpt 26.818.61809 [389 MB]'
+APT_LOG=""
+CONFIRM_QUEUE=(0 0)
+run_apt_cache_cleanup >/dev/null 2>&1
+assert_eq "-y autoclean|-y clean|" "$APT_LOG" "confirming both runs autoclean then clean, in that order"
+
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
 ((FAIL == 0))
