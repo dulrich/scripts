@@ -2,7 +2,7 @@
 
 *Recommended model/effort — Claude implementation: Sonnet/high (careful bash + awk accounting against a pinned brief; no novel architecture); Codex review: Terra/medium (well-scoped single-script change); plan audit: `gpt-5.6-sol`/medium*
 
-**Status: PROVISIONAL 2026-08-31 (rev 1) — awaiting audit**
+**Status: APPROVED 2026-08-31 (rev 1; adversarial audit skipped by user). Execution in progress.**
 
 ## Context
 
@@ -20,6 +20,7 @@ The fix is to make the probes report two distinct figures — total footprint an
 3. **Docker reports its own `Reclaimable` figure, explicitly labelled an upper bound**, replacing the age-sum entirely. Age filters remain available for the *prune action* (`--docker-until`); they are simply never used for *reporting*.
 4. **Actions are unchanged.** This plan touches the reporting path only. The safety classes (safe / optin / report), confirm gates, `require_not_root`, and every prune verb stay exactly as they are.
 5. **Reclaimability rule — inode-complete, not naive link-count-1.** See "Measured premises" below; this supersedes the spike's `link==1` heuristic.
+6. **One legend line in the `Total` section**, not per-runtime prose: the per-runtime lines print bare figures, and the `Total` section carries a single sentence explaining that total counts bytes present while reclaimable counts bytes a prune would actually return, with docker's figure an upper bound. Keeps six runtime lines terse and states the distinction once.
 
 ## Measured premises
 
@@ -105,10 +106,16 @@ Manual confirmation after both land: `util cache-prune --report` shows uv as rou
 - `find -printf` is GNU find. Already assumed repo-wide; the gate runs on Debian and Gentoo.
 - Reported reclaimable figures are *estimates* by nature. For docker it is an upper bound and is labelled as such. For hardlink-shared trees it is exact at census time but can drift if a venv is deleted between report and prune — acceptable, and not worth a locking scheme.
 - The cargo probe stays report-only; nothing here changes its class.
-- Left open for the audit: whether the `Total` section should also print a one-line explanation of why total ≠ reclaimable, or whether the per-runtime lines carry that on their own.
+- ~~Left open for the audit: whether the `Total` section should print a one-line explanation of why total ≠ reclaimable.~~ **Closed as decision 6 below** (no auditor was dispatched, so this is pinned here rather than deferred to a worker).
 
 ## Audit record
 
-*(pending — cycle 1 not yet dispatched)*
+**cycle 1 — disposition: skipped by user (2026-08-31).** The user declined an adversarial pre-approval review at auditor-selection time. Recorded so this plan stays distinguishable from one that was never offered an audit.
+
+Residual risk accepted by that skip, stated plainly so execution carries it knowingly:
+
+- The probe contract under Public Interfaces is unreviewed by a second party. It is the seam both WPs are written against, and WP-2 depends on WP-1 having implemented it exactly — the orchestrator's WP-1 diff review is now the only check on it before WP-2 dispatches.
+- The docker fallback ordering (buildx primary, `system df` secondary) rests on premise (c), measured on one host. A host where buildx is absent exercises a path proven only by fixture, not live.
+- Premises (a) and (b) are live measurements taken by this session and are the strongest evidence in the plan; they are the parts least in need of an audit, which is part of why the skip is a reasonable trade here.
 
 **Total ≈ 0.43 kSLOC, ~220k raw tokens; ~128k Claude-path (implementation) Opus-equivalent tokens; ~128k Codex-path (review-estimate) Sol-equivalent tokens.**
