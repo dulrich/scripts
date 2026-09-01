@@ -9,7 +9,8 @@ initiative-status: active
 initiative-cadence: as-needed
 review-after-commits: 10
 review-after-lines: 5000
-pending-plans: []
+pending-plans:
+  - "[[runtime-cache-pruning]]"
 initiative-title: Scripts
 initiative-slug: scripts
 security-tracking: track
