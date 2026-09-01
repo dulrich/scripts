@@ -9,7 +9,7 @@ tags: ""
 ---
 
 # Todos
-- [ ] 
+- [ ] debian-maintenance : `uv cache prune` and check parallel commands for other runtimes on the system (node/bun/rust/others?)
 
 ---
 
