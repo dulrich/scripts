@@ -180,6 +180,25 @@ assert_eq 'default value' "$(defarg '' 0 'default value')" 'defarg preserves a m
 touch "$fixture_root/glob-match"
 assert_eq 'glob-*' "$(cd "$fixture_root" && defarg 'glob-* next' 0 default)" 'defarg splits without pathname expansion'
 
+# Every real subcommand in util/ must be executable: dispatch.sh routes with
+# `exec`, so a non-executable subcommand fails at runtime with exit 126 even
+# though it sources and passes its own tests fine. Infrastructure files
+# (dispatch/lib/completions) are sourced or invoked directly and are exempt.
+for candidate in "$repo_dir"/util/*.sh; do
+	[ -e "$candidate" ] || continue
+	candidate_name=$(basename "$candidate" .sh)
+	case "$candidate_name" in
+		dispatch|lib|completions) continue ;;
+	esac
+	if [ -x "$candidate" ]; then
+		pass_count=$((pass_count + 1))
+		printf 'ok - subcommand %s is executable\n' "$candidate_name"
+	else
+		fail_count=$((fail_count + 1))
+		printf 'not ok - subcommand %s is not executable (dispatch.sh execs it)\n' "$candidate_name"
+	fi
+done
+
 printf '1..%d\n' "$((pass_count + fail_count))"
 printf '%d passed, %d failed\n' "$pass_count" "$fail_count"
 
