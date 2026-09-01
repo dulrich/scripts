@@ -2,7 +2,7 @@
 
 *Recommended model/effort — Claude implementation: Sonnet/high (careful bash + awk accounting against a pinned brief; no novel architecture); Codex review: Terra/medium (well-scoped single-script change); plan audit: `gpt-5.6-sol`/medium*
 
-**Status: APPROVED 2026-08-31 (rev 1; adversarial audit skipped by user). Execution in progress.**
+**Status: IMPLEMENTED 2026-08-31 (`234637d` WP-1, `30a8379` WP-2, `6aa7edc` follow-up fix)**
 
 ## Context
 
@@ -107,6 +107,12 @@ Manual confirmation after both land: `util cache-prune --report` shows uv as rou
 - Reported reclaimable figures are *estimates* by nature. For docker it is an upper bound and is labelled as such. For hardlink-shared trees it is exact at census time but can drift if a venv is deleted between report and prune — acceptable, and not worth a locking scheme.
 - The cargo probe stays report-only; nothing here changes its class.
 - ~~Left open for the audit: whether the `Total` section should print a one-line explanation of why total ≠ reclaimable.~~ **Closed as decision 6 below** (no auditor was dispatched, so this is pinned here rather than deferred to a worker).
+
+## Post-implementation note
+
+Both WPs landed on estimate-ish (WP-1 123k/120k; WP-2 142k/100k, +42%, absorbed by the parse-helper split and 20 extra assertions). Live `--report` after landing: uv `21.5GB total / 1.8GB reclaimable`, bun `1018.7MB / 654.3MB`, docker `63.6GB` labelled an upper bound, npm/pip/cargo fully reclaimable — matching every figure the spike predicted.
+
+**One plan error, caught in execution.** This document asserted under WP-2 that "`--docker-until` still validates and still drives the prune filter". The first half was false: validation existed only as a side effect of the age-sum probe WP-2 deleted, and `--docker-until` parsing never checked its input. The worker flagged the contradiction rather than papering over it; the orchestrator verified it, confirmed docker rejects (rather than ignores) an unparseable `until=` value so nothing over-prunes, and landed `6aa7edc` moving validation to parse time — where it is strictly better placed than it ever was. This is the class of error the skipped adversarial audit would most plausibly have caught on the plan rather than at diff review.
 
 ## Audit record
 
