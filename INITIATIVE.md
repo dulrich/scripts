@@ -7,7 +7,7 @@ tags: ""
 initiative-visibility: public
 initiative-status: active
 initiative-cadence: as-needed
-review-after-commits: 10
+review-after-commits: 25
 review-after-lines: 5000
 pending-plans: []
 initiative-title: Scripts
