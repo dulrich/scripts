@@ -53,4 +53,7 @@ bash build_system/tests/smoke.sh
 section 'public contract smoke'
 bash tests/public-contract-smoke.sh
 
+section 'blamecount smoke'
+bash blamecount/tests/smoke.sh
+
 printf '\nAll tracked shell gates passed.\n'
