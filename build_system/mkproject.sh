@@ -114,7 +114,7 @@ if [ "$dest_name_code" = "" ] ; then
 	if [ "$dest_name_exe" != "" ] ; then
 		dest_name_code="$dest_name_exe.c"
 	else
-		dest_name_code=code_file
+		dest_name_code="$code_file"
 	fi
 fi
 
