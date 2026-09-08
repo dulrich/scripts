@@ -119,6 +119,33 @@ code project
 assert_eq "$fixture_home/custom code/project" "$PWD" 'code with an argument handles a spaced base path'
 cd "$starting_dir" || exit 1
 
+# Completion candidates keep the typed directory prefix even when several
+# match (readline otherwise replaces the word with their empty common stem),
+# stay whole across spaces, and accept readline's backslash-escaped input.
+mkdir -p "$fixture_home/custom code/project/nested/alpha" \
+	"$fixture_home/custom code/project/nested/beta" \
+	"$fixture_home/custom code/spaced dir/inner"
+complete_cd() {
+	COMP_WORDS=("$1" "$2")
+	COMP_CWORD=1
+	COMPREPLY=()
+	"_$1"
+	printf '%s\n' "${COMPREPLY[@]}"
+}
+assert_eq $'project/nested/alpha/\nproject/nested/beta/' \
+	"$(complete_cd code 'project/nested/')" \
+	'cd completion keeps the typed prefix on every multi-candidate reply'
+assert_eq 'project/nested/beta/' "$(complete_cd code 'project/nested/b')" \
+	'cd completion keeps the typed prefix on a single nested reply'
+assert_eq 'spaced dir/' "$(complete_cd code 'spa')" \
+	'cd completion returns a spaced directory as one candidate'
+assert_eq 'spaced dir/inner/' "$(complete_cd code 'spaced\ dir/')" \
+	'cd completion accepts a readline-escaped spaced prefix'
+assert_eq '' "$(complete_cd code 'missing/')" \
+	'cd completion is silent for a prefix that does not exist'
+assert_contains "$(complete -p code)" '-o filenames' \
+	'cd completion lets readline re-escape spaced candidates'
+
 reload
 assert_eq '2' "$private_loaded" 'reload sources the alias chain and private overlay again'
 assert_eq "$fixture_repo" "$here" 'reload preserves symlink-relative repository resolution'

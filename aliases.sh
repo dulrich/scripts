@@ -33,7 +33,7 @@ fi
 
 # typing out the options every time gets old
 _comp () {
-	complete -o nospace -F "_$1" "$1"
+	complete -o nospace -o filenames -F "_$1" "$1"
 }
 
 # echo messes up some function returns
@@ -61,11 +61,11 @@ down () { _cd_offset "${_cd_base[down]}" "${1:-}"; }
 code () { _cd_offset "${_cd_base[code]}" "${1:-}"; }
 
 # shared completion: looks up the base for the requested command name.
-# genpath returns its candidates space-joined on one line; read -a splits
-# them the same way $(...) word-splitting would, without its glob-expansion
-# risk.
+# genpath prints one candidate per line, each carrying the typed directory
+# prefix, so a name with spaces stays one candidate and readline never
+# replaces the prefix with an empty common stem. -o filenames re-escapes.
 _cd_complete () {
-	read -r -a COMPREPLY <<< "$(genpath "${_cd_base[$1]}" "${COMP_WORDS[COMP_CWORD]}")"
+	mapfile -t COMPREPLY < <(genpath "${_cd_base[$1]}" "${COMP_WORDS[COMP_CWORD]}")
 }
 _.. () { _cd_complete ..; return 0; }
 _... () { _cd_complete ...; return 0; }
@@ -133,39 +133,29 @@ dc () {
 	"$here/daylog.sh" -f acpi "$battery_level"
 }
 
-# completion generator for offset paths
+# completion generator for offset paths: candidates are the subdirectories
+# of <base>/<typed prefix>, each printed on its own line as <typed
+# prefix>/<name>/ so the caller's completion never loses what was typed.
 genpath () {
-	local cur file path cpath opath reply
-	reply=()
-	cpath="$1"
-	opath=""
-	cur="$2"
+	local base cur dir file name
+	base=$1
+	cur=$2
+	# readline hands -F completers the raw word; drop its backslash escapes.
+	cur=${cur//\\/}
 
-	IFS=/ read -r -a path <<< "$cur"
-
-	if [ "${cur: -1}" == '/' ]; then
-		path+=("")
+	if [[ "$cur" == */* ]]; then
+		dir=${cur%/*}/
+		file=${cur##*/}
+	else
+		dir=''
+		file=$cur
 	fi
 
-	file=''
-	if [ ${#path[@]} -gt 0 ]; then
-		file=${path[${#path[@]}-1]}
-		unset 'path[${#path[@]}-1]'
-	fi
-
-	for p in "${path[@]}"; do
-		cpath="$cpath/$p"
-		if [ "$opath" == "" ]; then opath="$p"
-		else opath="$opath/$p"; fi
-	done
-
-	mapfile -t reply < <(compgen -W "$(find "$cpath" -mindepth 1 -maxdepth 1 -type d -printf '%f/\t')" -- "$file")
-
-	if [ "${#reply[@]}" -eq 1 ] && [ "$opath" != "" ]; then
-		reply=( "$opath/${reply[0]}" )
-	fi
-
-	echo "${reply[@]}"
+	[[ -d "$base/$dir" ]] || return 0
+	while IFS= read -r -d '' name; do
+		[[ "$name" == "$file"* ]] || continue
+		printf '%s%s/\n' "$dir" "$name"
+	done < <(find "$base/$dir" -mindepth 1 -maxdepth 1 -type d -printf '%f\0' | sort -z)
 }
 
 highfile () {
