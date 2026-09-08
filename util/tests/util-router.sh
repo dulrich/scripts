@@ -90,6 +90,17 @@ apply_fixture_script "$fixture_util/extensionless"
 apply_fixture_script "$fixture_util/scripted.sh"
 apply_fixture_script "$fixture_private/private-command.sh"
 
+# Helper modules that a command keeps in its own subdirectory (util/cache-prune/
+# holds cache-prune.sh's adapters/measurement/actions/cli modules). The router
+# globs "$here"/*.sh, so a helper dropped beside dispatch.sh *would* become a
+# command; under a subdirectory it must not, and these fixtures are executable
+# so that nothing but the glob's depth is doing the excluding.
+fixture_helpers="$fixture_util/cache-prune"
+mkdir -p "$fixture_helpers"
+for helper in adapters measurement actions cli; do
+	apply_fixture_script "$fixture_helpers/$helper.sh"
+done
+
 # A local command with the same name must retain precedence over the overlay.
 printf '%s\n' '#!/usr/bin/env bash' 'printf '\''local-wins\n'\''' > "$fixture_util/shadowed.sh"
 printf '%s\n' '#!/usr/bin/env bash' 'printf '\''private-loses\n'\''' > "$fixture_private/shadowed.sh"
@@ -153,6 +164,36 @@ assert_not_contains "$completion_output" 'extensionless' 'completion retains its
 assert_not_contains "$completion_output" 'dispatch' 'completion excludes dispatch infrastructure'
 assert_not_contains "$completion_output" 'lib' 'completion excludes library infrastructure'
 assert_not_contains "$completion_output" 'completions' 'completion excludes completion infrastructure'
+
+# A command's helper modules must never become commands themselves. This is
+# the structural guarantee that lets cache-prune keep adapters/measurement/
+# actions/cli as separate files: they live one directory down, where neither
+# the router's glob nor the completion's glob can see them.
+set +e
+listing_output=$("$fixture_util/dispatch.sh" 2>&1)
+set -e
+for helper in adapters measurement actions cli; do
+	assert_not_contains "$listing_output" "$helper" "command listing excludes the $helper helper module in a command's subdirectory"
+	assert_not_contains "$completion_output" "$helper" "completion excludes the $helper helper module in a command's subdirectory"
+
+	set +e
+	helper_output=$("$fixture_util/dispatch.sh" "$helper" 2>&1)
+	helper_status=$?
+	set -e
+	assert_status 1 "$helper_status" "routing to the $helper helper module fails -- it is not a command"
+	assert_contains "$helper_output" "Unknown util <$helper>" "the router reports the $helper helper module as an unknown command, not as a routable one"
+done
+
+# The same guarantee, asserted against the real tree rather than a fixture:
+# util/cache-prune/ exists, and none of what it holds is listed as a command.
+set +e
+real_listing=$("$repo_dir/util/dispatch.sh" 2>&1)
+set -e
+assert_contains "$real_listing" 'cache-prune' 'the real router still lists cache-prune itself'
+for helper in "$repo_dir"/util/cache-prune/*.sh; do
+	[ -e "$helper" ] || continue
+	assert_not_contains "$real_listing" "$(basename "$helper" .sh)" "the real router does not list util/cache-prune/$(basename "$helper")"
+done
 
 completion_output=$(
 	cd "$fixture_root"

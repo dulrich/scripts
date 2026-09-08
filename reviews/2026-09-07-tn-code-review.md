@@ -10,7 +10,7 @@ review-effort: high
 
 | Tier | Open | Resolved |
 |---|---:|---:|
-| structural-regressions | 3 | 0 |
+| structural-regressions | 2 | 1 |
 | simplification-misses | 2 | 0 |
 | spaghetti | 1 | 0 |
 | boundary-type-contracts | 2 | 0 |
@@ -44,11 +44,13 @@ Retain root `Xresources` and `gpuedit/themes/*.json` as canonical static assets 
 
 ### F9 — Cache-prune leaks measurement provenance through a temporary file into a growing generic runner
 
-**Open · structural-regressions · high · WP-R8.** `util/cache-prune.sh:431` records Docker's probe source through `DOCKER_SIZE_SOURCE_FILE`, while the probe returns only two byte counts. `process_runtime():705–939` consequently owns Docker scratch-file creation, a RETURN trap, source reads, pair validation, estimate rendering, action election, failure handling, post-action measurement, and totals. Docker-specific branches appear at lines 753, 766, 813, 891, and 901. This defeats the existing runtime registry's separation of orchestration from adapters.
+**Resolved · structural-regressions · high · WP-R8.** `util/cache-prune.sh:431` records Docker's probe source through `DOCKER_SIZE_SOURCE_FILE`, while the probe returns only two byte counts. `process_runtime():705–939` consequently owns Docker scratch-file creation, a RETURN trap, source reads, pair validation, estimate rendering, action election, failure handling, post-action measurement, and totals. Docker-specific branches appear at lines 753, 766, 813, 891, and 901. This defeats the existing runtime registry's separation of orchestration from adapters.
 
 This is a measured correctness problem as well as unnecessary machinery. At line 754 a failed `mktemp` silently becomes an empty filename. Both source labels then remain empty; the inequality guard at line 901 accepts them as matching. A hermetic probe overrode `mktemp` to fail, mocked the before probe as `system-df: 1000 900`, and the after probe as `buildx-du: 400 300`; the action was a shell mock. `process_runtime docker` exited 0 and printed `observed footprint change: 600.0B (600 bytes)`, with `FAILED=0 DELTA_BYTES=600`. No Docker command or cache deletion ran. The required outcome is an unavailable delta when provenance cannot establish comparable measurements.
 
 Commit `c1af930` grew the implementation from 819 to 1,023 lines and its smoke suite from 859 to 1,224. Decompose this before adding further modes. Return one validated measurement containing status, total bytes, reclaimable bytes, and source identity from every adapter; compare nonempty compatible identities in one place. Delete the scratch file, dynamically scoped source channel, and trap. Separate measurement/reporting from the small action lifecycle, and move adapters and focused tests into cohesive modules under non-command subdirectories. Preserve the existing prompt order, failure short-circuit, and one before/after measurement around all elected verbs. Merely splitting the current 235-line runner across files is insufficient. Size and boundary symptoms are counted here only.
+
+Resolved: every adapter now returns one validated record carrying status, both byte counts and a non-empty source through stdout alone, and `probe_compare` owns eligibility for every runtime; `util/tests/cache-prune/measurement.sh` pins it with the exact hermetic case above — before `system-df 1000 900`, after `buildx-du 400 300`, `mktemp` failing — asserting an unavailable delta, `DELTA_BYTES` unchanged at 0, unchanged exit status and no docker invocation.
 
 ### F3 — IOC policy is still maintained in parallel representations
 
