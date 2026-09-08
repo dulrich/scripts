@@ -5,6 +5,7 @@ review-type: tn-code-review
 review-model: gpt-6-astra
 review-harness: codex
 review-effort: high
+remediation-commit: ebcee627a05be206f11b5eac4ac83a88308086be
 ---
 # Review — scripts maintainability revalidation
 
@@ -18,7 +19,7 @@ review-effort: high
 | modularity | 0 | 1 |
 | legibility | 0 | 0 |
 
-**Verdict: remediation required — nine Open findings.** All eight findings from [July's review](2026-07-30-tn-code-review.md) still apply. F9 is a new structural regression in cache-prune. No implementation was changed during this review.
+**Verdict: remediation required — nine Open findings (historical, at review time).** Remediated 2026-09-07: all nine findings Resolved by WP-R8, R1–R7; the last substantive commit `ebcee62` (WP-R7) brought every Open count to zero and is the `remediation-commit`. All eight findings from [July's review](2026-07-30-tn-code-review.md) still apply. F9 is a new structural regression in cache-prune. No implementation was changed during this review.
 
 ## Scope and evidence
 

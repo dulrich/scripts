@@ -9,8 +9,7 @@ initiative-status: active
 initiative-cadence: as-needed
 review-after-commits: 25
 review-after-lines: 5000
-pending-plans:
-  - "[[2026-09-07-tn-code-review-remediation]]"
+pending-plans: []
 initiative-title: Scripts
 initiative-slug: scripts
 security-tracking: track

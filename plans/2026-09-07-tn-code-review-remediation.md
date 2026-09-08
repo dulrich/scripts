@@ -2,7 +2,7 @@
 
 *Recommended model/effort — Claude implementation: opus-5/high for scanner, dotfiles, and cache measurement boundaries; sonnet-5/medium for isolated build, public-surface, alias, and blamecount packages. Codex review-only: gpt-5.6-sol/high and gpt-5.6-terra/medium respectively. Separate adversarial plan audit: exempt for tn-code-review remediation; later Claude orchestrator verifies findings against source before approval.*
 
-**Status: APPROVED 2026-09-07 (rev 1) — source verification complete, all nine findings confirmed; user approved all public-surface removals, the dotfiles identity/local-only snapshot contract, and the model/execution posture.**
+**Status: IMPLEMENTED 2026-09-07 — landed on master: WP-R8 `4727d3a`, WP-R1 `fd25ae4`, WP-R2 `1554c95`, WP-R3 `20f2c0e`, WP-R4 `808c284`, WP-R5 `8f07eb5`, WP-R6 `4511c18`, WP-R7 `ebcee62` (remediation-commit), WP-R9 closeout in the commit that carries this line. Previously: APPROVED 2026-09-07 (rev 1) — source verification complete, all nine findings confirmed; user approved all public-surface removals, the dotfiles identity/local-only snapshot contract, and the model/execution posture.**
 
 ## Context
 
