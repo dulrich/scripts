@@ -15,7 +15,7 @@ review-effort: high
 | spaghetti | 0 | 1 |
 | boundary-type-contracts | 0 | 2 |
 | file-size | 0 | 0 |
-| modularity | 1 | 0 |
+| modularity | 0 | 1 |
 | legibility | 0 | 0 |
 
 **Verdict: remediation required — nine Open findings.** All eight findings from [July's review](2026-07-30-tn-code-review.md) still apply. F9 is a new structural regression in cache-prune. No implementation was changed during this review.
@@ -98,9 +98,11 @@ Resolved: `aliases.sh:131`'s dead `lifi` alias, its `README.md`/`AGENTS.md` adve
 
 ### F8 — Blamecount has no reproducible runtime or meaningful error result
 
-**Open · modularity · medium · WP-R7.** `blamecount/blamecount.js:7–10` still imports undeclared lodash, async, and nodegit; there is no tracked package manifest or lockfile. The traversal keeps mutable global totals, launches unbounded callback work, and converts errors to log-and-success paths (`:82`, `:99`, `:121`, `:143`). The root gate does not execute it.
+**Resolved · modularity · medium · WP-R7.** `blamecount/blamecount.js:7–10` still imports undeclared lodash, async, and nodegit; there is no tracked package manifest or lockfile. The traversal keeps mutable global totals, launches unbounded callback work, and converts errors to log-and-success paths (`:82`, `:99`, `:121`, `:143`). The root gate does not execute it.
 
 Use Node built-ins and Git CLI discovery/blame, bounded concurrency, explicit results, and nonzero errors. Preserve author/language aggregation and configured exclusions. Verify a hermetic Git fixture, filenames with whitespace, and failure behavior through the root gate.
+
+Resolved: `blamecount.js` now imports only `node:fs`/`node:path`/`node:child_process`/`node:util` plus the `git` CLI (`git ls-files -z --stage` for whitespace-safe, symlink-aware discovery; `git blame --porcelain` per file through a bounded `concurrency`-wide worker pool, default 4), threads one explicit `totals` accumulator through the call chain instead of a module-level global, and turns every discovery/blame/config/repository failure into a distinct nonzero exit code naming the offending path; `blamecount/tests/smoke.sh` (11/11 passed) runs from the root gate's new `blamecount smoke` section and hermetically covers two authors, three-plus table languages, a dropped non-table extension, a `.min.js` exclusion, a stopped top-level `node_modules` versus a preserved nested `src/node_modules`, filenames with a space and a leading dash, an uncommitted line under the literal "Not Committed Yet" author, a forced `git blame` failure via a `PATH` shim (nonzero exit, path in stderr), a missing config, a non-repo `basepath`, and an empty repository (`{}`, exit 0).
 
 ## Disposition and handoff
 

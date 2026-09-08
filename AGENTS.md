@@ -49,7 +49,7 @@ It optionally loads (not in repo, gitignored):
 ### Subdirectories
 
 - `util/` — utility subcommands dispatched by the `util` router (see above). A subcommand's own helper modules live in a subdirectory named after it (e.g. `util/cache-prune/`), which the router's `util/*.sh` glob deliberately cannot reach.
-- `blamecount/` — Node.js tool for summarizing `git blame` stats. Configure via `config.json` (see `config.example.json`).
+- `blamecount/` — Node.js (built-ins only; Node ≥ 18) tool summarizing `git blame` stats per author/language via the `git` CLI, with bounded blame concurrency. Configure via `config.json` (see `config.example.json`, which also sets `concurrency`); accepts `--config <path>`. Missing/invalid config, a non-repo `basepath`, or any failed `git` invocation exits nonzero naming the offending path. Has its own tests (`blamecount/tests/smoke.sh`).
 - `pkg-ioc/` — Supply-chain-attack IOC scanner for npm/PyPI. Has its own tests (`tests/smoke.sh`).
 - `gpuedit/` — Config files (themes, keybindings, highlighters) for gpuedit.
 - `i3/` — i3 window manager config.
@@ -70,8 +70,9 @@ bash tests/shell-gate.sh
 The gate enumerates public tracked scripts with `git ls-files -z '*.sh'`, then
 runs ShellCheck and `bash -n` over that exact set. It also runs the Debian
 maintenance, util router, cache-prune, alias-chain, root-utility, and `pkg-ioc`
-smoke suites, followed by the build-system and public-contract checks.
-Gitignored private overlays are intentionally outside this public repository gate.
+smoke suites, followed by the build-system, public-contract, and blamecount
+checks. Gitignored private overlays are intentionally outside this public
+repository gate.
 
 For focused iteration, the component smoke commands are:
 
@@ -84,6 +85,7 @@ bash tests/root-utils-smoke.sh
 bash pkg-ioc/tests/smoke.sh
 (cd build_system && ./build.sh)
 bash tests/public-contract-smoke.sh
+bash blamecount/tests/smoke.sh
 ```
 
 ## Public / private split
