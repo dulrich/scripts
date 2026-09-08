@@ -8,7 +8,19 @@
 //char* base_build_dir = "__SED_TOKEN_BUILD_PATH";
 
 
-#include "_build.inc.c"
+// Canonical source: build_system/parts/*.c, included below in build order.
+// This is the only translation unit; there is no generated amalgamation.
+#include "parts/strlist.c"
+#include "parts/header.c"
+#include "parts/string.c"
+#include "parts/strcache.c"
+#include "parts/hash.c"
+#include "parts/fs.c"
+#include "parts/pkgconfig.c"
+#include "parts/init.c"
+#include "parts/cprocs.c"
+#include "parts/rglob.c"
+#include "parts/gcc.c"
 
 
 
