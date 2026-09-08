@@ -18,61 +18,8 @@
 #     with New PyPI Wave" (the weekend report)
 # ============================================================================
 
-# Attacker-specific / lookalike / typosquat names (PEP 503 normalized). A name
-# match alone is high-signal -> HIT. These are NOT real established packages.
-PYPI_HIT_NAMES=(
-  dreamgen
-  instructor-mcp
-  langchain-core-mcp
-  mem8
-  mflux-streamlit
-  openai-mcp
-  orchestr8-platform
-  ray-mcp-server
-  tiktoken-mcp
-  rsquests           # typosquat of requests
-  tlask              # typosquat of flask
-  rlask              # typosquat of flask
-)
-# Boundary-anchored regex form for manifest text sweeps (-/_ interchangeable).
-PYPI_HIT_BOUND='(^|[^A-Za-z0-9._-])(dreamgen|instructor[-_]mcp|langchain[-_]core[-_]mcp|mem8|mflux[-_]streamlit|openai[-_]mcp|orchestr8[-_]platform|ray[-_]mcp[-_]server|tiktoken[-_]mcp|rsquests|tlask|rlask)([^A-Za-z0-9._-]|$)'
-
-# REAL bioinformatics packages where only SPECIFIC versions were poisoned. Name
-# alone is a false-positive cannon (these are legitimately installed in research
-# environments), so name-only = REVIEW; the exact bad version = HIT via
-# PYPI_KNOWN_BAD. The PyPI edition of the @tanstack watchlist lesson.
-PYPI_WATCH_NAMES=(
-  embiggen
-  ensmallen
-  gpsea
-  phenopacket-store-toolkit
-  ppkt2synergy
-  pyphetools
-)
-PYPI_WATCH_BOUND='(^|[^A-Za-z0-9._-])(embiggen|ensmallen|gpsea|phenopacket[-_]store[-_]toolkit|ppkt2synergy|pyphetools)([^A-Za-z0-9._-]|$)'
-
-# Advisory-backed exact name@version (PEP 503 normalized name). Every entry
-# traces to the Socket.dev IOC list.
-PYPI_KNOWN_BAD=(
-  "dreamgen@1.8.1"
-  "embiggen@0.11.97"
-  "ensmallen@0.8.101"
-  "gpsea@0.9.14"
-  "instructor-mcp@1.15.2" "instructor-mcp@1.15.3"
-  "langchain-core-mcp@1.4.2" "langchain-core-mcp@1.4.3"
-  "mem8@6.0.1"
-  "mflux-streamlit@0.0.3" "mflux-streamlit@0.0.4"
-  "openai-mcp@2.41.1" "openai-mcp@2.41.2"
-  "orchestr8-platform@3.3.2"
-  "phenopacket-store-toolkit@0.1.7"
-  "ppkt2synergy@0.1.1"
-  "pyphetools@0.9.120"
-  "ray-mcp-server@0.2.1"
-  "rlask@3.1.7"
-  "rsquests@2.34.3"
-  "tiktoken-mcp@0.13.1" "tiktoken-mcp@0.13.2"
-  "tlask@3.1.4"
-)
+# HIT names, watch names, exact bad name@versions and the PYPI_*_BOUND sweeps
+# derived from them all live in lib/policy.sh.
 
 # Known malicious artifact SHA-256 hashes (Socket.dev "Notable Hashes").
 PYPI_KNOWN_HASHES=(
@@ -101,73 +48,12 @@ normalize_pypi_name() {
   printf '%s' "$n"
 }
 
-pypi_known_bad_exact() {
-  local needle="$1@$2" i
-  for i in "${PYPI_KNOWN_BAD[@]}"; do
-    [ "$i" = "$needle" ] && return 0
-  done
-  return 1
-}
-
-# Comma-join the advisory-recorded bad versions for a (PEP 503 normalized)
-# name, so a watchlist REVIEW shows what to compare against on the spot.
-pypi_known_bad_versions_for() {
-  local name="$1" i out=""
-  for i in "${PYPI_KNOWN_BAD[@]}"; do
-    case "$i" in
-      "$name@"*) out="${out:+$out, }${i#*@}" ;;
-    esac
-  done
-  printf '%s' "$out"
-}
-
-pypi_hit_name() {
-  local n="$1" i
-  for i in "${PYPI_HIT_NAMES[@]}"; do
-    [ "$i" = "$n" ] && return 0
-  done
-  return 1
-}
-
-pypi_watch_name() {
-  local n="$1" i
-  for i in "${PYPI_WATCH_NAMES[@]}"; do
-    [ "$i" = "$n" ] && return 0
-  done
-  return 1
-}
-
-report_pypi_package() {
-  local name version where nname
-  name="$1"; version="$2"; where="$3"
-  [ -n "$name" ] || return 0
-  nname="$(normalize_pypi_name "$name")"
-  [ -n "$nname" ] || return 0
-
-  if [ -n "$version" ] && pypi_known_bad_exact "$nname" "$version"; then
-    pypi_package_hits=$((pypi_package_hits+1))
-    hit "known malicious package version $nname@$version in $where"
-  elif pypi_hit_name "$nname"; then
-    pypi_package_hits=$((pypi_package_hits+1))
-    if [ -n "$version" ]; then
-      hit "affected package '$nname'@$version present in $where"
-    else
-      hit "affected package '$nname' present in $where"
-    fi
-  elif pypi_watch_name "$nname"; then
-    local kbv
-    kbv="$(pypi_known_bad_versions_for "$nname")"
-    if [ -n "$kbv" ]; then
-      kbv="known-bad: $kbv"
-    else
-      kbv="no advisory-pinned versions for this package"
-    fi
-    if [ -n "$version" ]; then
-      review "watchlist package present (verify exact version vs advisory): $nname@$version in $where ($kbv)"
-    else
-      review "watchlist package present (verify exact version vs advisory): $nname in $where ($kbv)"
-    fi
-  fi
+# The same shared ladder as the npm leg, behind PEP 503 normalization. The
+# classification is RETURNED: run_pypi_checks owns pypi_package_hits.
+report_pypi_package() { # name version where
+  local nname; nname="$(normalize_pypi_name "$1")"
+  [ -n "$nname" ] || return "$POLICY_CLASS_NONE"
+  policy_report_package pypi_known_bad_exact pypi_hit_name pypi_watch_name pypi_known_bad_versions_for '' "$nname" "$2" "$3"
 }
 
 # Emit "name<TAB>version" pairs across PyPI manifest/lock formats. Spurious pairs
@@ -209,7 +95,7 @@ run_pypi_checks() {
   local ROOT="$1"
   local pypi_package_hits=0
   local m name version dist_count=0
-  local f wn pth base pth_total=0 has_import marker
+  local f wn wn_re pth base pth_total=0 has_import marker
   local idx idx_total=0 idxdir
   local so so_total=0 sobase
   local h known kh kname
@@ -220,7 +106,7 @@ run_pypi_checks() {
     dist_count=$((dist_count+1))
     name="$(grep -m1 -iE '^Name:' "$m" 2>/dev/null | sed -E 's/^[Nn]ame:[[:space:]]*//; s/[[:space:]]*$//')"
     version="$(grep -m1 -iE '^Version:' "$m" 2>/dev/null | sed -E 's/^[Vv]ersion:[[:space:]]*//; s/[[:space:]]*$//')"
-    report_pypi_package "$name" "$version" "$m"
+    report_pypi_package "$name" "$version" "$m" && pypi_package_hits=$((pypi_package_hits+1))
   done < <(find "$ROOT" \
     \( -path '*/node_modules' -o -path '*/.git' \) -prune -o \
     -type f \( -path '*.dist-info/METADATA' -o -path '*.egg-info/PKG-INFO' \) \
@@ -231,7 +117,7 @@ run_pypi_checks() {
   section "pypi: affected packages referenced in dependency manifests"
   while IFS= read -r -d '' f; do
     while IFS="$(printf '\t')" read -r name version; do
-      report_pypi_package "$name" "$version" "$f"
+      report_pypi_package "$name" "$version" "$f" && pypi_package_hits=$((pypi_package_hits+1))
     done < <(scan_pyreq_pairs "$f")
 
     if grep -qiE "$PYPI_HIT_BOUND" "$f" 2>/dev/null; then
@@ -242,7 +128,8 @@ run_pypi_checks() {
       review "watchlist (bioinformatics) package referenced (verify exact version vs advisory): $f"
       grep -niE "$PYPI_WATCH_BOUND" "$f" 2>/dev/null | sed 's/^/    /' | head -n 20
       for wn in "${PYPI_WATCH_NAMES[@]}"; do
-        if grep -qiE "(^|[^A-Za-z0-9._-])${wn//-/[-_]}([^A-Za-z0-9._-]|$)" "$f" 2>/dev/null; then
+        policy_derive_matcher wn_re pypi "$wn"
+        if grep -qiE "$wn_re" "$f" 2>/dev/null; then
           info "      $wn known-bad: $(pypi_known_bad_versions_for "$wn")"
         fi
       done

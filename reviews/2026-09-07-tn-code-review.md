@@ -11,7 +11,7 @@ review-effort: high
 | Tier | Open | Resolved |
 |---|---:|---:|
 | structural-regressions | 0 | 3 |
-| simplification-misses | 2 | 0 |
+| simplification-misses | 1 | 1 |
 | spaghetti | 1 | 0 |
 | boundary-type-contracts | 1 | 1 |
 | file-size | 0 | 0 |
@@ -58,9 +58,11 @@ Resolved: every adapter now returns one validated record carrying status, both b
 
 ### F3 — IOC policy is still maintained in parallel representations
 
-**Open · simplification-misses · high · WP-R3.** `pkg-ioc/lib/npm.sh:20–39` duplicates package families in `PKG_PREFIXES` and `PKG_RE`; `WATCH_RE:126` and `watch_pkg():245` duplicate watch policy. `pkg-ioc/lib/pypi.sh:23–52` repeats arrays and independently maintained boundary regexes. Both report helpers mutate caller-local counters through dynamic scope (`npm.sh:254`, `pypi.sh:140`).
+**Resolved · simplification-misses · high · WP-R3.** `pkg-ioc/lib/npm.sh:20–39` duplicates package families in `PKG_PREFIXES` and `PKG_RE`; `WATCH_RE:126` and `watch_pkg():245` duplicate watch policy. `pkg-ioc/lib/pypi.sh:23–52` repeats arrays and independently maintained boundary regexes. Both report helpers mutate caller-local counters through dynamic scope (`npm.sh:254`, `pypi.sh:140`).
 
 Keep canonical ecosystem rule data and derive secondary matchers, retaining ecosystem-specific boundary and normalization semantics. Share explicit classification/reporting mechanics instead of maintaining near-parallel known-version/watch flows and caller-local counter contracts. Characterization must distinguish exact hits, family hits, broad-scope reviews, and clean near-matches before replacement.
+
+Resolved: `pkg-ioc/lib/policy.sh` now holds every family, watch scope/name and advisory-pinned `name@version` once and derives `PKG_RE`, `WATCH_RE`, `PYPI_HIT_BOUND`, `PYPI_WATCH_BOUND` and `watch_pkg()` from those arrays at source time (each derived string byte-identical to the literal it replaces), both report helpers now share one classification ladder and return `POLICY_CLASS_MATCH`/`_WATCH`/`_NONE` for the `run_*_checks` owner to count, and `pkg-ioc/tests/smoke.sh` grew a derivation self-test plus a PyPI lock-block attribution fixture (68 assertions, was 55) with every fixture's scanner output byte-identical before and after.
 
 ### F5 — Alias helpers flatten argv and generate runtime code unnecessarily
 
