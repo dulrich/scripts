@@ -30,11 +30,11 @@ It optionally loads (not in repo, gitignored):
 
 `aliases.sh` uses `$here` (resolved via `realpath "${BASH_SOURCE[0]}"`) so all sibling-script references work correctly regardless of where it is symlinked from.
 
-`git-aliases.sh` depends on `defarg` and `grep_options` defined in `aliases.sh` — it must always be sourced after `aliases.sh`.
+`git-aliases.sh` depends on `grep_options` defined in `aliases.sh` — it must always be sourced after `aliases.sh`.
 
 ### The `util` router
 
-`aliases.sh` aliases `util` to `util/dispatch.sh`, a filesystem-router: `util <command> [args]` execs `util/<command>[.sh]`. There is no central registry — adding a subcommand is just dropping a `util/<name>.sh` file. `util/lib.sh` holds shared helpers (e.g. `defarg`) that subcommands can source, since they run as separate processes and don't inherit `aliases.sh` functions. `util/completions.sh` generates the completion list from `util/*.sh` (excluding `dispatch`/`lib`/`completions`), so private subcommands symlinked into `util/` are picked up automatically. Pattern modeled on `asset-tools/cond/util/`.
+`aliases.sh` aliases `util` to `util/dispatch.sh`, a filesystem-router: `util <command> [args]` execs `util/<command>[.sh]`. There is no central registry — adding a subcommand is just dropping a `util/<name>.sh` file. `util/lib.sh` holds `_util_commands`, the one discovery function that both `dispatch.sh`'s listing and `completions.sh`'s completion source and call, so overlay precedence, infrastructure exclusion, and `.sh` resolution can't drift apart between them. `util/completions.sh` generates the completion list from `util/*.sh` (excluding `dispatch`/`lib`/`completions`), so private subcommands symlinked into `util/` are picked up automatically. Pattern modeled on `asset-tools/cond/util/`.
 
 ### Key utilities
 

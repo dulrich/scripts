@@ -18,26 +18,8 @@ source "$here/lib.sh"
 # optional private overlay: scripts-private symlinked in as ../private
 priv="$here/../private/util"
 
-# infrastructure files that are not subcommands
-_util_infra="dispatch lib completions"
-
 _util_list() {
-	local f name
-	for f in "$here"/*.sh; do
-		[ -e "$f" ] || continue
-		name=$( basename "$f" .sh )
-		case " $_util_infra " in
-			*" $name "*) continue ;;
-		esac
-		echo "$name"
-	done
-	# private overlay commands, if the overlay is present
-	if [ -d "$priv" ]; then
-		for f in "$priv"/*.sh; do
-			[ -e "$f" ] || continue
-			basename "$f" .sh
-		done
-	fi
+	_util_commands "$here"
 }
 
 script="${1:-}"

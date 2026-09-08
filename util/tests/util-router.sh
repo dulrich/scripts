@@ -211,15 +211,24 @@ assert_contains "$completion_output" 'alpha.txt' 'deeper completion discovers ma
 assert_contains "$completion_output" 'alphabet.txt' 'deeper completion keeps all filename matches'
 assert_not_contains "$completion_output" 'beta.txt' 'deeper completion respects the current prefix'
 
-# The repository root is resolved dynamically so the smoke test works anywhere.
+# The router's listing and its completion must offer the exact same command
+# set, not merely overlapping sets -- both now call the one shared discovery
+# function in lib.sh, so a divergence here would mean one of them stopped
+# sharing it.
 # shellcheck disable=SC1091
-source "$repo_dir/util/lib.sh"
-assert_eq './' "$(defarg '' 0 './')" 'defarg returns its default for an empty argument string'
-assert_eq 'two' "$(defarg 'one two three' 1 default)" 'defarg selects a split positional word'
-assert_eq 'one two three' "$(defarg 'one two three' @ default)" 'defarg @ returns every split word'
-assert_eq 'default value' "$(defarg '' 0 'default value')" 'defarg preserves a multiword default'
-touch "$fixture_root/glob-match"
-assert_eq 'glob-*' "$(cd "$fixture_root" && defarg 'glob-* next' 0 default)" 'defarg splits without pathname expansion'
+source "$fixture_util/lib.sh"
+listing_set=$(_util_commands "$fixture_util" | sort)
+level1_completion=$(
+	FIXTURE_COMPLETIONS="$fixture_util/completions.sh" bash -c '
+		source "$FIXTURE_COMPLETIONS"
+		COMP_WORDS=(util "")
+		COMP_CWORD=1
+		_util_complete
+		printf "%s\n" "${COMPREPLY[@]}"
+	'
+)
+completion_set=$(printf '%s\n' "$level1_completion" | sort)
+assert_eq "$listing_set" "$completion_set" 'router listing and completion enumerate the identical command set'
 
 # Every real subcommand in util/ must be executable: dispatch.sh routes with
 # `exec`, so a non-executable subcommand fails at runtime with exit 126 even
