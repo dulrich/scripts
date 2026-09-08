@@ -11,11 +11,27 @@ selected ecosystem sub-scanners, runs the shared host-level checks once, and pri
 verdict + exit code. Detection logic lives in `lib/`:
 
 - `lib/common.sh` — shared, ecosystem-agnostic machinery: the reporting helpers
-  (`hr/section/hit/review/info`), `dedupe_existing_files`, the shared IOC constants (`IOC_RE`,
+  (`hr/section/hit/review/info`) and the shared marker display
+  (`show_matches`/`report_markers`), `dedupe_existing_files`, the shared IOC constants (`IOC_RE`,
   `PAYLOAD_MARKERS` — same Bun-staged Hades stealer regardless of delivery vector), and
   `run_common_checks` (gh-token-monitor daemon, Bun temp artifacts, passwordless sudo, hosts-file
   redirection incl. the StepSecurity telemetry domains, zero-width agent-context injection, shell-RC
   bun download).
+- `lib/inventory.sh` — the one bounded filesystem walk per distinct traversal **policy**, built
+  once per scan and shared by every check that has that policy. **P1** (`INVENTORY_ROOT`) walks
+  `$ROOT` pruning `*/node_modules` and `*/.git`, and feeds the thirteen checks that each used to walk
+  the tree themselves. **P2** (`INVENTORY_MODULES`) walks the `node_modules` interior that P1
+  deliberately prunes (installed-`package.json` attribution, Phantom-Gyp `binding.gyp`); it targets
+  exactly what P1 prunes, so the two must never be merged. **P3** is every walk whose scope is
+  legitimately its own — the agent-config dirs, the systemd/launchd unit dirs, the temp roots, the
+  `_index.js` sibling probe — and those keep their own `find` calls. Each shared walk prints the
+  UNION of its consumers' `-name`/`-path` predicates and every consumer re-applies its own predicate
+  through `inventory_select`, whose `file` mode reproduces `find -type f` (a regular file that is not
+  itself a symlink) for the call sites that have one and whose `any` mode applies no type test for
+  the call sites that have none — so a symlinked `package.json` is still listed and read through
+  exactly where it was before, and a symlinked source file is still skipped exactly where it was.
+  **A new check filters an existing inventory (extending the union predicate when it needs a new
+  name) or justifies a new bounded walk — never a fresh `find "$ROOT"`.**
 - `lib/policy.sh` — the one IOC policy representation: the affected-package families, watch
   scopes/names and advisory-pinned exact `name@version` lists for every ecosystem, plus the sweep
   matchers (`PKG_RE`, `WATCH_RE`, `PYPI_HIT_BOUND`, `PYPI_WATCH_BOUND`) and `watch_pkg()` **derived**
@@ -29,7 +45,7 @@ verdict + exit code. Detection logic lives in `lib/`:
 into one process so `FOUND`/`REVIEWS`/`SECTION` are shared globals and there is exactly **one**
 verdict and **one** exit code. Do NOT refactor the sub-scanners into separate processes (`exec`/
 subshell) — that fragments `FOUND` and forces brittle exit-code merging. The per-ecosystem counters
-(`package_hits`, `pypi_package_hits`) stay `local` to their `run_*` function and are deliberately
+(`package_hits`, `pypi_package_hits`) stay `local` to the named check that owns them and are deliberately
 NOT visible to the report helpers: `report_package_reference`/`report_pypi_package` return an
 explicit classification (`POLICY_CLASS_MATCH`/`_WATCH`/`_NONE`) and the section that owns the counter
 increments it from that result. Do not reintroduce dynamic-scope counter mutation.
@@ -215,6 +231,14 @@ gate:
   parsed-name classifier stays stricter than the unanchored lockfile sweep (`autotelic` is not
   `autotel`, bare `@tanstack` is not a package), and that the report helpers return their
   classification instead of mutating a caller's counter.
+- **Traversal count + scan-scope fixtures** — an exported `find` shim (a PATH-prepended script would
+  be bypassed: the router puts the system directories first on `PATH`) counts the walks rooted at the
+  scan root: the positive fixture is walked **twice**, once per shared inventory, where the
+  pre-inventory design walked it **21** times, so the assertion fails the moment a check reintroduces
+  its own `$ROOT` walk. Beside it, deep-vs-shallow (the same IOC at depth 1 and depth 6),
+  `NPM_IOC_TMP_ROOT` variants (trailing slash, nested root), a symlinked `.claude/settings.json`,
+  installed `package.json` and source file (pinning the per-check `-type f` reach), and paths
+  containing spaces all assert the same verdicts and classifications.
 - **Router dispatch** — asserts `--ecosystem npm` emits npm sections and no `pypi:` sections (and the
   converse), so the dispatcher cannot silently run the wrong leg.
 - **PyPI positive fixture** — a fake site-packages with an installed `langchain-core-mcp@1.4.2`

@@ -12,7 +12,7 @@ review-effort: high
 |---|---:|---:|
 | structural-regressions | 0 | 3 |
 | simplification-misses | 1 | 1 |
-| spaghetti | 1 | 0 |
+| spaghetti | 0 | 1 |
 | boundary-type-contracts | 1 | 1 |
 | file-size | 0 | 0 |
 | modularity | 1 | 0 |
@@ -72,9 +72,11 @@ Use direct positional arguments, four ordinary directory wrappers with shared co
 
 ### F4 — IOC orchestration repeats tree walks and large branch-heavy flows
 
-**Open · spaghetti · high · WP-R4.** `run_common_checks` (`common.sh:61`), `run_npm_checks` (`npm.sh:322`), and `run_pypi_checks` (`pypi.sh:208`) remain the same 143-, 160-, and 153-line flows. The original eighteen `find` call sites remain across those three modules, with repeated pruning, content display, and hit/review plumbing.
+**Resolved · spaghetti · high · WP-R4.** `run_common_checks` (`common.sh:61`), `run_npm_checks` (`npm.sh:322`), and `run_pypi_checks` (`pypi.sh:208`) remain the same 143-, 160-, and 153-line flows. The original eighteen `find` call sites remain across those three modules, with repeated pruning, content display, and hit/review plumbing.
 
 Use a shared inventory per distinct scan scope/policy and small named checks invoked in explicit order. Do not collapse genuinely different depth, prune, symlink, temp-root, and config-file policies into one indiscriminate walk. The reduction must remove redundant traversal and orchestration concepts while preserving every existing detection contract and single verdict.
+
+Resolved: `pkg-ioc/lib/inventory.sh` builds one bounded P1 walk (`$ROOT`, pruning `*/node_modules` and `*/.git`) and one P2 walk (the `node_modules` interior P1 prunes), each consumer re-applying its own `-name`/`-path`/`-type` predicate, so the 21 non-comment `find` call sites become 8 (the two inventories plus the six legitimately distinct P3 walks) and the positive fixture is walked twice instead of 21 times, asserted by an instrumented `find` shim in `tests/smoke.sh`; the three 143/160/153-line flows are now ordered lists of twenty named `*_check_*` functions, the marker display is shared through `show_matches`/`report_markers` with every per-site `head -n` cap kept distinct, and old-vs-new scanner output is byte-identical (same exit codes) across all 22 measured fixtures — the existing evasion fixtures plus new deep/shallow, temp-root-variant, config-symlink and whitespace-path cases (98 assertions, was 68).
 
 ### F6 — Dotfiles lacks explicit project identity and mutation boundaries
 
