@@ -5,8 +5,9 @@ here=$(dirname "$(realpath "${BASH_SOURCE[0]}")")
 
 mode="run"
 
-sed_files=( _build.c _build.inc.c build.sh build-flags.sh debug.sh profiling.sh valgrind valgrind.sh )
+sed_files=( _build.c build.sh build-flags.sh debug.sh profiling.sh valgrind valgrind.sh )
 code_file="test.c"
+parts_dir="parts"
 
 dest_name_code=""
 dest_name_exe=""
@@ -135,11 +136,23 @@ for f in "${sed_files[@]}"; do
 	cp "$here/$f" "$dest_path_root/$f"
 done
 
-sed -i -E -e "s;__SED_TOKEN_EXE_NAME;$dest_name_exe;" "${sed_files[@]}"
-sed -i -E -e "s;__SED_TOKEN_EXE_PATH;$dest_path_exe;" "${sed_files[@]}"
-sed -i -E -e "s;__SED_TOKEN_BUILD_PATH;$dest_path_build;" "${sed_files[@]}"
-sed -i -E -e "s;__SED_TOKEN_SOURCE_PATH;$dest_path_source;" "${sed_files[@]}"
-sed -i -E -e "s;__SED_TOKEN_CODE_NAME;$dest_name_code;" "${sed_files[@]}"
+# The canonical build-system parts are copied verbatim alongside _build.c;
+# they carry no __SED_TOKEN_ placeholders, so they are not in sed_files.
+mkdir -p "$dest_path_root/$parts_dir"
+cp "$here/$parts_dir"/*.c "$dest_path_root/$parts_dir/"
+
+# sed targets are the destination copies, not the template originals -
+# sed_files holds bare filenames, so they must be prefixed with dest_path_root.
+sed_targets=()
+for f in "${sed_files[@]}"; do
+	sed_targets+=("$dest_path_root/$f")
+done
+
+sed -i -E -e "s;__SED_TOKEN_EXE_NAME;$dest_name_exe;" "${sed_targets[@]}"
+sed -i -E -e "s;__SED_TOKEN_EXE_PATH;$dest_path_exe;" "${sed_targets[@]}"
+sed -i -E -e "s;__SED_TOKEN_BUILD_PATH;$dest_path_build;" "${sed_targets[@]}"
+sed -i -E -e "s;__SED_TOKEN_SOURCE_PATH;$dest_path_source;" "${sed_targets[@]}"
+sed -i -E -e "s;__SED_TOKEN_CODE_NAME;$dest_name_code;" "${sed_targets[@]}"
 
 
 {

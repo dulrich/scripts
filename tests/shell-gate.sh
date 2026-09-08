@@ -41,11 +41,14 @@ bash tests/root-utils-smoke.sh
 section 'pkg-ioc smoke'
 bash pkg-ioc/tests/smoke.sh
 
-section 'build-system smoke'
+section 'build-system template compile'
 (
 	cd build_system
 	./build.sh
 )
+
+section 'build-system smoke'
+bash build_system/tests/smoke.sh
 
 section 'theme generation smoke'
 (

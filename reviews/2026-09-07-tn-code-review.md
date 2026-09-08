@@ -10,7 +10,7 @@ review-effort: high
 
 | Tier | Open | Resolved |
 |---|---:|---:|
-| structural-regressions | 2 | 1 |
+| structural-regressions | 1 | 2 |
 | simplification-misses | 2 | 0 |
 | spaghetti | 1 | 0 |
 | boundary-type-contracts | 2 | 0 |
@@ -32,9 +32,11 @@ The mandatory read-only comment preflight ran on `gpt-5.6-terra/low` and returne
 
 ### F1 — Competing C sources let the gate validate stale code
 
-**Open · structural-regressions · blocker · WP-R1.** `build_system/_build.c:11` includes the tracked 1,705-line `_build.inc.c`; `build_system/parts/compile.sh:6` separately concatenates eleven canonical parts. An in-memory concatenation still differs from the tracked amalgamation. `parts/pkgconfig.c:36` frees `tmp` before the failure message uses it at line 39; the compiled copy retains different ordering. `mkproject.sh:134` copies the generated layer, and `tests/shell-gate.sh:45` only runs the existing build script.
+**Resolved · structural-regressions · blocker · WP-R1.** `build_system/_build.c:11` includes the tracked 1,705-line `_build.inc.c`; `build_system/parts/compile.sh:6` separately concatenates eleven canonical parts. An in-memory concatenation still differs from the tracked amalgamation. `parts/pkgconfig.c:36` frees `tmp` before the failure message uses it at line 39; the compiled copy retains different ordering. `mkproject.sh:134` copies the generated layer, and `tests/shell-gate.sh:45` only runs the existing build script.
 
 Delete the competing generated source, compile ordered canonical parts, and make generated projects carry those parts. Exercise a freshly generated project and the corrected failure path. This deletes an entire drift mechanism rather than adding a synchronization check. The generated file's size belongs to this finding, not a second file-size count.
+
+Resolved: `_build.inc.c` and `parts/compile.sh` are deleted; `_build.c` includes the eleven canonical parts directly in build order as one translation unit, and `mkproject.sh` copies `parts/` verbatim into every generated project alongside `_build.c`. `parts/pkgconfig.c` now frees the popen command string only after its last use on both paths. `build_system/tests/smoke.sh` generates a project, builds and runs it, demonstrates both an mtime-driven source rebuild and an unconditional builder recompile on a canonical-part edit, and drives the corrected pkg-config failure path through an LD_PRELOAD `popen()` stub under `MALLOC_PERTURB_`, asserting an uncorrupted command name and a clean exit(1).
 
 ### F2 — The theme pipeline still generates nothing
 
