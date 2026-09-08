@@ -170,7 +170,7 @@ blamepipe () {
 # grep and blame at the same time
 gb () {
 	local path
-	path=$(defarg "$*" 1 './')
+	path="${2:-./}"
 
 	grep -Pn "${grep_options[@]}" "$1" "$path" | blamepipe
 }

@@ -11,7 +11,7 @@ review-effort: high
 | Tier | Open | Resolved |
 |---|---:|---:|
 | structural-regressions | 0 | 3 |
-| simplification-misses | 1 | 1 |
+| simplification-misses | 0 | 2 |
 | spaghetti | 0 | 1 |
 | boundary-type-contracts | 1 | 1 |
 | file-size | 0 | 0 |
@@ -66,9 +66,11 @@ Resolved: `pkg-ioc/lib/policy.sh` now holds every family, watch scope/name and a
 
 ### F5 — Alias helpers flatten argv and generate runtime code unnecessarily
 
-**Open · simplification-misses · medium · WP-R5.** `aliases.sh:134` and `util/lib.sh:12` still duplicate `defarg`, which reparses a flattened string via `read -a`; git and path helpers pass `"$*"`. `aliases.sh:44` and `:155` build directory functions/completions through `eval`. `util/dispatch.sh:24` and `util/completions.sh:15` each implement filesystem discovery.
+**Resolved · simplification-misses · medium · WP-R5.** `aliases.sh:134` and `util/lib.sh:12` still duplicate `defarg`, which reparses a flattened string via `read -a`; git and path helpers pass `"$*"`. `aliases.sh:44` and `:155` build directory functions/completions through `eval`. `util/dispatch.sh:24` and `util/completions.sh:15` each implement filesystem discovery.
 
 Use direct positional arguments, four ordinary directory wrappers with shared completion, and one canonical discovery operation. Preserve `.sh` precedence, infrastructure exclusions, private overlay support, and symlink behavior. Spaced arguments must reach the final command unchanged. Remove the helper only after converting every tracked caller; do not inspect private overlays to accomplish that audit.
+
+Resolved: all twelve tracked `defarg` callers (ten in `aliases.sh`, one in `git-aliases.sh`, plus the `aliascd` eval site) now use positional-parameter defaults (`${1:-./}`, `${2:-./}`, etc.) that carry a spaced argument through unchanged instead of truncating it at the first `read -a` word boundary, `aliascd`'s eval-generated functions are replaced by four literal `..`/`...`/`down`/`code` wrappers over one `_cd_offset` helper and one shared `_cd_complete` completion function (no `eval` remains in `aliases.sh`), `defarg` itself is deleted from both `aliases.sh` and `util/lib.sh`, and `util/dispatch.sh`'s `_util_list` and `util/completions.sh`'s `_util_complete` now both call the one `_util_commands` discovery function `util/lib.sh` holds, asserted to enumerate an identical command set by `util/tests/util-router.sh`, with `tests/aliases-smoke.sh` (26 → 38 passed) and `util/tests/util-router.sh` (55 → 51 passed) covering the rewritten callers, the cd wrappers' no-argument/with-argument/spaced-base shapes, and that listing/completion equality.
 
 ### F4 — IOC orchestration repeats tree walks and large branch-heavy flows
 

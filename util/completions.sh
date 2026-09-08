@@ -9,30 +9,20 @@
 
 # resolved once at source time; the function reuses it on every completion
 _UTIL_DIR=$(dirname "$(realpath "${BASH_SOURCE[0]}")")
-# optional private overlay (scripts-private symlinked in as ../private)
-_UTIL_PRIV="$_UTIL_DIR/../private/util"
+
+# shared with dispatch.sh's listing, resolved relative to this file's own
+# directory so completion keeps working when aliases.sh sources it through
+# a symlink.
+# shellcheck source=util/lib.sh
+source "$_UTIL_DIR/lib.sh"
 
 _util_complete() {
-	local cur f name
+	local cur
 	local -a cmds=()
 	cur=${COMP_WORDS[COMP_CWORD]}
 
 	if [[ ${COMP_CWORD:-0} == 1 ]]; then
-		for f in "$_UTIL_DIR"/*.sh; do
-			[ -e "$f" ] || continue
-			name=$( basename "$f" .sh )
-			case "$name" in
-				dispatch|lib|completions) continue ;;
-			esac
-			cmds+=("$name")
-		done
-		# private overlay commands, if the overlay is present
-		if [ -d "$_UTIL_PRIV" ]; then
-			for f in "$_UTIL_PRIV"/*.sh; do
-				[ -e "$f" ] || continue
-				cmds+=("$(basename "$f" .sh)")
-			done
-		fi
+		mapfile -t cmds < <(_util_commands "$_UTIL_DIR")
 		mapfile -t COMPREPLY < <(compgen -W "${cmds[*]}" -- "$cur")
 	else
 		# subcommand arguments are completed as filenames
