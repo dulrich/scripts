@@ -73,6 +73,9 @@ LIBDIR="$(dirname "$SELF")/lib"
 # shellcheck source=lib/common.sh
 # shellcheck disable=SC1091
 . "$LIBDIR/common.sh"
+# shellcheck source=lib/inventory.sh
+# shellcheck disable=SC1091
+. "$LIBDIR/inventory.sh"
 # shellcheck source=lib/policy.sh
 # shellcheck disable=SC1091
 . "$LIBDIR/policy.sh"
@@ -104,6 +107,10 @@ printf '  Tools    : find=%s grep=%s perl=%s ps=%s\n' \
   "$(command -v grep 2>/dev/null || echo missing)" \
   "$(command -v perl 2>/dev/null || echo missing)" \
   "$(command -v ps 2>/dev/null || echo missing)"
+
+# One shared, bounded walk of the scan root (lib/inventory.sh) feeds every check
+# that has that traversal policy, so the tree is not re-walked per check.
+inventory_build_root "$ROOT"
 
 case "$ECOSYSTEM" in
   npm|all)  run_npm_checks "$ROOT" ;;
