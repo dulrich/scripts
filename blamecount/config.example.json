@@ -4,5 +4,6 @@
 		"bin",
 		"build",
 		"node_modules"
-	]
+	],
+	"concurrency" : 4
 }

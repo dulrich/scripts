@@ -93,7 +93,7 @@ overlays are excluded.
 
 - `util/` — utility subcommands dispatched by the `util` command.
 - `build_system/` — C build system + `mkproject`.
-- `blamecount/` — Node.js tool summarizing `git blame` stats.
+- `blamecount/` — Node.js (built-ins only; Node ≥ 18) tool summarizing `git blame` stats per author/language via the `git` CLI, no `npm install` required.
 - `pkg-ioc/` — supply-chain-attack IOC scanner for npm/PyPI.
 - `gpuedit/` — config (themes, keybindings, highlighters) for the gpuedit editor.
 - `i3/` — i3 window manager config.
