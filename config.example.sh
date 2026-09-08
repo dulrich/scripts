@@ -22,3 +22,8 @@
 
 # ALSA device for the volume()/vol helper ("default", or "pulse" on PulseAudio)
 # AUDIO_DEVICE="default"
+
+# dotfiles.sh runs standalone (it does not source config.sh) and reads these
+# two environment variables directly; documented here for discoverability.
+# DOTFILES_META_REPO="$HOME/code/meta_repo"
+# DOTFILES_META_DOTFILES="dot"

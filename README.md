@@ -78,7 +78,7 @@ bash tests/shell-gate.sh
 ```
 
 It checks every tracked `.sh` file with ShellCheck and `bash -n`, then runs all
-hermetic smoke, build-system, and theme-generation checks. Private/gitignored
+hermetic smoke, build-system, and public-contract checks. Private/gitignored
 overlays are excluded.
 
 ## Key utilities
@@ -86,7 +86,6 @@ overlays are excluded.
 | Script | Purpose |
 |---|---|
 | `daylog.sh` | Time-tracking log. Appends to `logs/YYYY-MM-DD.daylog`. Aliases: `dl` (log entry), `dls` (show today), `wl` (last 7 days). |
-| `lifi.sh` | Adds license/copyright headers to new source files, reading bodies from `licenses/`. Configured per-project via `config.lifi`. |
 | `dotfiles.sh` | Manages dotfiles across machines via a `meta_repo`. Commands: `add`, `backup`, `restore`, `snapshot`, `list`. |
 | `build_system/build.sh` | C build system (public domain, from yzziizzy). `mkproject` bootstraps new C projects. Aliases `x` = `./build.sh`, `xd` = `./debug.sh`. |
 
@@ -94,13 +93,11 @@ overlays are excluded.
 
 - `util/` — utility subcommands dispatched by the `util` command.
 - `build_system/` — C build system + `mkproject`.
-- `themegen/` — generates terminal/Xresources color themes from JSON palettes.
 - `blamecount/` — Node.js tool summarizing `git blame` stats.
 - `pkg-ioc/` — supply-chain-attack IOC scanner for npm/PyPI.
 - `gpuedit/` — config (themes, keybindings, highlighters) for the gpuedit editor.
 - `i3/` — i3 window manager config.
 - `gentoo/` — Portage `make.conf`, `package.use`, and world files.
-- `licenses/` — plain-text license bodies used by `lifi.sh`.
 
 ## Local overrides
 
@@ -109,7 +106,6 @@ Per-machine and private customization stays out of the repo:
 - `config.sh` — machine-specific overrides for `aliases.sh` variables
   (display outputs, audio device, paths). Copy `config.example.sh` → `config.sh`
   and edit. Gitignored.
-- `config.lifi` — local `lifi.sh` config. Copy `config.example.lifi`. Gitignored.
 - `work-aliases.sh` and private `util/*` scripts — provided by a separate,
   private overlay repo and symlinked into place; both are gitignored so they
   never land in this public repo. The `util` router picks up any private

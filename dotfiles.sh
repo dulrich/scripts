@@ -4,9 +4,10 @@ set -euo pipefail
 # The project being managed is the caller's current directory.
 here=$(pwd)
 
-# These defaults retain the historical metadata layout. Tests and machines with a
-# different checkout may override the repository without editing this public file.
-meta_repo=${DOTFILES_META_REPO:-/home/fractal/code/meta_repo}
+# These defaults are machine-neutral (documented in config.example.sh). Tests
+# and machines with a different checkout may override them without editing
+# this public file.
+meta_repo=${DOTFILES_META_REPO:-$HOME/code/meta_repo}
 meta_dotfiles=${DOTFILES_META_DOTFILES:-dot}
 
 mkdir -p "$meta_repo/$meta_dotfiles"

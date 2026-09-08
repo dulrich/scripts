@@ -50,10 +50,7 @@ section 'build-system template compile'
 section 'build-system smoke'
 bash build_system/tests/smoke.sh
 
-section 'theme generation smoke'
-(
-	cd themegen
-	bash gen.sh
-)
+section 'public contract smoke'
+bash tests/public-contract-smoke.sh
 
 printf '\nAll tracked shell gates passed.\n'

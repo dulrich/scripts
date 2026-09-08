@@ -10,10 +10,10 @@ review-effort: high
 
 | Tier | Open | Resolved |
 |---|---:|---:|
-| structural-regressions | 1 | 2 |
+| structural-regressions | 0 | 3 |
 | simplification-misses | 2 | 0 |
 | spaghetti | 1 | 0 |
-| boundary-type-contracts | 2 | 0 |
+| boundary-type-contracts | 1 | 1 |
 | file-size | 0 | 0 |
 | modularity | 1 | 0 |
 | legibility | 0 | 0 |
@@ -40,9 +40,11 @@ Resolved: `_build.inc.c` and `parts/compile.sh` are deleted; `_build.c` includes
 
 ### F2 — The theme pipeline still generates nothing
 
-**Open · structural-regressions · high · WP-R2.** `themegen/gen.sh:12` sources only the pastel palette, and the writes at lines 45, 55, and 60 remain commented out. Templates contain unresolved `GEN_*` tokens; `tests/shell-gate.sh:51` still labels a successful token-printing command as theme generation.
+**Resolved · structural-regressions · high · WP-R2.** `themegen/gen.sh:12` sources only the pastel palette, and the writes at lines 45, 55, and 60 remain commented out. Templates contain unresolved `GEN_*` tokens; `tests/shell-gate.sh:51` still labels a successful token-printing command as theme generation.
 
 Retain root `Xresources` and `gpuedit/themes/*.json` as canonical static assets and retire the inert templates/generator plus its false gate. This is a proposed removal to approve with the plan, not a claim that external consumers have been ruled out. A real generator would require a concrete output contract and assertions on produced assets.
+
+Resolved: `themegen/` (Xresources, dark_pastel/dark_saturated/light_pastel/options JSON, dark_pastel.sh/dark_saturated.sh, gen.sh) is deleted along with the false `tests/shell-gate.sh` theme-generation section, replaced by a `public contract smoke` section running the new `tests/public-contract-smoke.sh`, which asserts the retained `Xresources` and `gpuedit/themes/*.json` still exist and are tracked.
 
 ### F9 — Cache-prune leaks measurement provenance through a temporary file into a growing generic runner
 
@@ -80,9 +82,11 @@ Parse and validate before mutation, register stable identities with explicit sou
 
 ### F7 — Public runtime surfaces still contradict the repository contract
 
-**Open · boundary-type-contracts · high · WP-R2.** `aliases.sh:131` exposes missing `lifi.sh`; `README.md` and `AGENTS.md` still advertise that script and absent license assets. `dotfiles.sh:9`, `gpuedit/options.json:4–9`, and `themegen/options.json:4–9` retain personal home paths. `gpuedit/commands.bak.json` is still tracked.
+**Resolved · boundary-type-contracts · high · WP-R2.** `aliases.sh:131` exposes missing `lifi.sh`; `README.md` and `AGENTS.md` still advertise that script and absent license assets. `dotfiles.sh:9`, `gpuedit/options.json:4–9`, and `themegen/options.json:4–9` retain personal home paths. `gpuedit/commands.bak.json` is still tracked.
 
 Remove the broken lifi surface, keep local configuration external, replace active personal-path defaults with machine-neutral configuration, and retire the backup. Add narrowly scoped public runtime/documentation checks; do not scan historical review prose for literal-path examples or read private files. The dotfiles configuration change belongs to WP-R2; its identity/mutation redesign belongs to WP-R6.
+
+Resolved: `aliases.sh:131`'s dead `lifi` alias, its `README.md`/`AGENTS.md` advertisement, and the `licenses/`/`config.lifi` mentions are removed (with `themegen/` gone too); `dotfiles.sh:9`'s default is now `$HOME/code/meta_repo` and `gpuedit/options.json:4–9`'s four defaults are now `~`-relative placeholders, both documented in `config.example.sh`; `gpuedit/commands.bak.json` is `git rm`'d; and `tests/public-contract-smoke.sh` asserts every `$here`-relative alias resolves to a tracked file and no scoped active file carries a literal `/home/<user>/` path.
 
 ### F8 — Blamecount has no reproducible runtime or meaningful error result
 

@@ -1,13 +1,14 @@
+// Example config: copy into ~/.gpuedit/ and edit the paths below for your machine.
 {
 	"general": {
 		"MainControl_searchPaths": [
-			"/home/fractal/code/scripts",
-			"/home/fractal/code/baced",
+			"~/code/scripts",
+			"~/code/baced",
 		],
 		"MainControl_excludePatterns": [],
-		"commandsPath":                "/home/fractal/.gpuedit/commands.json",
-		"highlightStylesPath":         "/home/fractal/.gpuedit/highlighters/",
-		
+		"commandsPath":                "~/.gpuedit/commands.json",
+		"highlightStylesPath":         "~/.gpuedit/highlighters/",
+
 		"MainControl_startupTabs":     [
 			// { "type": "Edit", "path": "/web/gpuedit/src/commands.c", },
 			{ "type": "FuzzyOpen", "path": "", },
