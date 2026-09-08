@@ -16,6 +16,11 @@ verdict + exit code. Detection logic lives in `lib/`:
   `run_common_checks` (gh-token-monitor daemon, Bun temp artifacts, passwordless sudo, hosts-file
   redirection incl. the StepSecurity telemetry domains, zero-width agent-context injection, shell-RC
   bun download).
+- `lib/policy.sh` — the one IOC policy representation: the affected-package families, watch
+  scopes/names and advisory-pinned exact `name@version` lists for every ecosystem, plus the sweep
+  matchers (`PKG_RE`, `WATCH_RE`, `PYPI_HIT_BOUND`, `PYPI_WATCH_BOUND`) and `watch_pkg()` **derived**
+  from those arrays at source time, and the shared classification ladder + message rendering. Add an
+  indicator here and nowhere else — a hand-maintained second copy of a name is exactly what drifts.
 - `lib/npm.sh` — `run_npm_checks`: the npm leg (package families, Phantom-Gyp `binding.gyp`,
   lockfiles, injected setup files / config injection, agent + VS Code persistence, JS source sweep).
 - `lib/pypi.sh` — `run_pypi_checks`: the PyPI / Hades leg (see the PyPI rules below).
@@ -24,8 +29,10 @@ verdict + exit code. Detection logic lives in `lib/`:
 into one process so `FOUND`/`REVIEWS`/`SECTION` are shared globals and there is exactly **one**
 verdict and **one** exit code. Do NOT refactor the sub-scanners into separate processes (`exec`/
 subshell) — that fragments `FOUND` and forces brittle exit-code merging. The per-ecosystem counters
-(`package_hits`, `pypi_package_hits`) are `local` to the `run_*` function and visible to the
-report helpers via bash dynamic scope; keep them that way.
+(`package_hits`, `pypi_package_hits`) stay `local` to their `run_*` function and are deliberately
+NOT visible to the report helpers: `report_package_reference`/`report_pypi_package` return an
+explicit classification (`POLICY_CLASS_MATCH`/`_WATCH`/`_NONE`) and the section that owns the counter
+increments it from that result. Do not reintroduce dynamic-scope counter mutation.
 
 **Adding an ecosystem** (e.g. RubyGems, crates): add `lib/<eco>.sh` exposing `run_<eco>_checks
 "<root>"`, source it in `scan.sh`, add an `--ecosystem` case, add fixtures to `tests/smoke.sh`. Put
@@ -202,6 +209,12 @@ gate:
   coverage. It must stay clean.
 - **Regression check** — greps `scan.sh` *and* `lib/*.sh` for the fabricated indicators (see list
   above) and fails if any reappear.
+- **Derivation self-test** — sources `lib/policy.sh` and asserts the derived sweeps still match every
+  declared family/name (both `-` and `_` spellings) while still rejecting the REAL packages the
+  lookalikes squat on (`langchain-core`, `openai`, `requests`, `flask`) and near-miss words, that the
+  parsed-name classifier stays stricter than the unanchored lockfile sweep (`autotelic` is not
+  `autotel`, bare `@tanstack` is not a package), and that the report helpers return their
+  classification instead of mutating a caller's counter.
 - **Router dispatch** — asserts `--ecosystem npm` emits npm sections and no `pypi:` sections (and the
   converse), so the dispatcher cannot silently run the wrong leg.
 - **PyPI positive fixture** — a fake site-packages with an installed `langchain-core-mcp@1.4.2`

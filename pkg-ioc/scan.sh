@@ -73,6 +73,9 @@ LIBDIR="$(dirname "$SELF")/lib"
 # shellcheck source=lib/common.sh
 # shellcheck disable=SC1091
 . "$LIBDIR/common.sh"
+# shellcheck source=lib/policy.sh
+# shellcheck disable=SC1091
+. "$LIBDIR/policy.sh"
 # shellcheck source=lib/npm.sh
 # shellcheck disable=SC1091
 . "$LIBDIR/npm.sh"
