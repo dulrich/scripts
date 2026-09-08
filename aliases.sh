@@ -41,33 +41,41 @@ debug () {
 	echo "$*" >> /tmp/debug
 }
 
-aliascd () {
-	local name=$1 path_q
-	printf -v path_q '%q' "$2"
-	eval "
-${name} () {
-	local destination
-	destination=\$(defarg \"\$*\" 0 '')
-	cd ${path_q}/\"\$destination\"
-}
-_${name} () {
-	COMPREPLY=( \$(genpath ${path_q} \"\${COMP_WORDS[COMP_CWORD]}\") )
-	return 0
-}
-_comp ${name}
-	"
+# Directory-offset helpers: cd relative to a fixed base, forwarding an
+# optional subdirectory argument. Bases are keyed by command name so the
+# shared completion function below can look them up the same way.
+_cd_offset () {
+	cd "$1/${2:-}" || return
 }
 
-# cd aliases, eval style
-cdnames=( .. ... down code )
-cdpaths=( .. ../.. "$down_path" "$code_path" )
+declare -A _cd_base=(
+	[..]='..'
+	[...]='../..'
+	[down]="$down_path"
+	[code]="$code_path"
+)
 
-cdmax=$(( ${#cdnames[@]} - 1 ))
+.. () { _cd_offset "${_cd_base[..]}" "${1:-}"; }
+... () { _cd_offset "${_cd_base[...]}" "${1:-}"; }
+down () { _cd_offset "${_cd_base[down]}" "${1:-}"; }
+code () { _cd_offset "${_cd_base[code]}" "${1:-}"; }
 
-for (( i=0; i<=cdmax; i++ ))
-do
-	aliascd "${cdnames[i]}" "${cdpaths[i]}"
+# shared completion: looks up the base for the requested command name.
+# genpath returns its candidates space-joined on one line; read -a splits
+# them the same way $(...) word-splitting would, without its glob-expansion
+# risk.
+_cd_complete () {
+	read -r -a COMPREPLY <<< "$(genpath "${_cd_base[$1]}" "${COMP_WORDS[COMP_CWORD]}")"
+}
+_.. () { _cd_complete ..; return 0; }
+_... () { _cd_complete ...; return 0; }
+_down () { _cd_complete down; return 0; }
+_code () { _cd_complete code; return 0; }
+
+for _cd_name in .. ... down code; do
+	_comp "$_cd_name"
 done
+unset _cd_name
 
 
 unalias cl 2> /dev/null
@@ -125,27 +133,6 @@ dc () {
 	"$here/daylog.sh" -f acpi "$battery_level"
 }
 
-# defarg args which default
-defarg () {
-	local all=0
-	local -a args=()
-	local which=$2
-	local def=$3
-	read -r -a args <<< "$1"
-
-	if [ "$which" == '@' ]; then
-		all=1
-		which=0
-	fi
-
-	if [ "${#args[@]}" -gt "$which" ]; then
-		if [ $all -eq 1 ]; then echo "${args[@]}"
-		else echo "${args[$which]}"; fi
-	else
-		echo "$def"
-	fi
-}
-
 # completion generator for offset paths
 genpath () {
 	local cur file path cpath opath reply
@@ -184,7 +171,7 @@ genpath () {
 highfile () {
 	local max=0
 	local path name n
-	path=$(defarg "$*" 0 './')
+	path="${1:-./}"
 
 	while IFS= read -r name; do
 		if [[ "$name" =~ ^([0-9]+) ]]; then
@@ -234,13 +221,13 @@ venv\
 # raw grep (no excludes)
 ga () {
 	local path
-	path=$(defarg "$*" 1 './')
+	path="${2:-./}"
 
 	grep -iIRP "${grep_options[@]}" "$1" "$path"
 }
 gac () {
 	local path
-	path=$(defarg "$*" 1 './')
+	path="${2:-./}"
 
 	grep -iIRPc "${grep_options[@]}" "$1" "$path"
 }
@@ -249,19 +236,19 @@ gac () {
 # POSIX character classes can be a pain, especially if you forget egrep uses them
 gp () {
 	local path
-	path=$(defarg "$*" 1 './')
+	path="${2:-./}"
 
 	grep -P "${grep_options[@]}" "$1" "$path"
 }
 gpc () {
 	local path
-	path=$(defarg "$*" 1 './')
+	path="${2:-./}"
 
 	grep -Pc "${grep_options[@]}" "$1" "$path" | grep -E ':[^0]'
 }
 gpw () {
 	local path
-	path=$(defarg "$*" 1 './')
+	path="${2:-./}"
 
 	grep -P "${grep_options[@]}" "\b$1\b" "$path"
 }
@@ -279,14 +266,14 @@ rall () {
 # mass permission changes
 dirperm () {
 	local path
-	path=$(defarg "$*" 0 '.')
+	path="${1:-.}"
 
 	find "$path" -type d -exec chmod 755 {} +
 }
 
 fileperm () {
 	local path
-	path=$(defarg "$*" 0 '.')
+	path="${1:-.}"
 
 	find "$path" -type f -exec chmod 644 {} +
 }
@@ -339,7 +326,7 @@ mp3dir () {
 
 gigs () {
 	local path
-	path=$(defarg "$*" 0 "/")
+	path="${1:-/}"
 
 	du -h -t 1G "$path" 2> /dev/null
 }
@@ -353,7 +340,7 @@ alias en="setxkbmap us"
 
 timer () {
 	local MIN
-	MIN=$(defarg "$*" 0 1)
+	MIN="${1:-1}"
 
 	for ((i=MIN*60; i>=0; i--)); do
 		echo -ne "\r$(date -d"0+$i sec" +%H:%M:%S)"

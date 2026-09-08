@@ -91,21 +91,107 @@ assert_eq "$fixture_home/custom code" "$code_path" 'optional config overrides de
 assert_eq '1' "$private_loaded" 'private overlay is sourced once'
 assert_contains "$(alias util)" "$fixture_repo/util/dispatch.sh" 'util alias captures the resolved sibling path'
 
-completion=$(complete -p code 2>/dev/null || true)
-assert_contains "$completion" '_code' 'generated directory helper registers completion'
+for cd_name in .. ... down code; do
+	completion=$(complete -p "$cd_name" 2>/dev/null || true)
+	assert_contains "$completion" "_$cd_name" "directory-offset helper registers completion for $cd_name"
+done
 
 starting_dir=$PWD
+mkdir -p "$fixture_home/custom code/project/nested"
+
+cd "$fixture_home/custom code/project/nested" || exit 1
+# ".." here calls the sourced directory-offset alias, not the shell builtin.
+# shellcheck disable=SC2288
+..
+assert_eq "$fixture_home/custom code/project" "$PWD" '.. with no argument cds to the parent directory'
+
+cd "$fixture_home/custom code/project/nested" || exit 1
+# shellcheck disable=SC2288
+.. ..
+assert_eq "$fixture_home/custom code" "$PWD" '.. with an argument descends from the parent directory'
+
+cd "$starting_dir" || exit 1
+code
+assert_eq "$fixture_home/custom code" "$PWD" 'code with no argument cds to its base path'
+
+cd "$starting_dir" || exit 1
 code project
-assert_eq "$fixture_home/custom code/project" "$PWD" 'generated directory helper handles a spaced base path'
+assert_eq "$fixture_home/custom code/project" "$PWD" 'code with an argument handles a spaced base path'
 cd "$starting_dir" || exit 1
 
 reload
 assert_eq '2' "$private_loaded" 'reload sources the alias chain and private overlay again'
 assert_eq "$fixture_repo" "$here" 'reload preserves symlink-relative repository resolution'
 
-assert_eq './' "$(defarg '' 0 './')" 'defarg supplies its default'
-assert_eq 'two' "$(defarg 'one two three' 1 default)" 'defarg selects a split word'
-assert_eq 'one two three' "$(defarg 'one two three' @ default)" 'defarg returns all split words'
+# The fixture above sources a real copy of aliases.sh. Also gate sourcing it
+# only reachable through a symlink, the real-world `~/.bash_aliases` case.
+fixture_link="$fixture_root/bash_aliases_link"
+ln -s "$fixture_repo/aliases.sh" "$fixture_link"
+symlinked_here=$(
+	HOME="$fixture_home" bash -c '
+		shopt -s expand_aliases
+		# Runtime-resolved fixture sources cannot be followed statically.
+		# shellcheck source=/dev/null
+		source "$1"
+		echo "$here"
+	' bash "$fixture_link"
+)
+assert_eq "$fixture_repo" "$symlinked_here" 'sourcing aliases.sh only through a symlink still resolves its real sibling directory'
+
+spaced_dir="$fixture_root/spaced grep dir"
+mkdir -p "$spaced_dir"
+printf 'needle content\n' > "$spaced_dir/file.txt"
+assert_contains "$(ga needle "$spaced_dir")" 'needle content' 'ga finds matches when the path argument contains a space'
+assert_contains "$(gp needle "$spaced_dir")" 'needle content' 'gp finds matches when the path argument contains a space'
+
+# Dry harness: stub the external commands dirperm/gigs/timer shell out to so
+# their default-argument shapes can be asserted without touching real
+# permissions, walking a real disk, or sleeping in real time.
+stub_bin="$fixture_root/stubbin"
+mkdir -p "$stub_bin"
+find_log="$fixture_root/find.log"
+du_log="$fixture_root/du.log"
+cat > "$stub_bin/find" <<'STUB'
+#!/usr/bin/env bash
+printf 'args:%s\n' "$*" >> "$FIND_LOG"
+STUB
+cat > "$stub_bin/du" <<'STUB'
+#!/usr/bin/env bash
+printf 'args:%s\n' "$*" >> "$DU_LOG"
+STUB
+cat > "$stub_bin/sleep" <<'STUB'
+#!/usr/bin/env bash
+:
+STUB
+chmod +x "$stub_bin/find" "$stub_bin/du" "$stub_bin/sleep"
+export FIND_LOG="$find_log" DU_LOG="$du_log"
+
+real_path=$PATH
+PATH="$stub_bin:$PATH"
+
+: > "$find_log"
+dirperm
+assert_contains "$(cat "$find_log")" 'args:. -type d' 'dirperm defaults to the current directory when no argument is given'
+: > "$find_log"
+dirperm "$spaced_dir"
+assert_contains "$(cat "$find_log")" "args:$spaced_dir -type d" 'dirperm forwards an explicit path argument unchanged'
+
+: > "$du_log"
+gigs
+assert_contains "$(cat "$du_log")" 'args:-h -t 1G /' 'gigs defaults to scanning / when no argument is given'
+: > "$du_log"
+gigs "$spaced_dir"
+assert_contains "$(cat "$du_log")" "args:-h -t 1G $spaced_dir" 'gigs forwards an explicit path argument unchanged'
+
+timer_output=$(timer)
+timer_ticks=$(grep -o $'\r' <<< "$timer_output" | wc -l)
+assert_eq '61' "$timer_ticks" 'timer defaults to one minute when no argument is given'
+timer_output=$(timer 0)
+timer_ticks=$(grep -o $'\r' <<< "$timer_output" | wc -l)
+assert_eq '1' "$timer_ticks" 'timer forwards an explicit minute count unchanged'
+
+PATH="$real_path"
+hash -r
 
 alias_p=$(alias p)
 alias_s=$(alias s)
