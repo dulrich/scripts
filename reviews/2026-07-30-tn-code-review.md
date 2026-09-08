@@ -5,17 +5,18 @@ review-type: tn-code-review
 review-model: gpt-5.6-sol
 review-harness: codex
 review-effort: high
+remediation-commit: ebcee627a05be206f11b5eac4ac83a88308086be
 ---
 # Review — scripts repository maintainability audit
 
 | Tier | Open | Resolved |
 |---|---:|---:|
-| structural-regressions | 2 | 0 |
-| simplification-misses | 2 | 0 |
-| spaghetti | 1 | 0 |
-| boundary-type-contracts | 2 | 0 |
+| structural-regressions | 0 | 2 |
+| simplification-misses | 0 | 2 |
+| spaghetti | 0 | 1 |
+| boundary-type-contracts | 0 | 2 |
 | file-size | 0 | 0 |
-| modularity | 1 | 0 |
+| modularity | 0 | 1 |
 | legibility | 0 | 0 |
 
 **Verdict: remediation required.** The shell gate is green at `311b804`, but it
@@ -212,3 +213,7 @@ The current assessment is [the 2026-09-07 review](2026-09-07-tn-code-review.md),
 The embedded remediation proposal has been superseded by [the standalone remediation plan](../plans/2026-09-07-tn-code-review-remediation.md), registered in `INITIATIVE.md` under `pending-plans`. Its previous instructions to leave the plan unregistered, route implementation to Codex, and impose separate review thresholds are withdrawn. Actual initiative thresholds remain unchanged. Proposed design choices in that historical proposal were not evidence of user approval.
 
 Future remediation updates the current review record only; this historical record remains an account of the July review. Neither record receives a remediation baseline from this revalidation.
+
+## Closed — 2026-09-07
+
+F1–F8 were remediated by the [standalone remediation plan](../plans/2026-09-07-tn-code-review-remediation.md) (WP-R8, R1–R7, landing SHAs in the plan's Status line); the last substantive commit, `ebcee62` (WP-R7), brought every Open count to zero and is this record's `remediation-commit`, matching the [2026-09-07 record](2026-09-07-tn-code-review.md). The table above now reads 0 Open / 8 Resolved. The 2026-09-07 revalidation's instruction to preserve this record's Open counts is withdrawn: the Initiative Tracker sums Open counts across every record in `reviews/`, so carried findings left Open here were double-counted against the current record and, after closeout, showed as eight phantom open findings. The original finding prose and `review-commit` remain the historical account.
