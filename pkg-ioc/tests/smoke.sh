@@ -67,6 +67,87 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+echo "[derivation] sweep matchers derive from the canonical policy arrays"
+# lib/policy.sh is the single policy representation: PKG_RE/WATCH_RE and the
+# PYPI_*_BOUND sweeps are derived from the very arrays the classifier walks, so
+# this pins the derivation (every declared family/name still matches) AND its
+# negative boundary (the REAL packages the lookalikes squat on must not).
+# shellcheck source=../lib/common.sh
+# shellcheck disable=SC1091
+. "$ROOTDIR/lib/common.sh"
+# shellcheck source=../lib/policy.sh
+# shellcheck disable=SC1091
+. "$ROOTDIR/lib/policy.sh"
+# shellcheck source=../lib/npm.sh
+# shellcheck disable=SC1091
+. "$ROOTDIR/lib/npm.sh"
+# The sourced report helpers mutate this router-owned verdict state.
+# shellcheck disable=SC2034
+FOUND=0 REVIEWS=0
+
+re_match()  { printf '%s\n' "$2" | grep -Eq "$1"; }   # regex subject
+re_imatch() { printf '%s\n' "$2" | grep -qiE "$1"; }  # regex subject
+
+miss=""
+for n in "${PKG_PREFIXES[@]}"; do re_match "$PKG_RE" "$n" || miss="$miss $n"; done
+assert_eq "$miss" "" "derivation: PKG_RE matches every declared family"
+miss=""
+for n in "${WATCH_SCOPES[@]}"; do re_match "$WATCH_RE" "$n" || miss="$miss $n"; done
+assert_eq "$miss" "" "derivation: WATCH_RE matches every declared watch scope"
+miss=""
+for n in "${PYPI_HIT_NAMES[@]}"; do
+  re_imatch "$PYPI_HIT_BOUND" "$n==1.0" || miss="$miss $n"
+  re_imatch "$PYPI_HIT_BOUND" "${n//-/_}==1.0" || miss="$miss ${n//-/_}"
+done
+assert_eq "$miss" "" "derivation: PYPI_HIT_BOUND matches every HIT name, - and _ spelling"
+miss=""
+for n in "${PYPI_WATCH_NAMES[@]}"; do
+  re_imatch "$PYPI_WATCH_BOUND" "$n==1.0" || miss="$miss $n"
+  re_imatch "$PYPI_WATCH_BOUND" "${n//-/_}==1.0" || miss="$miss ${n//-/_}"
+done
+assert_eq "$miss" "" "derivation: PYPI_WATCH_BOUND matches every watch name, - and _ spelling"
+# Negative boundary: the REAL packages the typosquats/lookalikes shadow, and
+# longer words that merely contain a declared name, must never match (rule C).
+hits=""
+for n in langchain-core openai tiktoken requests flask xdreamgen dreamgenx ensmallen_haswell.abi3.so; do
+  re_imatch "$PYPI_HIT_BOUND" "$n==1.0" && hits="$hits $n"
+  re_imatch "$PYPI_WATCH_BOUND" "$n==1.0" && hits="$hits $n"
+done
+assert_eq "$hits" "" "derivation: PyPI bounds reject the REAL packages and near-miss names"
+
+if prefix_hit_pkg autotel && prefix_hit_pkg autotel-extra && prefix_hit_pkg @redhat-cloud-services/types; then
+  ok "derivation: family classifier takes the name, a scope member and a hyphenated sibling"
+else
+  bad "derivation: family classifier missed a declared family form"
+fi
+if prefix_hit_pkg autotelic || prefix_hit_pkg mountlyfoo || prefix_hit_pkg react; then
+  bad "derivation: family classifier matched a longer unrelated word"
+else
+  ok "derivation: family classifier rejects longer unrelated words (autotelic is not autotel)"
+fi
+if watch_pkg @tanstack/react-query && ! watch_pkg @tanstack && ! watch_pkg @redhat-cloud-services/types; then
+  ok "derivation: watch classifier needs a package inside the scope; redhat stays a HIT family"
+else
+  bad "derivation: watch classifier boundary changed"
+fi
+# The lockfile text sweep is deliberately an UNANCHORED substring alternation --
+# a lockfile naming "autotelic" still earns a HIT line -- while the parsed-name
+# classifier above is not. Pin both halves so neither silently drifts.
+if re_match "$PKG_RE" autotelic && ! re_match "$PKG_RE" react; then
+  ok "derivation: PKG_RE stays an unanchored sweep (autotelic matches, react does not)"
+else
+  bad "derivation: PKG_RE sweep boundary changed"
+fi
+
+# The classification is an explicit returned RESULT (no dynamic-scope counter).
+report_package_reference "@tanstack/react-router" "1.169.5" fixture >/dev/null
+assert_eq "$?" "$POLICY_CLASS_MATCH" "classification: exact advisory version returns MATCH"
+report_package_reference "@tanstack/react-query" "5.0.0" fixture >/dev/null
+assert_eq "$?" "$POLICY_CLASS_WATCH" "classification: watchlist package returns WATCH"
+report_package_reference react "18.2.0" fixture >/dev/null
+assert_eq "$?" "$POLICY_CLASS_NONE" "classification: unaffected package returns NONE"
+
+# ---------------------------------------------------------------------------
 echo "[positive] malicious fixture must HIT and exit 2"
 POS="$WORK/pos"; P="$POS/proj"
 mkdir -p "$P/node_modules/evil" "$P/node_modules/natmod" "$P/node_modules/@redhat-cloud-services/frontend-components" \
@@ -213,6 +294,11 @@ printf 'rsquests==2.34.3\nensmallen==0.8.100\nrequests==2.31.0\n' \
 # conda environment.yml: single-= pin at the exact poisoned version -> HIT
 printf 'name: bio\ndependencies:\n  - python=3.12\n  - gpsea=0.9.14\n' \
   > "$PYPOS/proj/environment.yml"
+# poetry/uv-style lock block: the resolved version lives on its own line, so
+# this pins exact-version attribution out of a PyPI LOCK file (rule G), not just
+# a requirements pin.
+printf '[[package]]\nname = "tiktoken-mcp"\nversion = "0.13.1"\n' \
+  > "$PYPOS/proj/poetry.lock"
 # Hades temp artifacts (run-once marker + SSH propagation file)
 printf 'x' > "$FAKETMP/.bun_ran"
 printf 'x' > "$FAKETMP/.sshu-setup.js"
@@ -230,6 +316,8 @@ assert_contains "$OUT" "watchlist package present (verify exact version vs advis
 assert_contains "$OUT" "ensmallen@0.8.100 in $PYPOS/proj/requirements.txt (known-bad: 0.8.101)" \
                                                                           "pypi-positive: bioinformatics REVIEW lists advisory version"
 assert_contains "$OUT" "known malicious package version gpsea@0.9.14"    "pypi-positive: conda single-= pin exact HIT"
+assert_contains "$OUT" "known malicious package version tiktoken-mcp@0.13.1 in $PYPOS/proj/poetry.lock" \
+                                                                          "pypi-positive: poetry lock-block resolved version attributed"
 assert_contains "$OUT" "Hades-style executable startup hook (*-setup.pth)" \
                                                                           "pypi-positive: split-loader setup.pth HIT"
 assert_contains "$OUT" "Hades stealer payload markers in _index.js"      "pypi-positive: _index.js payload marker HIT"
