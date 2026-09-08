@@ -125,11 +125,6 @@ dc () {
 	"$here/daylog.sh" -f acpi "$battery_level"
 }
 
-# typing ./ is hard
-# The resolved path is intentionally captured when the alias chain is sourced.
-# shellcheck disable=SC2139
-alias lifi="$here/lifi.sh"
-
 # defarg args which default
 defarg () {
 	local all=0
