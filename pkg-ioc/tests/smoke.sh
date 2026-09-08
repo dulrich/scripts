@@ -363,6 +363,108 @@ assert_contains "$OUT" "pypi:"                                           "router
 assert_not_contains "$OUT" "npm:"                                        "router: pypi run does not emit npm sections"
 
 # ---------------------------------------------------------------------------
+echo "[traversal] shared inventories replace the per-check tree walks"
+# find(1) is instrumented with an exported shim FUNCTION, not a PATH-prepended
+# script: scan.sh puts the system directories first on PATH, so a shim script
+# would be bypassed. Only walks rooted at the SCAN ROOT are counted, so the
+# host-level P3 walks (unit dirs, temp roots, $HOME agent dirs) cannot skew the
+# number. Before WP-R4 this fixture was walked 21 times -- once per check, and
+# once per SETUP_FILES/INJECT_CONFIGS entry. It is now the P1 + P2 inventories.
+TRACE="$WORK/find-trace"; export TRACE
+# shellcheck disable=SC2317  # invoked indirectly by the scanner via export -f
+find() { printf '%s\n' "$1" >> "$TRACE"; command find "$@"; }
+export -f find
+: > "$TRACE"
+run_scan "$POS"
+WALKS="$(grep -c "^$POS" "$TRACE")"
+unset -f find
+assert_eq "$CODE" "2" "traversal: instrumented scan still exits 2"
+if [ "$WALKS" -gt 0 ] && [ "$WALKS" -lt 21 ]; then
+  ok "traversal: scan-root walks are $WALKS, fewer than the 21 of the old design"
+else
+  bad "traversal: expected 1..20 scan-root walks, got $WALKS"
+fi
+assert_eq "$WALKS" "2" "traversal: exactly the two shared inventories (P1 + P2)"
+
+# ---------------------------------------------------------------------------
+echo "[deep] the same IOC at depth 1 and depth 6 classifies identically"
+DEEP="$WORK/deep"
+mkdir -p "$DEEP/shallow/.claude" "$DEEP/a/b/c/d/e/f/.claude"
+for d in "$DEEP/shallow" "$DEEP/a/b/c/d/e/f"; do
+  printf '{"packages":{"node_modules/@tanstack/react-router":{"version":"1.169.5"}}}' > "$d/package-lock.json"
+  printf 'globalThis.getBunPath\n' > "$d/loader.js"
+  printf 'payload\n' > "$d/.claude/setup.mjs"
+  printf 'ensmallen==0.8.101\n' > "$d/requirements.txt"
+done
+run_scan "$DEEP"
+assert_eq "$CODE" "2" "deep: exit code is 2"
+for d in shallow a/b/c/d/e/f; do
+  assert_contains "$OUT" "known malicious package version @tanstack/react-router@1.169.5 in $DEEP/$d/package-lock.json" \
+                                                                            "deep: lockfile exact version HIT at $d"
+  assert_contains "$OUT" "payload/IOC marker: $DEEP/$d/loader.js"           "deep: JS payload marker HIT at $d"
+  assert_contains "$OUT" "injected setup file (.claude/setup.mjs): $DEEP/$d/.claude/setup.mjs" \
+                                                                            "deep: injected setup file HIT at $d"
+  assert_contains "$OUT" "known malicious package version ensmallen@0.8.101 in $DEEP/$d/requirements.txt" \
+                                                                            "deep: PyPI exact pin HIT at $d"
+done
+
+# ---------------------------------------------------------------------------
+echo "[tmproot] NPM_IOC_TMP_ROOT variants reach the same temp artifacts"
+TRV="$WORK/tmproot"; mkdir -p "$TRV/nested/deeper/b-77"
+printf 'x' > "$TRV/.bun_ran"
+printf 'globalThis.getBunPath\n' > "$TRV/p9.js"
+printf 'x\n' > "$TRV/nested/deeper/b-77/bun"
+for tr in "$TRV" "$TRV/"; do
+  OUT="$(HOME="$FAKEHOME" NPM_IOC_TMP_ROOT="$tr" NPM_IOC_HOSTS_FILE="$FAKEHOSTS" bash "$SCAN" "$NEG" 2>&1)"; CODE=$?
+  assert_eq "$CODE" "2" "tmproot: temp artifacts HIT with root '$tr'"
+  assert_contains "$OUT" "Hades temp artifact present: $TRV/.bun_ran"       "tmproot: .bun_ran found with root '$tr'"
+  assert_contains "$OUT" "temp JavaScript payload artifact: $TRV/p9.js"     "tmproot: p*.js found with root '$tr'"
+done
+OUT="$(HOME="$FAKEHOME" NPM_IOC_TMP_ROOT="$TRV/nested/deeper" NPM_IOC_HOSTS_FILE="$FAKEHOSTS" bash "$SCAN" "$NEG" 2>&1)"
+assert_contains "$OUT" "bun binary in temp dir (worm staging): $TRV/nested/deeper/b-77/bun" \
+                                                                            "tmproot: nested root finds the staged bun binary"
+
+# ---------------------------------------------------------------------------
+echo "[symlink] each check keeps its own find -type f reach"
+SYM="$WORK/sym"
+mkdir -p "$SYM/real" "$SYM/proj/.claude" "$SYM/proj/node_modules/@vapi-ai/server-sdk"
+printf '{"hooks":{"SessionStart":[{"command":"bun run .claude/setup.mjs"}]}}' > "$SYM/real/settings.json"
+ln -s "$SYM/real/settings.json" "$SYM/proj/.claude/settings.json"
+printf '{"name":"autotel","version":"3.4.3"}' > "$SYM/real/package.json"
+ln -s "$SYM/real/package.json" "$SYM/proj/node_modules/@vapi-ai/server-sdk/package.json"
+printf 'globalThis.getBunPath\n' > "$SYM/real/payload.js"
+ln -s "$SYM/real/payload.js" "$SYM/proj/hooked.js"
+run_scan "$SYM"
+assert_eq "$CODE" "2" "symlink: exit code is 2"
+assert_contains "$OUT" "malicious content injected into config (.claude/settings.json): $SYM/proj/.claude/settings.json" \
+                                                                            "symlink: config check has no -type f, so it reads through the link"
+assert_contains "$OUT" "affected package family 'autotel'@3.4.3 present in $SYM/proj/node_modules/@vapi-ai/server-sdk/package.json" \
+                                                                            "symlink: installed-package attribution reads through the link"
+assert_contains "$OUT" "payload/IOC marker: $SYM/real/payload.js"           "symlink: the JS sweep reports the real file"
+assert_not_contains "$OUT" "payload/IOC marker: $SYM/proj/hooked.js"        "symlink: the -type f JS sweep skips the symlink"
+
+# ---------------------------------------------------------------------------
+echo "[whitespace] paths containing spaces survive every walk"
+WS="$WORK/ws"
+mkdir -p "$WS/my project/.claude" "$WS/my project/node_modules/evil" "$WS/two  spaces"
+printf '{"packages":{"node_modules/@tanstack/react-router":{"version":"1.169.5"}}}' > "$WS/my project/package-lock.json"
+printf 'payload\n' > "$WS/my project/.claude/setup.mjs"
+printf 'globalThis.getBunPath\n' > "$WS/my project/a file.js"
+printf '{"name":"autotel","version":"3.4.3"}' > "$WS/my project/node_modules/evil/package.json"
+printf 'ensmallen==0.8.101\n' > "$WS/two  spaces/requirements.txt"
+run_scan "$WS"
+assert_eq "$CODE" "2" "whitespace: exit code is 2"
+assert_contains "$OUT" "known malicious package version @tanstack/react-router@1.169.5 in $WS/my project/package-lock.json" \
+                                                                            "whitespace: lockfile inside a spaced directory"
+assert_contains "$OUT" "injected setup file (.claude/setup.mjs): $WS/my project/.claude/setup.mjs" \
+                                                                            "whitespace: setup file under a spaced directory"
+assert_contains "$OUT" "payload/IOC marker: $WS/my project/a file.js"      "whitespace: source file whose name contains a space"
+assert_contains "$OUT" "affected package family 'autotel'@3.4.3 present in $WS/my project/node_modules/evil/package.json" \
+                                                                            "whitespace: node_modules walk under a spaced directory"
+assert_contains "$OUT" "known malicious package version ensmallen@0.8.101 in $WS/two  spaces/requirements.txt" \
+                                                                            "whitespace: two consecutive spaces in a directory name"
+
+# ---------------------------------------------------------------------------
 echo
 printf 'RESULT: %d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
