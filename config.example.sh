@@ -27,3 +27,8 @@
 # two environment variables directly; documented here for discoverability.
 # DOTFILES_META_REPO="$HOME/code/meta_repo"
 # DOTFILES_META_DOTFILES="dot"
+#
+# There is no variable for the project records: dotfiles.sh always keeps them
+# at $DOTFILES_META_REPO/$DOTFILES_META_DOTFILES/.projects/<project name>, one
+# file per project holding that project's absolute source root. Payload
+# directories predating those records are adopted with `dot migrate`.

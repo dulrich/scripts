@@ -86,7 +86,7 @@ overlays are excluded.
 | Script | Purpose |
 |---|---|
 | `daylog.sh` | Time-tracking log. Appends to `logs/YYYY-MM-DD.daylog`. Aliases: `dl` (log entry), `dls` (show today), `wl` (last 7 days). |
-| `dotfiles.sh` | Manages dotfiles across machines via a `meta_repo`. Commands: `add`, `backup`, `restore`, `snapshot`, `list`. |
+| `dotfiles.sh` | Manages dotfiles across machines via a `meta_repo`. Commands: `add`, `backup`, `list`, `migrate`, `project`, `restore`, `snapshot`, `status`. Every project is identified by a record at `<meta_repo>/<meta_dotfiles>/.projects/<name>` holding its absolute source root, so a root is never guessed from a sibling directory; `project` registers `$PWD` and refuses a duplicate basename, `migrate` adopts an unambiguous pre-record payload directory and refuses ambiguous names. Parsing and validation write nothing — only `project` and `migrate` create metadata. `restore` reports restored, skipped or failed truthfully and keeps no-clobber. `snapshot` stages only the managed paths, refuses unrelated pre-staged content, commits locally, and prints the publish command instead of running it. |
 | `build_system/build.sh` | C build system (public domain, from yzziizzy). `mkproject` bootstraps new C projects. Aliases `x` = `./build.sh`, `xd` = `./debug.sh`. |
 
 ## Subdirectories
