@@ -13,7 +13,7 @@ review-effort: high
 | structural-regressions | 0 | 3 |
 | simplification-misses | 0 | 2 |
 | spaghetti | 0 | 1 |
-| boundary-type-contracts | 1 | 1 |
+| boundary-type-contracts | 0 | 2 |
 | file-size | 0 | 0 |
 | modularity | 1 | 0 |
 | legibility | 0 | 0 |
@@ -82,9 +82,11 @@ Resolved: `pkg-ioc/lib/inventory.sh` builds one bounded P1 walk (`$ROOT`, prunin
 
 ### F6 — Dotfiles lacks explicit project identity and mutation boundaries
 
-**Open · boundary-type-contracts · high · WP-R6.** `dotfiles.sh:9–13` initializes metadata before CLI parsing, including help. Project lookup at line 35 uses basenames; `project_path_for_name():61` guesses sibling roots. `snapshot_all():157` stages the whole metadata repo and pushes enabled remotes; restore at line 121 reports success even when no-clobber skipped the copy.
+**Resolved · boundary-type-contracts · high · WP-R6.** `dotfiles.sh:9–13` initializes metadata before CLI parsing, including help. Project lookup at line 35 uses basenames; `project_path_for_name():61` guesses sibling roots. `snapshot_all():157` stages the whole metadata repo and pushes enabled remotes; restore at line 121 reports success even when no-clobber skipped the copy.
 
 Parse and validate before mutation, register stable identities with explicit source roots, scope snapshot staging to managed paths, and report restored/skipped/failed outcomes honestly. Preserve payload layout and no-clobber behavior. Separate publication from snapshot creation under the current local-only Git contract; this review authorizes no real publication. Legacy ambiguous project mappings must require explicit resolution rather than silently picking a sibling.
+
+Resolved: `dotfiles.sh` now parses and validates the whole command line before touching the filesystem — help, an invalid option, an empty command line and a missing option argument leave `$DOTFILES_META_REPO` nonexistent, and only `project`/`migrate` create metadata — while identity moved from basename inference and the deleted `project_path_for_name()` sibling guess to one record per project at `<meta>/<dot>/.projects/<name>` holding the absolute source root, so lookup matches by root, `project` refuses a duplicate basename (exit 6), the new `migrate` verb adopts an unambiguous pre-record payload directory and refuses ambiguous names, `backup --all` resolves each root from its record and skips recordless legacy payloads, `restore` reports exactly one of `Restored`/`Skipped … destination exists`/`Failed … ` (exit 7) with no-clobber and exit 4 unchanged, and `snapshot` stages only `.projects` plus the payload directories by explicit path, refuses unrelated pre-staged content (exit 5), commits locally and prints the publish command rather than running it — `git push` and `git add .` no longer appear in the script, and `tests/root-utils-smoke.sh` covers all of it with 76 assertions (was 44).
 
 ### F7 — Public runtime surfaces still contradict the repository contract
 
