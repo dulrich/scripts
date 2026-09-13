@@ -232,5 +232,84 @@ CONFIRM_QUEUE=(0 0)
 run_apt_cache_cleanup >/dev/null 2>&1
 assert_eq "-y autoclean|-y clean|" "$APT_LOG" "confirming both runs autoclean then clean, in that order"
 
+echo "[report mode] --report posture JSON (stubbed apt/apt-get on PATH)"
+
+# Unlike the source-and-stub cases above, --report is exercised as a real
+# subprocess: that is the only way to prove it needs neither root nor a TTY
+# (stdin/stdout are redirected here, so neither is a terminal) and that stdout
+# carries the JSON object alone. `apt`/`apt-get` are stubbed as executables in
+# a PATH prefix directory -- no real apt is ever consulted.
+REPORT_STUB_DIR=""
+
+make_report_stubs() {
+    REPORT_STUB_DIR="$(mktemp -d)"
+    printf '#!/usr/bin/env bash\n%s\n' "$1" > "$REPORT_STUB_DIR/apt"
+    printf '#!/usr/bin/env bash\n%s\n' "$2" > "$REPORT_STUB_DIR/apt-get"
+    chmod +x "$REPORT_STUB_DIR/apt" "$REPORT_STUB_DIR/apt-get"
+}
+
+json_field() {
+    local json="$1"
+    local key="$2"
+
+    if [[ "$json" =~ \"$key\":(-?[0-9]+|true|false) ]]; then
+        printf '%s\n' "${BASH_REMATCH[1]}"
+    else
+        printf '%s\n' "MISSING"
+    fi
+}
+
+run_maintenance_quiet() {
+    PATH="$REPORT_STUB_DIR:$PATH" bash "$HERE/../debian-maintenance.sh" "$@" \
+        >/dev/null 2>&1 </dev/null
+}
+
+make_report_stubs \
+    'printf "Listing...\n"
+printf "libfoo/stable 1.2 amd64 [upgradable from: 1.1]\n"
+printf "libbar/stable-security 2.0 amd64 [upgradable from: 1.9]\n"
+printf "libbaz/stable 3.0 amd64 [upgradable from: 2.9]\n"' \
+    'printf "Reading package lists...\n"
+printf "Remv orphan-one [1.0]\n"
+printf "Remv orphan-two [2.0]\n"'
+
+REPORT_JSON="$(PATH="$REPORT_STUB_DIR:$PATH" bash "$HERE/../debian-maintenance.sh" --report </dev/null 2>/dev/null)"
+assert_eq "3" "$(json_field "$REPORT_JSON" upgradable)" "upgradable counts package lines, not the Listing banner"
+assert_eq "1" "$(json_field "$REPORT_JSON" securityUpgradable)" "securityUpgradable counts only -security suites"
+assert_eq "2" "$(json_field "$REPORT_JSON" autoremovable)" "autoremovable counts simulated Remv lines"
+case "$REPORT_JSON" in
+    '{"host":"'*'","indexAgeSeconds":'*',"upgradable":'*'}') ok "stdout is exactly one JSON object, host first" ;;
+    *) bad "stdout is exactly one JSON object, host first (got <$REPORT_JSON>)" ;;
+esac
+case "$(json_field "$REPORT_JSON" indexAgeSeconds)" in
+    MISSING) bad "indexAgeSeconds is an integer age or -1" ;;
+    *) ok "indexAgeSeconds is an integer age or -1" ;;
+esac
+case "$(json_field "$REPORT_JSON" rebootRequired)" in
+    true|false) ok "rebootRequired is a JSON boolean" ;;
+    *) bad "rebootRequired is a JSON boolean (got <$REPORT_JSON>)" ;;
+esac
+if command -v python3 >/dev/null 2>&1; then
+    assert_success "report output parses as a 6-key JSON object" python3 -c \
+        'import json,sys; d = json.loads(sys.argv[1]); sys.exit(0 if isinstance(d, dict) and len(d) == 6 else 1)' \
+        "$REPORT_JSON"
+fi
+rm -rf "$REPORT_STUB_DIR"
+
+make_report_stubs 'printf "Listing...\n"' 'printf "Reading package lists...\n"'
+REPORT_JSON="$(PATH="$REPORT_STUB_DIR:$PATH" bash "$HERE/../debian-maintenance.sh" --report </dev/null 2>/dev/null)"
+assert_success "a clean host still exits 0" run_maintenance_quiet --report
+assert_eq "0" "$(json_field "$REPORT_JSON" upgradable)" "header-only apt output reports zero upgradable"
+assert_eq "0" "$(json_field "$REPORT_JSON" securityUpgradable)" "header-only apt output reports zero security upgradable"
+assert_eq "0" "$(json_field "$REPORT_JSON" autoremovable)" "no Remv lines reports zero autoremovable"
+
+assert_failure "an unknown flag is a usage error" run_maintenance_quiet --bogus
+USAGE_STDERR="$(PATH="$REPORT_STUB_DIR:$PATH" bash "$HERE/../debian-maintenance.sh" --bogus </dev/null 2>&1 >/dev/null || true)"
+case "$USAGE_STDERR" in
+    *"usage: "*"[--report]"*) ok "the usage message advertises the optional --report argument" ;;
+    *) bad "the usage message advertises the optional --report argument (got <$USAGE_STDERR>)" ;;
+esac
+rm -rf "$REPORT_STUB_DIR"
+
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
 ((FAIL == 0))
