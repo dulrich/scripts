@@ -374,10 +374,79 @@ run_apt_cache_cleanup() {
     fi
 }
 
+# --- non-interactive posture report ---------------------------------------
+# `--report` is the machine-readable, read-only sibling of the interactive
+# flow: no root, no TTY, no `apt-get update`, no mutation. stdout carries one
+# JSON object and nothing else, so callers can pipe it straight into a parser.
+
+APT_LISTS_DIR="/var/lib/apt/lists"
+
+index_age_seconds() {
+    local newest=0
+    local now
+
+    if [[ -r "$APT_LISTS_DIR" ]]; then
+        newest="$(
+            { find "$APT_LISTS_DIR" -mindepth 1 -printf '%T@\n' 2>/dev/null || true; } \
+                | awk -F. '$1 > newest { newest = $1 } END { print newest + 0 }'
+        )" || newest=0
+    fi
+
+    # Unreadable, absent, or empty lists directory: age is unknown, not zero.
+    if ((newest <= 0)); then
+        printf '%s\n' -1
+        return 0
+    fi
+
+    now="$(date +%s)"
+    printf '%s\n' "$((now - newest))"
+}
+
+run_report() {
+    local host
+    local age
+    local upgradable_lines=""
+    local upgradable=0
+    local security=0
+    local autoremovable=0
+    local reboot_required=false
+    local simulation
+    local -a removals=()
+
+    host="$(hostname 2>/dev/null || uname -n)"
+    age="$(index_age_seconds)"
+
+    # The `Listing...` banner apt prints on stderr-or-stdout depending on
+    # version is dropped explicitly; every remaining line is one package.
+    upgradable_lines="$(apt list --upgradable 2>/dev/null | grep -v '^Listing' || true)"
+    if [[ -n "$upgradable_lines" ]]; then
+        upgradable="$(printf '%s\n' "$upgradable_lines" | grep -c '' || true)"
+        security="$(printf '%s\n' "$upgradable_lines" | grep -c -- '-security' || true)"
+    fi
+
+    simulation="$(apt-get -s autoremove 2>/dev/null || true)"
+    mapfile -t removals < <(extract_removals "$simulation")
+    autoremovable="${#removals[@]}"
+
+    [[ -e /var/run/reboot-required ]] && reboot_required=true
+
+    printf '{"host":"%s","indexAgeSeconds":%s,"upgradable":%s,"securityUpgradable":%s,"autoremovable":%s,"rebootRequired":%s}\n' \
+        "$host" "$age" "$upgradable" "$security" "$autoremovable" "$reboot_required"
+}
+
 main() {
-    if (($# != 0)); then
-        die "usage: $0"
+    if (($# > 1)); then
+        die "usage: $0 [--report]"
         return 2
+    fi
+
+    if (($# == 1)); then
+        if [[ "$1" != --report ]]; then
+            die "usage: $0 [--report]"
+            return 2
+        fi
+        run_report
+        return 0
     fi
 
     require_root
