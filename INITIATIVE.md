@@ -1,7 +1,7 @@
 ---
 title: Scripts Control Plane
 created: 2026-04-16
-modified: 2026-07-19
+modified: 2026-09-13
 word-count: 3
 tags: ""
 initiative-visibility: public
@@ -15,8 +15,4 @@ initiative-slug: scripts
 security-tracking: track
 ---
 
----
-
 # Blocked on User
-
----
