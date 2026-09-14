@@ -271,3 +271,312 @@ rt_cargo_detect() {
 rt_cargo_cache_dir() {
     printf '%s\n' "${CARGO_HOME:-$HOME/.cargo}/registry"
 }
+
+### repo (opt-in) #############################################################
+#
+# The repo runtime is the one entry in the registry that is not a package
+# manager's cache. It measures *rebuildable repository residue* across the
+# fleet root (CACHE_PRUNE_REPO_ROOT, default /home/_shared_code), in three
+# buckets that are deliberately never summed into one reported figure:
+#
+#   (a) orphaned worktrees  <repo>/.claude/worktrees/<d> that `git worktree
+#                           list` no longer knows about -- purge tier
+#   (b) spike scratch       <repo>/runs/spike/* -- purge tier
+#   (c) implemented         the dispatch records of IMPLEMENTED plans, as
+#       dispatch records    reported by runs-closeout.mjs --report-json --
+#                           counted toward total footprint only. They are
+#                           archived, never deleted, and nothing here ever
+#                           touches them: (c) exists so the footprint is
+#                           honest, not so it can be reclaimed by this tool.
+#
+# Only (a)+(b) are reclaimable; the probe record's reclaimable field is their
+# sum, and the total is (a)+(b)+(c). Bucket (c) can be unavailable on its own
+# (no runs-closeout.mjs, or it failed) without making the whole measurement
+# unavailable -- (a) and (b) were still measured. Only a missing fleet root
+# yields an unavailable record.
+#
+# A repository is a *direct child directory of the root containing a `.git`*
+# (file or directory), matching verify-core.discoverDefaultRoots. The
+# enumeration is deliberately not recursive: a linked worktree or a nested
+# repository is residue inside its parent repo, not a fleet repo of its own,
+# and counting it as one would double-count its bytes and invite a purge
+# candidate to be enumerated under two different repository roots.
+
+CACHE_PRUNE_REPO_ROOT_DEFAULT=/home/_shared_code
+# Composed from the root above rather than written out as one literal: the
+# public-contract gate (tests/public-contract-smoke.sh) refuses a literal
+# /home/<user>/<path> in any active file under util/, and composing it also
+# keeps the two defaults from drifting apart. The default is not re-derived
+# from CACHE_PRUNE_REPO_ROOT: overriding the fleet root (a test fixture
+# does exactly that) must not silently re-point the closeout script too.
+CACHE_PRUNE_RUNS_CLOSEOUT_DEFAULT="$CACHE_PRUNE_REPO_ROOT_DEFAULT/context-control/scripts/runs-closeout.mjs"
+
+# The scan results. These are globals rather than a return value because the
+# three consumers (size probe, detail seam, purge verb) each need a different
+# slice of the same walk. They are *not* a cache shared between those
+# consumers: rt_repo_size runs inside the command substitution in
+# measure_runtime, so every assignment it makes dies with that subshell (the
+# hazard measurement.sh's header documents at length). Each consumer
+# therefore re-runs rt_repo_scan itself. For the purge verb that is a feature,
+# not a cost -- the list it deletes from is re-derived immediately before the
+# deletion, never inherited from an older walk.
+REPO_ORPHAN_BYTES=0
+REPO_SPIKE_BYTES=0
+REPO_DISPATCH_BYTES=0
+REPO_DISPATCH_STATUS=unavailable
+REPO_ORPHAN_COUNT=0
+# Tab-separated "<repo>\t<path>" lines: the purge guards need to know which
+# repository to ask about a path, and a path alone cannot answer that once
+# the enumeration is over.
+REPO_ORPHAN_PATHS=""
+REPO_SPIKE_PATHS=""
+
+# The stdin-reading JSON sum for bucket (c). node is a hard dependency of
+# runs-closeout.mjs itself, so a `node -e` parse adds no new requirement,
+# while `jq` would (it is not installed everywhere on this fleet) -- hence no
+# `command -v jq` branch: one parser, always the same one, no divergence
+# between two implementations of the same sum. Only the three closed classes
+# below are counted; `unclassified` rows are reported by the closeout script
+# precisely because it does not know what they are, and counting bytes this
+# tool cannot name would be exactly the conflation the bucket split exists to
+# prevent.
+REPO_DISPATCH_SUM_JS='
+let raw = "";
+process.stdin.on("data", (chunk) => { raw += chunk; });
+process.stdin.on("end", () => {
+  try {
+    const doc = JSON.parse(raw);
+    const counted = new Set(["archive-md", "archive-txt", "delete-only"]);
+    let total = 0;
+    for (const file of doc.files || []) {
+      if (counted.has(file.class)) { total += Number(file.bytes) || 0; }
+    }
+    process.stdout.write(String(total) + "\n");
+  } catch (err) {
+    process.exit(1);
+  }
+});
+'
+
+rt_repo_root() {
+    printf '%s\n' "${CACHE_PRUNE_REPO_ROOT:-$CACHE_PRUNE_REPO_ROOT_DEFAULT}"
+}
+
+rt_repo_detect() {
+    local root
+
+    root=$(rt_repo_root)
+    [[ -d "$root" ]]
+}
+
+# rt_repo_roots: the fleet's repositories, one absolute path per line. Direct
+# children only (see the header); a root with no repositories prints nothing
+# and succeeds, which is not an error condition.
+rt_repo_roots() {
+    local root entry
+
+    root=$(rt_repo_root)
+    [[ -d "$root" ]] || return 0
+
+    for entry in "$root"/*; do
+        [[ -d "$entry" ]] || continue
+        [[ -e "$entry/.git" ]] || continue
+        printf '%s\n' "$entry"
+    done
+}
+
+# repo_path_bytes: `du -sb` one path, or 0 for anything that cannot be
+# measured. Unlike the language-runtime caches this does not use
+# dir_census_bytes: there is no hardlink-sharing question here (a worktree or
+# a scratch tree is not shared with a venv), and the plan pins du -sb as the
+# figure these buckets report.
+repo_path_bytes() {
+    local path="$1"
+    local bytes
+
+    bytes=$(du -sb -- "$path" 2>/dev/null | awk 'NR == 1 { print $1 }') || bytes=""
+    [[ "$bytes" =~ ^[0-9]+$ ]] || bytes=0
+
+    printf '%s\n' "$bytes"
+}
+
+# rt_repo_live_worktrees: the realpaths git itself still lists for a
+# repository -- the main worktree included. Resolved on both sides of the
+# later comparison because git records the path it was given and the fleet
+# root may be reached through a symlink.
+rt_repo_live_worktrees() {
+    local repo="$1"
+    local listed line resolved
+
+    listed=$(git -C "$repo" worktree list --porcelain 2>/dev/null |
+        sed -n 's/^worktree //p') || return 0
+
+    while IFS= read -r line; do
+        [[ -n "$line" ]] || continue
+        resolved=$(realpath "$line" 2>/dev/null) || resolved="$line"
+        printf '%s\n' "$resolved"
+    done <<< "$listed"
+}
+
+# rt_repo_orphan_worktrees: bucket (a) candidates for one repository -- the
+# directories under .claude/worktrees that git no longer lists. A live
+# worktree is never a candidate, which is why the check is against git's own
+# list rather than against, say, mtime.
+rt_repo_orphan_worktrees() {
+    local repo="$1"
+    local wt_dir="$repo/.claude/worktrees"
+    local live entry resolved
+
+    [[ -d "$wt_dir" ]] || return 0
+    live=$(rt_repo_live_worktrees "$repo")
+
+    for entry in "$wt_dir"/*; do
+        [[ -d "$entry" ]] || continue
+        resolved=$(realpath "$entry" 2>/dev/null) || resolved="$entry"
+        if ! printf '%s\n' "$live" | grep -qxF -- "$resolved"; then
+            printf '%s\n' "$entry"
+        fi
+    done
+}
+
+# rt_repo_spike_entries: bucket (b) candidates -- the top-level entries of
+# <repo>/runs/spike. Entries, not the directory itself: runs/spike is the
+# durable container, its contents are the scratch.
+rt_repo_spike_entries() {
+    local repo="$1"
+    local spike_dir="$repo/runs/spike"
+    local entry
+
+    [[ -d "$spike_dir" ]] || return 0
+
+    for entry in "$spike_dir"/*; do
+        [[ -e "$entry" ]] || continue
+        printf '%s\n' "$entry"
+    done
+}
+
+# rt_repo_dispatch_dirs: every runs/dispatch directory in a repository. This
+# one *is* recursive -- a repo holds one per tool subfolder -- but skips
+# node_modules and every dot-directory, so a dispatch dir inside a linked
+# worktree under .claude/ is not visited twice.
+rt_repo_dispatch_dirs() {
+    local repo="$1"
+
+    find "$repo" \
+        -path '*/node_modules' -prune -o \
+        -path '*/.*' -prune -o \
+        -type d -path '*/runs/dispatch' -print 2>/dev/null || true
+}
+
+# repo_dispatch_bytes: bucket (c) for one dispatch directory, via
+# runs-closeout.mjs --report-json (read-only). Exits nonzero -- never prints
+# a partial number -- when the script is absent, node is absent, the script
+# fails, or its output does not parse: the caller turns any of those into
+# "unavailable" for the whole bucket rather than reporting an undercount as
+# if it were a measurement.
+repo_dispatch_bytes() {
+    local dir="$1"
+    local script json
+
+    script="${CACHE_PRUNE_RUNS_CLOSEOUT:-$CACHE_PRUNE_RUNS_CLOSEOUT_DEFAULT}"
+
+    [[ -f "$script" ]] || return 1
+    command -v node >/dev/null 2>&1 || return 1
+
+    json=$(node "$script" --report-json --dispatch-dir "$dir" 2>/dev/null) || return 1
+    printf '%s' "$json" | node -e "$REPO_DISPATCH_SUM_JS"
+}
+
+# rt_repo_scan: the one walk, filling the globals above. Prints nothing.
+rt_repo_scan() {
+    local repo entry dispatch_dir bytes
+
+    REPO_ORPHAN_BYTES=0
+    REPO_SPIKE_BYTES=0
+    REPO_DISPATCH_BYTES=0
+    REPO_ORPHAN_COUNT=0
+    REPO_ORPHAN_PATHS=""
+    REPO_SPIKE_PATHS=""
+    REPO_DISPATCH_STATUS=available
+
+    # Process substitution, not a pipe: a `... | while read` loop runs in a
+    # subshell and every global it sets here would be lost, the same trap the
+    # size probe itself falls into (see the globals' comment above).
+    while IFS= read -r repo; do
+        [[ -n "$repo" ]] || continue
+
+        while IFS= read -r entry; do
+            [[ -n "$entry" ]] || continue
+            REPO_ORPHAN_PATHS+="$repo"$'\t'"$entry"$'\n'
+            REPO_ORPHAN_COUNT=$((REPO_ORPHAN_COUNT + 1))
+            bytes=$(repo_path_bytes "$entry")
+            REPO_ORPHAN_BYTES=$((REPO_ORPHAN_BYTES + bytes))
+        done < <(rt_repo_orphan_worktrees "$repo")
+
+        while IFS= read -r entry; do
+            [[ -n "$entry" ]] || continue
+            REPO_SPIKE_PATHS+="$repo"$'\t'"$entry"$'\n'
+            bytes=$(repo_path_bytes "$entry")
+            REPO_SPIKE_BYTES=$((REPO_SPIKE_BYTES + bytes))
+        done < <(rt_repo_spike_entries "$repo")
+
+        while IFS= read -r dispatch_dir; do
+            [[ -n "$dispatch_dir" ]] || continue
+            if bytes=$(repo_dispatch_bytes "$dispatch_dir") &&
+                [[ "$bytes" =~ ^[0-9]+$ ]]; then
+                REPO_DISPATCH_BYTES=$((REPO_DISPATCH_BYTES + bytes))
+            else
+                REPO_DISPATCH_STATUS=unavailable
+            fi
+        done < <(rt_repo_dispatch_dirs "$repo")
+    done < <(rt_repo_roots)
+}
+
+# rt_repo_size: the probe. Ignores its positional argument (repo has no
+# cache-dir resolver -- its residue is many directories in many
+# repositories), returns exactly one record, prints nothing else. The
+# per-bucket breakdown a reader needs is printed by rt_repo_detail, from the
+# report layer, because an adapter that printed it here would be a probe with
+# a side effect on the report -- the seam this file's header forbids.
+rt_repo_size() {
+    local root reclaimable total
+
+    root=$(rt_repo_root)
+    if [[ ! -d "$root" ]]; then
+        probe_unavailable
+        return 0
+    fi
+
+    rt_repo_scan
+
+    reclaimable=$((REPO_ORPHAN_BYTES + REPO_SPIKE_BYTES))
+    total="$reclaimable"
+    if [[ "$REPO_DISPATCH_STATUS" == available ]]; then
+        total=$((total + REPO_DISPATCH_BYTES))
+    fi
+
+    probe_available "$total" "$reclaimable" "repo"
+}
+
+# rt_repo_detail: the RT_DETAIL seam -- the three bucket lines, printed by
+# the report layer right under repo's size line. Not a probe: it prints
+# user-facing text and returns nothing on stdout that any caller parses.
+# Bucket (c) names the verb that actually reclaims it (runs-closeout.mjs),
+# and says outright that this tool never deletes it, so that the one figure
+# in the total that no --include-purge can reach is not mistaken for one that
+# can.
+rt_repo_detail() {
+    rt_repo_scan
+
+    printf 'repo orphaned worktrees: %s (%d bytes, %d dirs) -- purge tier\n' \
+        "$(human_bytes "$REPO_ORPHAN_BYTES")" "$REPO_ORPHAN_BYTES" "$REPO_ORPHAN_COUNT"
+    printf 'repo spike scratch: %s (%d bytes) -- purge tier\n' \
+        "$(human_bytes "$REPO_SPIKE_BYTES")" "$REPO_SPIKE_BYTES"
+
+    if [[ "$REPO_DISPATCH_STATUS" == available ]]; then
+        printf 'repo implemented dispatch records: %s (%d bytes) -- archive with runs-closeout.mjs --slug <s> --dispatch-dir <d> --apply; never deleted here\n' \
+            "$(human_bytes "$REPO_DISPATCH_BYTES")" "$REPO_DISPATCH_BYTES"
+    else
+        printf 'repo implemented dispatch records: unavailable (runs-closeout.mjs missing or failed)\n'
+    fi
+}

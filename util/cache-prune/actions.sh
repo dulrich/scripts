@@ -89,6 +89,105 @@ rt_bun_purge() {
     return "$status"
 }
 
+# rt_repo_purge: the one verb in this file that deletes files itself instead
+# of asking a package manager to. Everything about it is therefore written as
+# a guard: it deletes only the two purge-tier buckets rt_repo_scan
+# enumerated (orphaned worktrees, spike scratch), never bucket (c) -- the
+# implemented dispatch records are archived by runs-closeout.mjs and this
+# function does not so much as stat them.
+#
+# The list is re-derived here (rt_repo_scan) rather than inherited from the
+# size probe's walk: the probe ran inside a command substitution, so its
+# results never reached this shell at all, and re-deriving means the paths
+# about to be deleted were enumerated moments ago rather than at report time.
+#
+# `git worktree prune` runs first, per repository, so that a worktree whose
+# administrative entry is merely stale is dropped from git's own list before
+# the candidates are re-checked against it -- the re-check after the prune is
+# what makes "git no longer lists it" a current fact rather than a
+# report-time one. A prune that fails is a note, not a failure: the
+# per-candidate guard below is what actually authorises a deletion.
+rt_repo_purge() {
+    local repo path
+
+    rt_repo_scan
+
+    while IFS= read -r repo; do
+        [[ -n "$repo" ]] || continue
+        if ! git -C "$repo" worktree prune >/dev/null 2>&1; then
+            printf 'note: %s: git worktree prune failed; candidates are still re-checked individually below\n' "$repo"
+        fi
+    done < <(rt_repo_roots)
+
+    while IFS=$'\t' read -r repo path; do
+        [[ -n "$path" ]] || continue
+        repo_purge_path "$repo" "$path" worktree
+    done <<< "$REPO_ORPHAN_PATHS"
+
+    while IFS=$'\t' read -r repo path; do
+        [[ -n "$path" ]] || continue
+        repo_purge_path "$repo" "$path" spike
+    done <<< "$REPO_SPIKE_PATHS"
+
+    return 0
+}
+
+# repo_purge_path: the three guards, in order, then the deletion. Every
+# refusal prints one `note:` line naming the guard that refused and returns
+# 0 -- a skipped path is the guard working, not a failure of the verb.
+#
+#   1. realpath containment -- the path must resolve *inside* its own
+#      repository. This is what stops a symlinked spike entry from turning
+#      `rm -rf` loose on whatever it points at, and it is checked on the
+#      resolved path, which is also the path finally handed to rm: the object
+#      deleted is exactly the object that passed the guard.
+#   2. not git-tracked -- `ls-files --error-unmatch` matches a directory
+#      pathspec by prefix, so a tree containing any tracked file is protected
+#      as a whole, not just tracked files named individually.
+#   3. still not a live worktree -- re-asked of git after the prune above,
+#      immediately before deleting. A worktree that git lists is someone's
+#      checkout; no byte count justifies removing it.
+repo_purge_path() {
+    local repo="$1"
+    local path="$2"
+    local kind="$3"
+    local repo_real path_real
+
+    repo_real=$(realpath "$repo" 2>/dev/null) || repo_real=""
+    path_real=$(realpath "$path" 2>/dev/null) || path_real=""
+
+    if [[ -z "$repo_real" || -z "$path_real" ]]; then
+        printf 'note: skipped %s (guard: path could not be resolved)\n' "$path"
+        return 0
+    fi
+
+    if [[ "$path_real" != "$repo_real"/* ]]; then
+        printf 'note: skipped %s (guard: realpath %s is outside the repository %s)\n' \
+            "$path" "$path_real" "$repo_real"
+        return 0
+    fi
+
+    if git -C "$repo" ls-files --error-unmatch -- "$path" >/dev/null 2>&1; then
+        printf 'note: skipped %s (guard: git-tracked)\n' "$path"
+        return 0
+    fi
+
+    if [[ "$kind" == worktree ]] && repo_worktree_is_live "$repo" "$path_real"; then
+        printf 'note: skipped %s (guard: git still lists it as a live worktree)\n' "$path"
+        return 0
+    fi
+
+    rm -rf -- "$path_real"
+}
+
+# repo_worktree_is_live: guard 3's question, asked of git directly.
+repo_worktree_is_live() {
+    local repo="$1"
+    local path_real="$2"
+
+    rt_repo_live_worktrees "$repo" | grep -qxF -- "$path_real"
+}
+
 ### election ##################################################################
 
 # safe_elected / purge_elected: decide, per runtime, whether this run acts
