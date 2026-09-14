@@ -25,6 +25,12 @@ source "$HERE/../cache-prune.sh"
 # detect predicates, so tests can restore the real docker detect logic
 # (command -v docker && docker info) without duplicating it.
 ORIGINAL_RT_DOCKER_DETECT="$(declare -f rt_docker_detect)"
+# Same idea for repo: its real detect predicate is a plain "is the fleet root
+# a directory?" test against CACHE_PRUNE_REPO_ROOT, which the sandbox below
+# points at a synthetic root -- so all_present can restore the real one
+# instead of stubbing it, and the repo suite can exercise the genuine
+# predicate.
+ORIGINAL_RT_REPO_DETECT="$(declare -f rt_repo_detect)"
 
 PASS=0
 FAIL=0
@@ -118,6 +124,19 @@ BUN_DIR="$BUN_INSTALL/install/cache"
 CARGO_DIR="$CARGO_HOME/registry"
 mkdir -p "$UV_DIR" "$NPM_DIR" "$PIP_DIR" "$BUN_DIR" "$CARGO_DIR"
 
+# The repo runtime's fleet root. Exported here, before any suite runs,
+# because this is a safety guard and not a convenience: the suites below loop
+# over RUNTIME_ORDER with MODE=yes and INCLUDE_PURGE=true, and repo's purge
+# verb deletes directories itself. Left at its default, that root would be
+# the real /home/_shared_code. It is pointed at an *empty* sandbox directory
+# so those loops find no repositories at all; cache-prune/repo.sh builds its
+# own fixture fleet and re-points the variable for the duration of its own
+# assertions. CACHE_PRUNE_RUNS_CLOSEOUT is likewise pointed at a path that
+# does not exist, so no suite can reach the real runs-closeout.mjs.
+export CACHE_PRUNE_REPO_ROOT="$SANDBOX/empty-fleet-root"
+export CACHE_PRUNE_RUNS_CLOSEOUT="$SANDBOX/absent-runs-closeout.mjs"
+mkdir -p "$CACHE_PRUNE_REPO_ROOT"
+
 # All six detect predicates default to "present"; individual tests flip
 # specific ones back to "absent" (return 1) for isolation. docker restores
 # the *real* rt_docker_detect (command -v docker && docker info) rather than
@@ -130,6 +149,7 @@ all_present() {
     rt_pip_detect() { return 0; }
     rt_bun_detect() { return 0; }
     rt_cargo_detect() { return 0; }
+    eval "$ORIGINAL_RT_REPO_DETECT"
 }
 
 all_absent() {
@@ -139,6 +159,7 @@ all_absent() {
     rt_pip_detect() { return 1; }
     rt_bun_detect() { return 1; }
     rt_cargo_detect() { return 1; }
+    rt_repo_detect() { return 1; }
 }
 
 # --- command-log doubles -------------------------------------------------
@@ -407,6 +428,8 @@ source "$HERE/cache-prune/measurement.sh"
 source "$HERE/cache-prune/actions.sh"
 # shellcheck source=util/tests/cache-prune/cli.sh
 source "$HERE/cache-prune/cli.sh"
+# shellcheck source=util/tests/cache-prune/repo.sh
+source "$HERE/cache-prune/repo.sh"
 
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
 ((FAIL == 0))
