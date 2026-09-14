@@ -13,6 +13,8 @@ symlinked to `~/.bash_aliases` so it loads on every shell session.
 Run `./link.sh` to create the standard symlinks:
 - `~/.bash_aliases` → `aliases.sh`
 - `~/.Xresources` → `Xresources`
+- `~/.config/ghostty/config` → `ghostty/config`
+- `~/.config/zellij/config.kdl` → `zellij/config.kdl`
 
 Or manually: `ln -s ~/scripts/aliases.sh ~/.bash_aliases`
 
