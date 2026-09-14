@@ -22,6 +22,8 @@ git clone <this-repo> ~/scripts
 
 - `~/.bash_aliases` → `aliases.sh` (sourced by `~/.bashrc` on most distros)
 - `~/.Xresources` → `Xresources`
+- `~/.config/ghostty/config` → `ghostty/config`
+- `~/.config/zellij/config.kdl` → `zellij/config.kdl`
 
 Or just add `source ~/scripts/aliases.sh` to your `~/.bashrc`.
 
