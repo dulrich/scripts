@@ -26,6 +26,9 @@ ap () {
 		git add -p .
 	fi
 }
+# Typo guard: `a`+`s` run together. Masks /usr/bin/as at the prompt only;
+# compilers exec the assembler directly, never through shell aliases.
+alias as="clear; a; s"
 b () {
 	local bname
 	bname=$(git branch | grep -oP "\b(main|master)\b")
