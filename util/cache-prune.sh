@@ -21,8 +21,9 @@ set -euo pipefail
 #   cache-prune/measurement.sh  the probe-record type + the one delta helper
 #   cache-prune/adapters.sh     per-runtime detect / locate / size probes
 #   cache-prune/actions.sh      the verbs and the election rules
-#   cache-prune/docker-residue.sh  read-only docker image/container/volume
-#                               residue classifier (docker's RT_DETAIL)
+#   cache-prune/docker-residue.sh  docker image/container/volume residue:
+#                               classifier (docker's RT_DETAIL) and the
+#                               residue removal step (docker's RT_RESIDUE)
 #
 # CC0: This work has been marked as dedicated to the public domain.
 # https://creativecommons.org/publicdomain/zero/1.0/
@@ -159,6 +160,23 @@ theirs unconditionally (it is their only verb, as it is for repo), uv/npm
 are offered theirs
 only when --include-purge was also passed -- without it, plain interactive
 use never risks their caches.
+
+Docker image/container residue (after the build-cache prune, from a fresh
+classification; never in --report; volumes are reported, never removed):
+  superseded images      an older tag of a repository a live compose
+                         service or Dockerfile base uses -- safe tier:
+                         removed by --yes (docker rmi <repo:tag>), one
+                         confirm interactively
+  stale containers       created/exited containers of no current compose
+                         service -- purge tier: removed (docker rm) only by
+                         --yes --include-purge, or one confirm interactively
+                         with --include-purge
+  unreferenced images    images nothing live references -- never removed
+                         non-interactively; interactive --include-purge
+                         offers one confirm per image
+  Order: stale containers, superseded, unreferenced. Never -f, never prune.
+  A per-item failure (e.g. an image still in use) is a warning; the rest
+  continue. The step prints its own images/containers footprint change.
 
 Options:
   --docker-until <window>  narrow the docker builder prune to records at
@@ -305,6 +323,16 @@ declare -A RT_PURGE=(
 declare -A RT_DETAIL=(
     [docker]=rt_docker_detail
     [repo]=rt_repo_detail
+)
+
+# RT_RESIDUE: an optional per-runtime residue step, run by process_runtime
+# after run_elected_verbs and the build-cache delta (outside --report, and
+# only when the size probe was available). docker's image/container residue
+# lives here rather than in RT_PURGE because a purge election replaces the
+# safe verb under --yes, which would stop `docker builder prune` running.
+# The step sets RUNTIME_RESIDUE_ACTED and prints its own measured delta.
+declare -A RT_RESIDUE=(
+    [docker]=rt_docker_residue
 )
 
 # RT_SAFE_ESTIMATE_NOTE: an optional caveat printed under a runtime's
@@ -526,10 +554,19 @@ process_runtime() {
 
     run_elected_verbs "$name"
 
-    if [[ "$RUNTIME_ACTED" == false ]]; then
-        printf '%s: skipped.\n' "$name"
-    else
+    if [[ "$RUNTIME_ACTED" == true ]]; then
         report_delta "$name" "$before"
+    fi
+
+    # The residue step runs after the build-cache verb and its delta line,
+    # bracketed by its own measurement -- never folded into either.
+    RUNTIME_RESIDUE_ACTED=false
+    if [[ -n "${RT_RESIDUE[$name]:-}" ]]; then
+        "${RT_RESIDUE[$name]}"
+    fi
+
+    if [[ "$RUNTIME_ACTED" == false && "$RUNTIME_RESIDUE_ACTED" == false ]]; then
+        printf '%s: skipped.\n' "$name"
     fi
 
     if [[ "$RUNTIME_VERB_FAILED" == true ]]; then

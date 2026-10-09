@@ -191,6 +191,7 @@ DOCKER_SYSTEM_DF_FIXTURE=""
 DOCKER_SYSTEM_DF_RESULT=0
 DOCKER_INFO_RESULT=0
 DOCKER_PRUNE_RESULT=0
+DOCKER_RM_FAIL_TARGET=""
 UV_PRUNE_RESULT=0
 UV_PURGE_RESULT=0
 NPM_PRUNE_RESULT=0
@@ -263,6 +264,7 @@ reset_logs() {
     PIP_PURGE_RESULT=0
     BUN_PURGE_RESULT=0
     DOCKER_PRUNE_RESULT=0
+    DOCKER_RM_FAIL_TARGET=""
     DOCKER_BUILDX_DU_RESULT=0
     DOCKER_SYSTEM_DF_RESULT=0
     NPM_CACHE_DIR_MODE=ok
@@ -387,6 +389,16 @@ docker() {
         builder*)
             MUTATE_LOG+="docker $*|"
             return "$DOCKER_PRUNE_RESULT"
+            ;;
+        rmi\ *|rm\ *)
+            # Residue removal verbs (docker-residue suite). One named target
+            # can be made to fail, as an in-use image conflict would.
+            MUTATE_LOG+="docker $*|"
+            if [[ -n "$DOCKER_RM_FAIL_TARGET" && "${*: -1}" == "$DOCKER_RM_FAIL_TARGET" ]]; then
+                printf 'Error response from daemon: conflict: unable to delete %s\n' "$DOCKER_RM_FAIL_TARGET" >&2
+                return 1
+            fi
+            return 0
             ;;
     esac
     return 0

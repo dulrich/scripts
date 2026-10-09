@@ -2,10 +2,13 @@
 
 # docker-residue.sh: read-only classifier for docker image / container /
 # volume residue, reported under the docker runtime through the RT_DETAIL
-# seam. Sourced by ../cache-prune.sh; not a util subcommand. Nothing here
-# mutates the daemon: the only docker calls are images/image inspect/ps/
-# container inspect/system df -v/compose config (plans/
-# cache-prune-docker-image-residue.md, WP-1).
+# seam, plus the residue removal step (RT_RESIDUE seam, WP-2). Sourced by
+# ../cache-prune.sh; not a util subcommand. Everything above the "removal"
+# section is read-only (images/image inspect/ps/container inspect/system df/
+# compose config); the only mutating calls in this file are the per-item
+# `docker rm <name>` and `docker rmi <ref|id>` in docker_residue_remove --
+# never -f, never any prune, never a volume
+# (plans/cache-prune-docker-image-residue.md).
 #
 # Three layers, so the classifier stays a pure function of captured JSON:
 #
@@ -239,9 +242,13 @@ DOCKER_RESIDUE_CLASSIFY_JQ='
 def norm: sub("^docker\\.io/"; "") | sub("^library/"; "")
   | if test("@") then . elif (split("/") | last | test(":")) then . else . + ":latest" end;
 def repo: if test("@") then split("@")[0] else sub(":[^:/]*$"; "") end;
-# ts: ISO-8601 with optional fraction and Z or +-HH:MM offset -> epoch secs.
-def ts: (capture("^(?<d>[0-9-]+T[0-9:]{8})(?<f>\\.[0-9]+)?(?<z>Z|[+-][0-9]{2}:[0-9]{2})$")?) as $m
-  | if $m == null then 0
+# ts: ISO-8601 with optional fraction and Z or +-HH:MM offset -> epoch secs,
+# or null when unparsable (a bare `capture(...)?` yields empty, which
+# silently dropped the class field of the row). Fail safe: superseded needs both sides non-null
+# (max ignores nulls unless every live time is null), so a malformed time
+# can only ever make an image unreferenced, never safe-tier removable.
+def ts: ([capture("^(?<d>[0-9-]+T[0-9:]{8})(?<f>\\.[0-9]+)?(?<z>Z|[+-][0-9]{2}:[0-9]{2})$")?][0]) as $m
+  | if $m == null then null
     else (($m.d + "Z") | fromdateiso8601)
       + (("0" + ($m.f // "")) | tonumber)
       - (if $m.z == "Z" then 0
@@ -268,7 +275,7 @@ def tsv: map(tostring) | join("\t");
     | ( [ $in.images[] | select(.id | IN($live[]) | not) | . as $img
           | ((.tags | if length == 0 then ["<none>"] else . end)[]) as $tag
           | ($newest[$tag | norm | repo] // null) as $n
-          | [ (if $tag != "<none>" and $n != null and ($img.created | ts) <= $n then "superseded" else "unreferenced" end),
+          | [ (if $tag != "<none>" and $n != null and ($img.created | ts) != null and ($img.created | ts) <= $n then "superseded" else "unreferenced" end),
               $tag, $img.id, $img.size, $img.created,
               ([ $stale[] | select(.image_id == $img.id) | .name ] | if length == 0 then "-" else join(",") end) ] | tsv ] | sort
       + [ $stale[] | ["stale", .name, .image_id, (.size_rw // "unavailable"), .created, .state, (.image_ref // "-")] | tsv ]
@@ -292,7 +299,8 @@ docker_residue_short_id() {
 # one ID free its bytes once) and are upper bounds: shared layers are counted
 # in every image that carries them. Container writable-layer bytes are a
 # separate figure and are never added to image bytes. Nothing here joins the
-# runtime totals: WP-1 is report-only, no verb acts on these classes yet.
+# runtime totals; the removal verbs are rt_docker_residue below, which
+# re-captures at action time rather than reusing this report.
 docker_residue_report() {
     local rows class a b c d e f
     local -A seen_sup=() seen_unref=()
@@ -360,7 +368,7 @@ docker_residue_report() {
                 "$stale_n" "$(human_bytes "$stale_bytes")" "$stale_bytes"
         fi
         printf '%s' "$stale_lines"
-        printf 'note: docker image/container residue is report-only in this version -- no verb acts on it yet, and it is not counted in the totals below.\n'
+        printf 'note: docker image/container residue is not counted in the totals below; outside --report it is acted on after the build-cache prune (superseded under --yes, stale containers with --include-purge, unreferenced only per-image interactively).\n'
     fi
 
     if [[ -n "$volumes_unavailable" ]]; then
@@ -391,4 +399,151 @@ rt_docker_detail() {
         return 0
     fi
     docker_residue_report <<< "$rows"
+}
+
+### removal (RT_RESIDUE seam, WP-2) ############################################
+
+# docker_residue_footprint: the image + container footprint docker reports
+# (`docker system df --format json`, Images + Containers `Size`), in bytes.
+# Exit 1 -- never a guess -- when the reading or either row is missing.
+docker_residue_footprint() {
+    local out
+    out=$(docker system df --format json 2>/dev/null) && [[ -n "$out" ]] || return 1
+    jq -rs "$DOCKER_RESIDUE_JQ_BYTES"' (map(select(.Type == "Images" or .Type == "Containers")) | map(.Size | hbytes)) as $s
+        | if ($s | length) == 2 and all($s[]; . != null) then ($s | add) else error("incomplete") end' <<< "$out" 2>/dev/null
+}
+
+# docker_residue_remove: one item, never forced. A failure (an rmi conflict
+# with a container, a vanished daemon) is a per-item warning; the caller
+# counts it and carries on with the next item.
+docker_residue_remove() {
+    local kind="$1" target="$2"
+    if [[ "$kind" == container ]]; then
+        docker rm "$target" >/dev/null && return 0
+    else
+        docker rmi "$target" >/dev/null && return 0
+    fi
+    warn "docker: could not remove $kind $target (left in place)"
+    return 1
+}
+
+# rt_docker_residue: the docker-only residue step, run by process_runtime
+# after the build-cache verb and its delta line (never in --report, never
+# when the size probe was unavailable). It is deliberately NOT an RT_PURGE
+# entry: under --yes a purge election replaces the safe verb, which would
+# stop `docker builder prune` from running.
+#
+# Classifies a FRESH capture taken now; images unavailable or a classifier
+# error elects nothing. Elections: superseded -- --yes, or one interactive
+# confirm; stale containers -- --include-purge (one interactive confirm);
+# unreferenced -- never under --yes, one interactive confirm per image only
+# with --include-purge. Execution order: stale containers (they block rmi),
+# superseded, unreferenced. Per-item failures are warnings, never FAILED.
+# Sets RUNTIME_RESIDUE_ACTED when any removal was attempted.
+rt_docker_residue() {
+    RUNTIME_RESIDUE_ACTED=false
+    if ! command -v jq >/dev/null 2>&1; then
+        printf 'docker residue: nothing elected (jq not found)\n'
+        return 0
+    fi
+
+    local capture rows class a b c _rest reason
+    local -a sup_refs=() stale_names=() unref_refs=() unref_targets=() unref_sizes=()
+    local -A sup_seen=()
+    local sup_bytes=0
+
+    capture=$(docker_residue_capture)
+    if ! rows=$(docker_residue_classify <<< "$capture") || [[ -z "$rows" ]]; then
+        printf 'docker residue: nothing elected (classifier failed)\n'
+        return 0
+    fi
+    reason=$(awk -F'\t' '$1 == "unavailable" && $2 == "images" { print $3; exit }' <<< "$rows")
+    if [[ -n "$reason" ]]; then
+        printf 'docker residue: nothing elected (images unavailable: %s)\n' "$reason"
+        return 0
+    fi
+
+    while IFS=$'\t' read -r class a b c _rest; do
+        case "$class" in
+            superseded)
+                sup_refs+=("$a")
+                [[ -n "${sup_seen[$b]:-}" ]] || { sup_seen[$b]=1; sup_bytes=$((sup_bytes + c)); }
+                ;;
+            unreferenced)
+                unref_refs+=("$a")
+                if [[ "$a" == "<none>" ]]; then unref_targets+=("$b"); else unref_targets+=("$a"); fi
+                unref_sizes+=("$(human_bytes "$c")")
+                ;;
+            stale)
+                stale_names+=("$a")
+                ;;
+        esac
+    done <<< "$rows"
+
+    local do_sup=false do_stale=false
+    if ((${#sup_refs[@]} > 0)); then
+        case "$MODE" in
+            yes) do_sup=true ;;
+            interactive)
+                confirm "Remove ${#sup_refs[@]} superseded docker image tags ($(human_bytes "$sup_bytes"))?" && do_sup=true
+                ;;
+        esac
+    fi
+    if ((${#stale_names[@]} > 0)) && [[ "$INCLUDE_PURGE" == true ]]; then
+        case "$MODE" in
+            yes) do_stale=true ;;
+            interactive)
+                confirm "Remove ${#stale_names[@]} stale docker containers (${stale_names[*]})? (purge tier)" && do_stale=true
+                ;;
+        esac
+    fi
+
+    local before="" after i ok_n fail_n summary=""
+    if [[ "$do_sup" == true || "$do_stale" == true || ( "$MODE" == interactive && "$INCLUDE_PURGE" == true && ${#unref_refs[@]} -gt 0 ) ]]; then
+        before=$(docker_residue_footprint) || before=""
+    fi
+
+    ok_n=0 fail_n=0
+    if [[ "$do_stale" == true ]]; then
+        RUNTIME_RESIDUE_ACTED=true
+        for i in "${stale_names[@]}"; do
+            if docker_residue_remove container "$i"; then ok_n=$((ok_n + 1)); else fail_n=$((fail_n + 1)); fi
+        done
+    fi
+    summary+="stale containers removed $ok_n, failed $fail_n; "
+
+    ok_n=0 fail_n=0
+    if [[ "$do_sup" == true ]]; then
+        RUNTIME_RESIDUE_ACTED=true
+        for i in "${sup_refs[@]}"; do
+            if docker_residue_remove image "$i"; then ok_n=$((ok_n + 1)); else fail_n=$((fail_n + 1)); fi
+        done
+    fi
+    summary+="superseded tags removed $ok_n, failed $fail_n; "
+
+    ok_n=0 fail_n=0
+    if ((${#unref_refs[@]} > 0)); then
+        if [[ "$MODE" == yes ]]; then
+            printf 'skipped: %d unreferenced images need a per-image interactive confirm\n' "${#unref_refs[@]}"
+        elif [[ "$MODE" == interactive && "$INCLUDE_PURGE" == true ]]; then
+            for i in "${!unref_refs[@]}"; do
+                confirm "Remove unreferenced docker image ${unref_refs[$i]} (${unref_sizes[$i]})? (purge tier)" || continue
+                RUNTIME_RESIDUE_ACTED=true
+                if docker_residue_remove image "${unref_targets[$i]}"; then ok_n=$((ok_n + 1)); else fail_n=$((fail_n + 1)); fi
+            done
+        fi
+    fi
+    summary+="unreferenced images removed $ok_n, failed $fail_n"
+
+    if [[ "$RUNTIME_RESIDUE_ACTED" == false ]]; then
+        printf 'docker residue: nothing removed\n'
+        return 0
+    fi
+    printf 'docker residue: %s\n' "$summary"
+    if [[ -n "$before" ]] && after=$(docker_residue_footprint); then
+        printf 'docker images/containers: observed footprint change %s (%d bytes)\n' \
+            "$(human_bytes_signed "$((after - before))")" "$((after - before))"
+    else
+        printf 'docker images/containers: observed footprint change unavailable (docker system df --format json reading failed)\n'
+    fi
 }
