@@ -22,7 +22,7 @@
 # total itself: a file hardlinked twice within the cache counts once,
 # matching what a prune would actually observe, not twice as a naive
 # per-file sum would. This replaced `du -sb` outright (measured faster on
-# real trees, not just more accurate -- see plans/cache-reporting-fidelity.md);
+# real trees during the cache-reporting fidelity work, not just more accurate);
 # note totals will shift slightly versus `du -sb`, which also counted
 # directory inodes, while this sums regular files only -- expected, not a
 # regression. `|| true` on the pipeline keeps a `find` failure (e.g. a
@@ -209,13 +209,13 @@ docker_system_df_bytes() {
 # both fail -- never a partial pair. The order tracks correspondence with
 # the verb rt_docker_prune actually runs, not parse stability: measured live
 # against an unfiltered prune (premise (a),
-# plans/cache-prune-reclaim-effectiveness.md), system df's Build Cache
+# during the reclaim-effectiveness work), system df's Build Cache
 # RECLAIMABLE predicted the freed bytes exactly, while buildx du's
 # Reclaimable overstated by the Shared slice it additionally counts. The
 # two sources still measure different things and *will* disagree on the
 # same machine: buildx's Reclaimable counts records shared with other build
 # state, system df's excludes them. Both are legitimate upper bounds over
-# what a real prune returns (see plans/cache-reporting-fidelity.md); this
+# what a real prune returns (measured during the cache-reporting fidelity work); this
 # function deliberately does not try to reconcile them, it just picks per
 # the order above -- and names the source it picked *inside the record it
 # returns*, so the comparison in measurement.sh can refuse a delta built

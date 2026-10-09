@@ -1,7 +1,7 @@
 {
   "images": [
-    {"id": "sha256:cam000latest0", "tags": ["context-control-cameras:latest"], "created": "2026-10-06T01:09:17.864992496-06:00", "size": 368700000},
-    {"id": "sha256:cam000wp20000", "tags": ["context-control-cameras:wp2"], "created": "2026-10-05T23:37:15.501327573-06:00", "size": 368500000},
+    {"id": "sha256:cam000latest0", "tags": ["homelab-cameras:latest"], "created": "2026-10-06T01:09:17.864992496-06:00", "size": 368700000},
+    {"id": "sha256:cam000wp20000", "tags": ["homelab-cameras:wp2"], "created": "2026-10-05T23:37:15.501327573-06:00", "size": 368500000},
     {"id": "sha256:llama0b105340", "tags": ["llama-vulkan:b10534-swap243"], "created": "2026-09-01T10:00:00Z", "size": 640000000},
     {"id": "sha256:llama0b101210", "tags": ["llama-vulkan:b10121"], "created": "2026-07-25T10:00:00Z", "size": 605900000},
     {"id": "sha256:llama0b114290", "tags": ["llama-vulkan:b11429-swap243"], "created": "2026-10-06T10:00:00Z", "size": 643400000},
@@ -13,11 +13,11 @@
     {"id": "sha256:prerename0000", "tags": ["legacy_project-legacy-project:latest"], "created": "2026-07-09T00:00:00Z", "size": 384300000}
   ],
   "containers": [
-    {"name": "engine-svc-tts", "id": "c-tts", "image_id": "sha256:tts0000000000", "image_ref": "engine-svc-tts:torch2.11-rocm7.2", "state": "exited", "created": "2026-09-20T01:00:00Z", "project": "context-control", "service": "engine-svc-tts", "size_rw": 4096},
+    {"name": "engine-svc-tts", "id": "c-tts", "image_id": "sha256:tts0000000000", "image_ref": "engine-svc-tts:torch2.11-rocm7.2", "state": "exited", "created": "2026-09-20T01:00:00Z", "project": "homelab", "service": "engine-svc-tts", "size_rw": 4096},
     {"name": "legacy_project-old-1", "id": "c-old", "image_id": "sha256:prerename0000", "image_ref": "legacy_project-legacy-project", "state": "exited", "created": "2026-07-09T01:00:00Z", "project": "legacy_project", "service": "legacy-project", "size_rw": 1000}
   ],
   "compose": [
-    {"project": "context-control", "services": [
+    {"project": "homelab", "services": [
       {"name": "cameras", "image": null, "build": true},
       {"name": "engine-svc-llama", "image": "llama-vulkan:b10534-swap243", "build": true},
       {"name": "searxng", "image": "docker.io/searxng/searxng:2026.8.22-9fea41204", "build": false},
@@ -27,8 +27,8 @@
   ],
   "base_refs": ["ghcr.io/example/webapp:v0.11.4-slim", "alpine"],
   "volumes": [
-    {"name": "context-control_radar-data", "size": 4300000000, "links": 0},
-    {"name": "context-control_webapp-data", "size": 1000000000, "links": 1}
+    {"name": "homelab_radar-data", "size": 4300000000, "links": 0},
+    {"name": "homelab_webapp-data", "size": 1000000000, "links": 1}
   ],
   "image_error": null,
   "volume_error": null

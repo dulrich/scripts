@@ -8,7 +8,7 @@
 # compose config); the only mutating calls in this file are the per-item
 # `docker rm <name>` and `docker rmi <ref|id>` in docker_residue_remove --
 # never -f, never any prune, never a volume
-# (plans/cache-prune-docker-image-residue.md).
+# (decided in the docker image-residue work).
 #
 # Three layers, so the classifier stays a pure function of captured JSON:
 #

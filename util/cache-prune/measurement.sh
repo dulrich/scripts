@@ -24,7 +24,7 @@
 # failed, its path silently became "", both source labels read back empty,
 # the "did the source change?" guard compared "" with "" and passed, and a
 # system-df reading minus a buildx-du reading was reported as a 600-byte
-# measurement (F9, reviews/2026-09-07-tn-code-review.md). One transport
+# measurement (found in a code review). One transport
 # cannot half-arrive: a record either carries its provenance or is not a
 # valid record. The regression is pinned in
 # util/tests/cache-prune/measurement.sh.
@@ -86,7 +86,7 @@ probe_is_available() {
 # provenance yields "unavailable" for every runtime -- there is no runtime
 # for which a cross-source subtraction is a measurement. Docker's two
 # sources were measured disagreeing by ~9 GB on one cache (premise (d),
-# plans/cache-prune-reclaim-effectiveness.md); subtracting one from the
+# during the reclaim-effectiveness work); subtracting one from the
 # other reports that disagreement as if it were freed disk.
 #
 # Always exits 0: "these cannot be compared" is an answer, not an error.

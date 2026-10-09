@@ -17,11 +17,11 @@ echo "[docker-residue] classifier over captured JSON"
 dr_rows=$(docker_residue_classify < "$DR_FIX/classify-input.json")
 dr_class_of() { awk -F'\t' -v ref="$1" '$2 == ref { print $1 }' <<< "$dr_rows"; }
 
-assert_eq "superseded" "$(dr_class_of context-control-cameras:wp2)" "an older work tag of a live repository (offset timestamps) is superseded"
+assert_eq "superseded" "$(dr_class_of homelab-cameras:wp2)" "an older work tag of a live repository (offset timestamps) is superseded"
 assert_eq "superseded" "$(dr_class_of llama-vulkan:b10121)" "an older tag of the compose-pinned llama repository is superseded"
 assert_eq "unreferenced" "$(dr_class_of llama-vulkan:b11429-swap243)" "a tag newer than its live sibling is unreferenced, never superseded"
 assert_eq "" "$(dr_class_of llama-vulkan:b10534-swap243)" "the compose-pinned tag is live"
-assert_eq "" "$(dr_class_of context-control-cameras:latest)" "the implied <project>-<service>:latest of a build-only service is live"
+assert_eq "" "$(dr_class_of homelab-cameras:latest)" "the implied <project>-<service>:latest of a build-only service is live"
 assert_eq "" "$(dr_class_of searxng/searxng:2026.8.22-9fea41204)" "a docker.io/-prefixed compose ref matches the unprefixed local tag"
 assert_eq "" "$(dr_class_of ghcr.io/example/homehub:2026.9.4)" "a profiled service's image is live"
 assert_eq "" "$(dr_class_of ghcr.io/example/webapp:v0.11.4-slim)$(dr_class_of alpine:latest)" "Dockerfile base refs (incl. implicit :latest) protect their images"
@@ -29,7 +29,7 @@ assert_eq "" "$(awk -F'\t' '$1 == "stale" && $2 == "engine-svc-tts"' <<< "$dr_ro
 assert_eq "" "$(dr_class_of engine-svc-tts:torch2.11-rocm7.2)" "the image of a live service's exited container is live"
 assert_contains "$dr_rows" $'stale\tlegacy_project-old-1\tsha256:prerename0000\t1000\t' "a pre-rename project's exited container is stale, with its writable-layer bytes"
 assert_contains "$dr_rows" $'unreferenced\tlegacy_project-legacy-project:latest\tsha256:prerename0000\t384300000\t2026-07-09T00:00:00Z\tlegacy_project-old-1' "an image held only by a stale container is a candidate naming its blocker"
-assert_contains "$dr_rows" $'volume\tcontext-control_radar-data\t4300000000\t0\tdangling' "a zero-link volume is flagged dangling"
+assert_contains "$dr_rows" $'volume\thomelab_radar-data\t4300000000\t0\tdangling' "a zero-link volume is flagged dangling"
 
 echo "[docker-residue] Dockerfile base-ref resolution"
 assert_eq "ghcr.io/example/webapp:v0.11.4-slim" "$(docker_residue_dockerfile_bases "$DR_FIX/Dockerfile.overlay")" "ARG default feeds FROM \${ARG}"
@@ -40,8 +40,8 @@ assert_failure "an unresolvable FROM variable fails closed" docker_residue_docke
 # --- capture path, against a fixture-serving docker double -----------------
 
 DR_ROOT="$SANDBOX/docker-residue-root"
-mkdir -p "$DR_ROOT/context-control"
-: > "$DR_ROOT/context-control/compose.yml"
+mkdir -p "$DR_ROOT/homelab"
+: > "$DR_ROOT/homelab/compose.yml"
 DR_COMPOSE_JSON=$(sed "s|@FIXTURES@|$DR_FIX|g" "$DR_FIX/compose-config.json")
 DR_COMPOSE_RESULT=0
 DR_IMAGES_JSON='[{"Id":"sha256:old","RepoTags":["webapp-overlay:v0.11.3"],"Created":"2026-01-01T00:00:00Z","Size":5},{"Id":"sha256:overlay","RepoTags":["webapp-overlay:v0.11.4"],"Created":"2026-09-01T00:00:00Z","Size":7}]'

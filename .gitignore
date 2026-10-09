@@ -7,8 +7,13 @@ config.sh
 *.swp
 *-swp
 
-# local implementation-orchestration records
-/runs/dispatch/
+# control plane lives in the private overlay
+/plans/
+/reviews/
+/references/
+/INITIATIVE.md
+/FEEDBACK.md
+/runs/
 
 # local machine / private overlay (provided by the scripts-private repo)
 private

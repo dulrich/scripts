@@ -1,5 +1,5 @@
 {
-  "name": "context-control",
+  "name": "homelab",
   "services": {
     "cameras": {"build": {"context": "@FIXTURES@", "dockerfile": "Dockerfile.multistage", "args": {"GIT_SHA": "unknown"}}},
     "webapp": {"image": "webapp-overlay:v0.11.4", "build": {"context": "@FIXTURES@", "dockerfile": "Dockerfile.overlay"}},

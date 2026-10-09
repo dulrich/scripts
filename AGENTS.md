@@ -55,7 +55,6 @@ It optionally loads (not in repo, gitignored):
 - `pkg-ioc/` — Supply-chain-attack IOC scanner for npm/PyPI. Has its own tests (`tests/smoke.sh`).
 - `gpuedit/` — Config files (themes, keybindings, highlighters) for gpuedit.
 - `i3/` — i3 window manager config.
-- `gentoo/` — Portage `make.conf`, `package.use`, world files for two machines (host-a, tower).
 
 ### Config pattern
 
@@ -97,6 +96,8 @@ This is the **public** repo. Private and machine-specific content
 a separate private overlay repo and is symlinked into place locally; all such
 paths are gitignored here. When adding files, keep private/host-specific detail
 (hostnames, credentials, tokens, personal paths) out — this repo is public.
+
+- The control plane (plans, reviews, references, initiative tracking) for this repo lives in the private overlay at `../scripts-private/public/` and is never committed here.
 
 ## License
 

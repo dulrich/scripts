@@ -235,8 +235,8 @@ assert_eq "set" "${RT_PURGE[pip]+set}" "pip has an RT_PURGE entry (its only verb
 assert_eq "set" "${RT_PURGE[bun]+set}" "bun has an RT_PURGE entry (its only verb)"
 
 # =========================================================================
-# WP-3: the observed footprint delta (plans/cache-prune-reclaim-
-# effectiveness.md). Every block below sets its own MODE/INCLUDE_PURGE and
+# The observed footprint delta (from the cache-prune
+# reclaim-effectiveness work). Every block below sets its own MODE/INCLUDE_PURGE and
 # resets any probe-sequence state explicitly (reset_logs() clears SEQ_FILE,
 # DOCKER_SYSTEM_DF_CALL_FILE and DOCKER_SYSTEM_DF_FAIL_AFTER) -- the
 # ambient-state hazard both prior WPs in this plan hit.
