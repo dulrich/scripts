@@ -206,6 +206,14 @@ symlinked entry, a symlinked home/.tmp/marketplaces/.staging component, and
 any entry whose realpath is not inside .staging. Nothing else under a Codex
 home is touched.
 
+The trash runtime reports the user's home trash (files/, info/ and
+expunged/ under ${XDG_DATA_HOME:-$HOME/.local/share}/Trash); detected only
+when gio is installed and that dir exists. Purge tier, interactive-only:
+it is user-deleted data, not a rebuildable cache, so it is NEVER emptied
+under --yes (not even with --include-purge) -- only by one interactive
+confirm, via `gio trash --empty` (never a direct rm). gio also empties
+per-mount .Trash-$UID dirs, which are not sized here.
+
 Notes:
   Reclaimable is reported per tier, never as one combined figure: docker's
   safe-tier figure is an upper bound (Docker's own "not pinned by an active
@@ -238,12 +246,18 @@ Honoured environment:
   CACHE_PRUNE_CODEX_HOME_ROOT
                 overrides the directory whose .codex and .codex-* children
                 the codex runtime scans (default $HOME)
+  CACHE_PRUNE_TRASH_DIR
+                overrides the trash dir the trash runtime sizes (default
+                ${XDG_DATA_HOME:-$HOME/.local/share}/Trash)
+  CACHE_PRUNE_GIO
+                overrides the gio command the trash runtime detects and
+                runs (default gio)
 EOF
 }
 
 ### registry ##################################################################
 
-RUNTIME_ORDER=(uv npm docker pip bun cargo repo codex)
+RUNTIME_ORDER=(uv npm docker pip bun cargo repo codex trash)
 
 # RT_CLASS describes how a runtime participates in the *safe* tier only
 # (RT_PRUNE below) -- it says nothing about purge-tier (RT_PURGE) membership,
@@ -260,6 +274,7 @@ declare -A RT_CLASS=(
     [cargo]=report
     [repo]=optin
     [codex]=optin
+    [trash]=optin
 )
 
 declare -A RT_DETECT=(
@@ -271,6 +286,7 @@ declare -A RT_DETECT=(
     [cargo]=rt_cargo_detect
     [repo]=rt_repo_detect
     [codex]=rt_codex_detect
+    [trash]=rt_trash_detect
 )
 
 # docker intentionally has no entry here: its cache is daemon-owned, not a
@@ -297,6 +313,7 @@ declare -A RT_SIZE=(
     [cargo]=rt_generic_size
     [repo]=rt_repo_size
     [codex]=rt_codex_size
+    [trash]=rt_trash_size
 )
 
 # RT_PRUNE holds *only* safe verbs -- pip and bun's destructive purges live
@@ -325,6 +342,7 @@ declare -A RT_PURGE=(
     [bun]=rt_bun_purge
     [repo]=rt_repo_purge
     [codex]=rt_codex_purge
+    [trash]=rt_trash_purge
 )
 
 # RT_DETAIL: an optional per-runtime breakdown printed immediately after the
@@ -341,6 +359,7 @@ declare -A RT_DETAIL=(
     [docker]=rt_docker_detail
     [repo]=rt_repo_detail
     [codex]=rt_codex_detail
+    [trash]=rt_trash_detail
 )
 
 # RT_RESIDUE: an optional per-runtime residue step, run by process_runtime
@@ -359,6 +378,25 @@ declare -A RT_RESIDUE=(
 # a property of docker's source, not of the reporting lifecycle.
 declare -A RT_SAFE_ESTIMATE_NOTE=(
     [docker]='note: docker reclaimable is an upper bound (not pinned by an active build), not a guarantee of what a prune will free.'
+)
+
+# RT_INTERACTIVE_ONLY: purge-tier runtimes that are never elected under
+# --yes, whatever --include-purge says -- only an interactive confirm empties
+# them. Registry data for the same reason as RT_SAFE_ESTIMATE_NOTE: trash is
+# data the user deleted, not a rebuildable cache, and that is a property of
+# its source, not of the election logic (same posture as unreferenced docker
+# images in cache-prune/docker-residue.sh). The value is the skip note
+# purge_elected prints under --yes.
+declare -A RT_INTERACTIVE_ONLY=(
+    [trash]='skipped: trash needs an interactive confirm (user-deleted data; never emptied under --yes)'
+)
+
+# RT_PURGE_PROMPT: an optional function printing a runtime's interactive purge
+# confirm text, in place of the generic "Purge <name> cache?" prompt -- for a
+# runtime whose confirm owes the user more (trash: the size, and that it is
+# user-deleted data).
+declare -A RT_PURGE_PROMPT=(
+    [trash]=rt_trash_purge_prompt
 )
 
 ### mode matrix ###############################################################
@@ -433,8 +471,12 @@ report_measurement() {
     TOTAL_BYTES=$((TOTAL_BYTES + total))
 
     if [[ -n "${RT_PURGE[$name]:-}" ]]; then
-        printf '%s reclaimable via the purge verb (%s, %d bytes) -- requires --include-purge\n' \
-            "$name" "$(human_bytes "$reclaimable")" "$reclaimable"
+        local gate='requires --include-purge'
+        if [[ -n "${RT_INTERACTIVE_ONLY[$name]:-}" ]]; then
+            gate='emptied only after an interactive confirm, never under --yes'
+        fi
+        printf '%s reclaimable via the purge verb (%s, %d bytes) -- %s\n' \
+            "$name" "$(human_bytes "$reclaimable")" "$reclaimable" "$gate"
         PURGE_RECLAIMABLE_BYTES=$((PURGE_RECLAIMABLE_BYTES + reclaimable))
         if [[ -n "${RT_PRUNE[$name]:-}" ]]; then
             printf 'note: %s'"'"'s safe verb cannot be predicted (no dry run exists) -- it is not represented by any reclaimable figure here.\n' "$name"
@@ -658,7 +700,7 @@ main() {
     section "Total"
     printf 'Total cache footprint seen:                   %s (%d bytes)\n' "$(human_bytes "$TOTAL_BYTES")" "$TOTAL_BYTES"
     printf 'Estimated safe-tier reclaimable (upper bound): %s (%d bytes)\n' "$(human_bytes "$SAFE_RECLAIMABLE_BYTES")" "$SAFE_RECLAIMABLE_BYTES"
-    printf 'Estimated purge-tier reclaimable (--include-purge): %s (%d bytes)\n' "$(human_bytes "$PURGE_RECLAIMABLE_BYTES")" "$PURGE_RECLAIMABLE_BYTES"
+    printf 'Estimated purge-tier reclaimable (--include-purge; trash interactive-only): %s (%d bytes)\n' "$(human_bytes "$PURGE_RECLAIMABLE_BYTES")" "$PURGE_RECLAIMABLE_BYTES"
     if [[ "$MODE" != report ]]; then
         printf 'Observed footprint change (measured, not predicted): %s (%d bytes)\n' \
             "$(human_bytes_signed "$DELTA_BYTES")" "$DELTA_BYTES"

@@ -32,6 +32,7 @@ ORIGINAL_RT_DOCKER_DETECT="$(declare -f rt_docker_detect)"
 # predicate.
 ORIGINAL_RT_REPO_DETECT="$(declare -f rt_repo_detect)"
 ORIGINAL_RT_CODEX_DETECT="$(declare -f rt_codex_detect)"
+ORIGINAL_RT_TRASH_DETECT="$(declare -f rt_trash_detect)"
 
 PASS=0
 FAIL=0
@@ -146,6 +147,26 @@ mkdir -p "$CACHE_PRUNE_REPO_ROOT"
 export CACHE_PRUNE_CODEX_HOME_ROOT="$SANDBOX/empty-codex-home-root"
 mkdir -p "$CACHE_PRUNE_CODEX_HOME_ROOT"
 
+# The trash runtime, for a stronger reason still: its verb is `gio trash
+# --empty`, and the gvfsd-trash daemon ignores XDG_DATA_HOME -- the real gio
+# empties the user's REAL trash whatever the sandbox env says. So the gio
+# command is always a recording double under the sandbox (it appends its
+# argv to GIO_LOG_FILE and exits GIO_RESULT, default 0), and the trash dir is
+# pointed at a sandbox path that does not exist, so trash is never detected
+# by the RUNTIME_ORDER loops; cache-prune/trash.sh builds its own fixture.
+GIO_SHIM_DIR="$SANDBOX/gio-shim"
+GIO_LOG_FILE="$SANDBOX/gio.log"
+mkdir -p "$GIO_SHIM_DIR"
+: > "$GIO_LOG_FILE"
+cat > "$GIO_SHIM_DIR/gio" <<GIO_SHIM
+#!/usr/bin/env bash
+printf '%s\\n' "\$*" >> "$GIO_LOG_FILE"
+exit "\${GIO_RESULT:-0}"
+GIO_SHIM
+chmod +x "$GIO_SHIM_DIR/gio"
+export CACHE_PRUNE_GIO="$GIO_SHIM_DIR/gio"
+export CACHE_PRUNE_TRASH_DIR="$SANDBOX/absent-trash"
+
 # All six detect predicates default to "present"; individual tests flip
 # specific ones back to "absent" (return 1) for isolation. docker restores
 # the *real* rt_docker_detect (command -v docker && docker info) rather than
@@ -160,6 +181,7 @@ all_present() {
     rt_cargo_detect() { return 0; }
     eval "$ORIGINAL_RT_REPO_DETECT"
     eval "$ORIGINAL_RT_CODEX_DETECT"
+    eval "$ORIGINAL_RT_TRASH_DETECT"
 }
 
 all_absent() {
@@ -171,6 +193,7 @@ all_absent() {
     rt_cargo_detect() { return 1; }
     rt_repo_detect() { return 1; }
     rt_codex_detect() { return 1; }
+    rt_trash_detect() { return 1; }
 }
 
 # --- command-log doubles -------------------------------------------------
@@ -457,6 +480,8 @@ source "$HERE/cache-prune/repo.sh"
 source "$HERE/cache-prune/docker-residue.sh"
 # shellcheck source=util/tests/cache-prune/codex.sh
 source "$HERE/cache-prune/codex.sh"
+# shellcheck source=util/tests/cache-prune/trash.sh
+source "$HERE/cache-prune/trash.sh"
 
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
 ((FAIL == 0))
