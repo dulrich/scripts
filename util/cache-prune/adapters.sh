@@ -705,3 +705,72 @@ rt_codex_detail() {
             "${home##*/}" "$count" "$(human_bytes "$bytes")" "$bytes" "$young"
     done <<< "$CODEX_HOME_LINES"
 }
+
+### trash #####################################################################
+#
+# The user's home trash (freedesktop layout: files/, info/, expunged/).
+# User-deleted data, not a rebuildable cache -- see RT_INTERACTIVE_ONLY in
+# ../cache-prune.sh. Only the home trash is sized; gio also empties per-mount
+# .Trash-$UID dirs, which are acknowledged in the detail line, not modelled.
+
+rt_trash_dir() {
+    printf '%s\n' "${CACHE_PRUNE_TRASH_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/Trash}"
+}
+
+rt_trash_gio() {
+    printf '%s\n' "${CACHE_PRUNE_GIO:-gio}"
+}
+
+rt_trash_detect() {
+    command -v "$(rt_trash_gio)" >/dev/null 2>&1 && [[ -d "$(rt_trash_dir)" ]]
+}
+
+# rt_trash_bytes: files/ + info/ (+ expunged/ when present); absent subdirs
+# count as zero.
+rt_trash_bytes() {
+    local dir sub bytes total=0
+
+    dir=$(rt_trash_dir)
+    for sub in files info expunged; do
+        [[ -e "$dir/$sub" ]] || continue
+        bytes=$(repo_path_bytes "$dir/$sub")
+        total=$((total + bytes))
+    done
+    printf '%d\n' "$total"
+}
+
+# rt_trash_size: the probe. Everything in the trash is purge-tier
+# reclaimable, so reclaimable == total.
+rt_trash_size() {
+    local bytes
+
+    if ! rt_trash_detect; then
+        probe_unavailable
+        return 0
+    fi
+
+    bytes=$(rt_trash_bytes)
+    probe_available "$bytes" "$bytes" "trash"
+}
+
+# rt_trash_detail: the RT_DETAIL seam -- item count plus the per-mount note.
+rt_trash_detail() {
+    local dir count=0 entry
+
+    dir=$(rt_trash_dir)
+    for entry in "$dir/files"/* "$dir/files"/.[!.]* "$dir/files"/..?*; do
+        [[ -e "$entry" || -L "$entry" ]] && count=$((count + 1))
+    done
+    printf 'trash: %d items in files/ -- purge tier, interactive confirm only\n' "$count"
+    printf 'note: gio trash --empty also empties per-mount .Trash-<uid> dirs, which are not sized here.\n'
+}
+
+# rt_trash_purge_prompt: the RT_PURGE_PROMPT seam -- names the size and that
+# this is user-deleted data.
+rt_trash_purge_prompt() {
+    local bytes
+
+    bytes=$(rt_trash_bytes)
+    printf 'Empty trash (%s, %d bytes of user-deleted data, not a cache)? (destructive, via gio trash --empty)' \
+        "$(human_bytes "$bytes")" "$bytes"
+}

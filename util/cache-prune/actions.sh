@@ -203,6 +203,12 @@ rt_codex_purge() {
     return 0
 }
 
+# rt_trash_purge: delegates to `gio trash --empty` (never a direct rm); a
+# non-zero exit is a verb failure through run_verb.
+rt_trash_purge() {
+    "$(rt_trash_gio)" trash --empty
+}
+
 # codex_purge_path: the guards, then the deletion. Unlike repo_purge_path this
 # refuses symlinks outright (audit E2): a symlinked candidate, a symlinked
 # home/.tmp/marketplaces/.staging component, or a candidate whose realpath is
@@ -288,20 +294,33 @@ safe_elected() {
 purge_elected() {
     local name="$1"
     local class="${RT_CLASS[$name]}"
+    local prompt="Purge $name cache? (opt-in, destructive)"
 
     [[ -n "${RT_PURGE[$name]:-}" ]] || return 1
 
+    # The custom prompt is only built when it can be shown -- trash's probes
+    # the trash dir, which --yes never needs.
+    if [[ "$MODE" == interactive && -n "${RT_PURGE_PROMPT[$name]:-}" ]]; then
+        prompt=$("${RT_PURGE_PROMPT[$name]}")
+    fi
+
     case "$MODE" in
         yes)
+            # An interactive-only runtime (RT_INTERACTIVE_ONLY) is never
+            # elected here; the skip is a note, not a failure.
+            if [[ -n "${RT_INTERACTIVE_ONLY[$name]:-}" ]]; then
+                printf '%s\n' "${RT_INTERACTIVE_ONLY[$name]}"
+                return 1
+            fi
             [[ "$INCLUDE_PURGE" == true ]]
             ;;
         interactive)
             case "$class" in
                 safe)
-                    [[ "$INCLUDE_PURGE" == true ]] && confirm "Purge $name cache? (opt-in, destructive)"
+                    [[ "$INCLUDE_PURGE" == true ]] && confirm "$prompt"
                     ;;
                 *)
-                    confirm "Purge $name cache? (opt-in, destructive)"
+                    confirm "$prompt"
                     ;;
             esac
             ;;
