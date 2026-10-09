@@ -7,12 +7,7 @@ config.sh
 *.swp
 *-swp
 
-# control plane lives in the private overlay
-/plans/
-/reviews/
-/references/
-/INITIATIVE.md
-/FEEDBACK.md
+# local agent dispatch artifacts
 /runs/
 
 # local machine / private overlay (provided by the scripts-private repo)
