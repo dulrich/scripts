@@ -44,8 +44,8 @@ source "$CACHE_PRUNE_LIB/docker-residue.sh"
 FAILED=0
 TOTAL_BYTES=0
 # The old single RECLAIMABLE_BYTES conflated a safe-verb prediction with a
-# purge-verb one under one figure -- split per tier (WP-3, decision 4 of
-# plans/cache-prune-reclaim-effectiveness.md): a runtime's census reclaimable
+# purge-verb one under one figure -- split per tier during the cache-prune
+# reclaim-effectiveness work: a runtime's census reclaimable
 # bytes are routed into exactly one of these (or neither, for cargo, which
 # has no verb at all) by report_measurement, never both.
 SAFE_RECLAIMABLE_BYTES=0

@@ -30,7 +30,7 @@ DOCKER_UNTIL=""
 # this used to carry blocked most of what docker itself calls reclaimable,
 # because the build-cache DAG retains an old parent record whenever it has
 # a recent child, regardless of the parent's own age. Measured live
-# (premise (a), plans/cache-prune-reclaim-effectiveness.md): an unfiltered
+# during the reclaim-effectiveness work: an unfiltered
 # prune freed the reported Private slice exactly and touched nothing
 # docker considers ACTIVE. That guarantee -- a prune never removes an
 # ACTIVE record -- is the safety basis for the unfiltered default, not the
@@ -50,7 +50,7 @@ rt_docker_prune() {
 # rt_uv_purge / rt_npm_purge: the destructive purge verbs (RT_PURGE). Each
 # clears the whole cache and forces a re-download on next use -- see the
 # near-no-op behaviour of their safe counterparts above (premise (c),
-# plans/cache-prune-reclaim-effectiveness.md) for why this is the verb that
+# measured during the reclaim-effectiveness work) for why this is the verb that
 # actually reaches the reported reclaimable bytes.
 rt_uv_purge() {
     uv cache clean
@@ -356,7 +356,7 @@ run_verb() {
 # substitution without swallowing the prompts.
 #
 # Election order *is* the behaviour, not style (Decision 7,
-# plans/cache-prune-reclaim-effectiveness.md). Under --yes, a purge election
+# from the reclaim-effectiveness work). Under --yes, a purge election
 # supersedes the safe verb for a dual-verb runtime and the safe verb never
 # runs -- its work is a strict subset, so running both would waste time and
 # muddy the freed-bytes accounting. Interactively each elected verb runs,

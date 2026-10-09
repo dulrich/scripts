@@ -67,8 +67,8 @@ assert_success "probe_compare always exits 0 -- 'not comparable' is an answer, n
     probe_compare uv "unavailable 0 0 -" "garbage"
 
 echo "[F9 regression] a docker source change with no scratch file still yields an unavailable delta"
-# The defect this whole package exists for (F9,
-# reviews/2026-09-07-tn-code-review.md). The before probe measured via
+# The defect this whole package exists for (found in a
+# code review). The before probe measured via
 # system df, the after probe via buildx du, and the scratch file the old
 # implementation smuggled that provenance through could not be created:
 # both labels read back empty, the "did the source change?" guard compared

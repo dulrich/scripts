@@ -6,7 +6,8 @@ set -euo pipefail
 # tracked (this is what would have caught aliases.sh's dead lifi alias), no
 # tracked active file leaks a literal personal home path, the retained static
 # assets (Xresources, gpuedit themes/commands/highlighters) exist and parse,
-# and the docs no longer advertise a removed surface. Only tracked files
+# the docs no longer advertise a removed surface, and no control-plane doc
+# (plans/reviews/references, INITIATIVE.md, FEEDBACK.md) is tracked. Only tracked files
 # inside this worktree are read; nothing outside it or under private/ is
 # touched.
 
@@ -190,6 +191,13 @@ if [[ $docs_ok -eq 1 ]]; then
 	ok 'README.md and AGENTS.md do not mention lifi.sh, licenses/, or themegen/'
 else
 	fail 'README.md and AGENTS.md do not mention lifi.sh, licenses/, or themegen/'
+fi
+
+# --- control plane is never tracked ----------------------------------------
+if [[ -z "$(git ls-files -- plans reviews references INITIATIVE.md FEEDBACK.md)" ]]; then
+	ok 'no root plans/, reviews/, references/, INITIATIVE.md, or FEEDBACK.md is tracked'
+else
+	fail 'no root plans/, reviews/, references/, INITIATIVE.md, or FEEDBACK.md is tracked'
 fi
 
 printf 'public-contract-smoke: %d/%d passed\n' "$passed" "$total"
