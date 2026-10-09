@@ -188,6 +188,60 @@ repo_worktree_is_live() {
     rt_repo_live_worktrees "$repo" | grep -qxF -- "$path_real"
 }
 
+# rt_codex_purge: re-scans immediately before deleting (same reasoning as
+# rt_repo_purge) and hands each reclaimable candidate to codex_purge_path.
+rt_codex_purge() {
+    local home path
+
+    rt_codex_scan
+
+    while IFS=$'\t' read -r home path; do
+        [[ -n "$path" ]] || continue
+        codex_purge_path "$home" "$path"
+    done <<< "$CODEX_OLD_PATHS"
+
+    return 0
+}
+
+# codex_purge_path: the guards, then the deletion. Unlike repo_purge_path this
+# refuses symlinks outright (audit E2): a symlinked candidate, a symlinked
+# home/.tmp/marketplaces/.staging component, or a candidate whose realpath is
+# not strictly inside the realpath of .staging is skipped with a note.
+codex_purge_path() {
+    local home="$1"
+    local path="$2"
+    local staging="$home/.tmp/marketplaces/.staging"
+    local component staging_real path_real
+
+    if [[ -L "$path" ]]; then
+        printf 'note: skipped %s (guard: candidate is a symlink)\n' "$path"
+        return 0
+    fi
+
+    for component in "$home" "$home/.tmp" "$home/.tmp/marketplaces" "$staging"; do
+        if [[ -L "$component" ]]; then
+            printf 'note: skipped %s (guard: %s is a symlink)\n' "$path" "$component"
+            return 0
+        fi
+    done
+
+    staging_real=$(realpath "$staging" 2>/dev/null) || staging_real=""
+    path_real=$(realpath "$path" 2>/dev/null) || path_real=""
+
+    if [[ -z "$staging_real" || -z "$path_real" ]]; then
+        printf 'note: skipped %s (guard: path could not be resolved)\n' "$path"
+        return 0
+    fi
+
+    if [[ "$path_real" != "$staging_real"/* ]]; then
+        printf 'note: skipped %s (guard: realpath %s is outside %s)\n' \
+            "$path" "$path_real" "$staging_real"
+        return 0
+    fi
+
+    rm -rf -- "$path_real"
+}
+
 ### election ##################################################################
 
 # safe_elected / purge_elected: decide, per runtime, whether this run acts

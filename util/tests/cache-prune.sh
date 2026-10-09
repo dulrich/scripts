@@ -31,6 +31,7 @@ ORIGINAL_RT_DOCKER_DETECT="$(declare -f rt_docker_detect)"
 # instead of stubbing it, and the repo suite can exercise the genuine
 # predicate.
 ORIGINAL_RT_REPO_DETECT="$(declare -f rt_repo_detect)"
+ORIGINAL_RT_CODEX_DETECT="$(declare -f rt_codex_detect)"
 
 PASS=0
 FAIL=0
@@ -137,6 +138,14 @@ export CACHE_PRUNE_REPO_ROOT="$SANDBOX/empty-fleet-root"
 export CACHE_PRUNE_RUNS_CLOSEOUT="$SANDBOX/absent-runs-closeout.mjs"
 mkdir -p "$CACHE_PRUNE_REPO_ROOT"
 
+# The codex runtime's home root, for the same safety reason: its purge verb
+# deletes directories itself, and the RUNTIME_ORDER loops above would
+# otherwise reach the real ~/.codex* staging dirs under $HOME. An empty
+# sandbox directory has no .codex homes, so codex is never detected there;
+# cache-prune/codex.sh builds its own fixture homes and re-points it.
+export CACHE_PRUNE_CODEX_HOME_ROOT="$SANDBOX/empty-codex-home-root"
+mkdir -p "$CACHE_PRUNE_CODEX_HOME_ROOT"
+
 # All six detect predicates default to "present"; individual tests flip
 # specific ones back to "absent" (return 1) for isolation. docker restores
 # the *real* rt_docker_detect (command -v docker && docker info) rather than
@@ -150,6 +159,7 @@ all_present() {
     rt_bun_detect() { return 0; }
     rt_cargo_detect() { return 0; }
     eval "$ORIGINAL_RT_REPO_DETECT"
+    eval "$ORIGINAL_RT_CODEX_DETECT"
 }
 
 all_absent() {
@@ -160,6 +170,7 @@ all_absent() {
     rt_bun_detect() { return 1; }
     rt_cargo_detect() { return 1; }
     rt_repo_detect() { return 1; }
+    rt_codex_detect() { return 1; }
 }
 
 # --- command-log doubles -------------------------------------------------
@@ -444,6 +455,8 @@ source "$HERE/cache-prune/cli.sh"
 source "$HERE/cache-prune/repo.sh"
 # shellcheck source=util/tests/cache-prune/docker-residue.sh
 source "$HERE/cache-prune/docker-residue.sh"
+# shellcheck source=util/tests/cache-prune/codex.sh
+source "$HERE/cache-prune/codex.sh"
 
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
 ((FAIL == 0))

@@ -145,7 +145,7 @@ Modes:
   --yes                  auto-confirm the safe verb for uv, npm, docker;
                          pip and bun have no safe verb and are skipped
                          entirely, never prompted
-  --yes --include-purge  purges pip, bun and repo (their only verb); for uv
+  --yes --include-purge  purges pip, bun, repo and codex (their only verb); for uv
                          and npm this instead runs their purge verb in place
                          of their safe verb, not in addition to it
 
@@ -196,6 +196,16 @@ of IMPLEMENTED plans (reported only, never deleted here: they are archived
 by runs-closeout.mjs). Its purge refuses any path whose realpath leaves the
 repository, any git-tracked path, and any worktree git still lists as live.
 
+The codex runtime reports leaked Codex CLI marketplace staging copies:
+<home>/.tmp/marketplaces/.staging/marketplace-upgrade-* (direct children
+only) for every home $HOME/.codex and $HOME/.codex-* (root overridable via
+CACHE_PRUNE_CODEX_HOME_ROOT). All entries count toward total; only those
+older than 24 h are reclaimable. Purge tier (optin): removed only by
+--yes --include-purge, or one confirm interactively. Its purge refuses a
+symlinked entry, a symlinked home/.tmp/marketplaces/.staging component, and
+any entry whose realpath is not inside .staging. Nothing else under a Codex
+home is touched.
+
 Notes:
   Reclaimable is reported per tier, never as one combined figure: docker's
   safe-tier figure is an upper bound (Docker's own "not pinned by an active
@@ -225,12 +235,15 @@ Honoured environment:
                 --report-json output sizes the implemented-dispatch-records
                 bucket (default: context-control/scripts/runs-closeout.mjs
                 under the default fleet root above)
+  CACHE_PRUNE_CODEX_HOME_ROOT
+                overrides the directory whose .codex and .codex-* children
+                the codex runtime scans (default $HOME)
 EOF
 }
 
 ### registry ##################################################################
 
-RUNTIME_ORDER=(uv npm docker pip bun cargo repo)
+RUNTIME_ORDER=(uv npm docker pip bun cargo repo codex)
 
 # RT_CLASS describes how a runtime participates in the *safe* tier only
 # (RT_PRUNE below) -- it says nothing about purge-tier (RT_PURGE) membership,
@@ -246,6 +259,7 @@ declare -A RT_CLASS=(
     [bun]=optin
     [cargo]=report
     [repo]=optin
+    [codex]=optin
 )
 
 declare -A RT_DETECT=(
@@ -256,6 +270,7 @@ declare -A RT_DETECT=(
     [bun]=rt_bun_detect
     [cargo]=rt_cargo_detect
     [repo]=rt_repo_detect
+    [codex]=rt_codex_detect
 )
 
 # docker intentionally has no entry here: its cache is daemon-owned, not a
@@ -281,6 +296,7 @@ declare -A RT_SIZE=(
     [bun]=rt_generic_size
     [cargo]=rt_generic_size
     [repo]=rt_repo_size
+    [codex]=rt_codex_size
 )
 
 # RT_PRUNE holds *only* safe verbs -- pip and bun's destructive purges live
@@ -308,6 +324,7 @@ declare -A RT_PURGE=(
     [pip]=rt_pip_purge
     [bun]=rt_bun_purge
     [repo]=rt_repo_purge
+    [codex]=rt_codex_purge
 )
 
 # RT_DETAIL: an optional per-runtime breakdown printed immediately after the
@@ -323,6 +340,7 @@ declare -A RT_PURGE=(
 declare -A RT_DETAIL=(
     [docker]=rt_docker_detail
     [repo]=rt_repo_detail
+    [codex]=rt_codex_detail
 )
 
 # RT_RESIDUE: an optional per-runtime residue step, run by process_runtime
