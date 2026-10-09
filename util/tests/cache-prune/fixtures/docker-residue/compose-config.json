@@ -1,0 +1,8 @@
+{
+  "name": "context-control",
+  "services": {
+    "cameras": {"build": {"context": "@FIXTURES@", "dockerfile": "Dockerfile.multistage", "args": {"GIT_SHA": "unknown"}}},
+    "webapp": {"image": "webapp-overlay:v0.11.4", "build": {"context": "@FIXTURES@", "dockerfile": "Dockerfile.overlay"}},
+    "homehub": {"image": "ghcr.io/example/homehub:2026.9.4", "profiles": ["manual"]}
+  }
+}

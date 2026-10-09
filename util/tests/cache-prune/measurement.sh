@@ -106,6 +106,12 @@ queue_probe_sequence "available 1000 900 system-df" "available 400 300 buildx-du
 RT_SIZE[docker]=rt_size_from_queue
 rt_docker_prune_mock() { MUTATE_LOG+="MOCK docker builder prune|"; return 0; }
 RT_PRUNE[docker]=rt_docker_prune_mock
+# The docker residue detail (RT_DETAIL) is a separate read-only report
+# seam, not part of the measurement path under test; it is mocked out like
+# the size probe and the verb so this path still makes no docker call.
+F9_ORIGINAL_RT_DETAIL_DOCKER="${RT_DETAIL[docker]}"
+rt_docker_detail_mock() { :; }
+RT_DETAIL[docker]=rt_docker_detail_mock
 
 F9_FILE="$SANDBOX/f9-output.log"
 : > "$F9_FILE"
@@ -117,6 +123,7 @@ unset -f mktemp
 eval "$F9_ORIGINAL_DOCKER"
 RT_SIZE[docker]="$F9_ORIGINAL_RT_SIZE_DOCKER"
 RT_PRUNE[docker]="$F9_ORIGINAL_RT_PRUNE_DOCKER"
+RT_DETAIL[docker]="$F9_ORIGINAL_RT_DETAIL_DOCKER"
 
 f9_output="$(cat "$F9_FILE")"
 f9_delta_line="$(grep 'observed footprint change' <<< "$f9_output")"

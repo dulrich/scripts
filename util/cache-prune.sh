@@ -21,6 +21,8 @@ set -euo pipefail
 #   cache-prune/measurement.sh  the probe-record type + the one delta helper
 #   cache-prune/adapters.sh     per-runtime detect / locate / size probes
 #   cache-prune/actions.sh      the verbs and the election rules
+#   cache-prune/docker-residue.sh  read-only docker image/container/volume
+#                               residue classifier (docker's RT_DETAIL)
 #
 # CC0: This work has been marked as dedicated to the public domain.
 # https://creativecommons.org/publicdomain/zero/1.0/
@@ -35,6 +37,8 @@ source "$CACHE_PRUNE_LIB/measurement.sh"
 source "$CACHE_PRUNE_LIB/adapters.sh"
 # shellcheck source=util/cache-prune/actions.sh
 source "$CACHE_PRUNE_LIB/actions.sh"
+# shellcheck source=util/cache-prune/docker-residue.sh
+source "$CACHE_PRUNE_LIB/docker-residue.sh"
 
 FAILED=0
 TOTAL_BYTES=0
@@ -299,6 +303,7 @@ declare -A RT_PURGE=(
 # per the contract at the top of cache-prune/measurement.sh, and the
 # user-facing breakdown is printed from here.
 declare -A RT_DETAIL=(
+    [docker]=rt_docker_detail
     [repo]=rt_repo_detail
 )
 

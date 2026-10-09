@@ -1,0 +1,3 @@
+# ARG before FROM, as a project overlay Dockerfile does.
+ARG UPSTREAM=ghcr.io/example/webapp:v0.11.4-slim
+FROM ${UPSTREAM}
