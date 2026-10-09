@@ -112,6 +112,10 @@ RT_PRUNE[docker]=rt_docker_prune_mock
 F9_ORIGINAL_RT_DETAIL_DOCKER="${RT_DETAIL[docker]}"
 rt_docker_detail_mock() { :; }
 RT_DETAIL[docker]=rt_docker_detail_mock
+# Same for the residue removal step (RT_RESIDUE): its own seam, with its own
+# measurement, outside the build-cache path under test here.
+F9_ORIGINAL_RT_RESIDUE_DOCKER="${RT_RESIDUE[docker]}"
+unset 'RT_RESIDUE[docker]'
 
 F9_FILE="$SANDBOX/f9-output.log"
 : > "$F9_FILE"
@@ -124,6 +128,7 @@ eval "$F9_ORIGINAL_DOCKER"
 RT_SIZE[docker]="$F9_ORIGINAL_RT_SIZE_DOCKER"
 RT_PRUNE[docker]="$F9_ORIGINAL_RT_PRUNE_DOCKER"
 RT_DETAIL[docker]="$F9_ORIGINAL_RT_DETAIL_DOCKER"
+RT_RESIDUE[docker]="$F9_ORIGINAL_RT_RESIDUE_DOCKER"
 
 f9_output="$(cat "$F9_FILE")"
 f9_delta_line="$(grep 'observed footprint change' <<< "$f9_output")"
