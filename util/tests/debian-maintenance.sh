@@ -232,6 +232,41 @@ CONFIRM_QUEUE=(0 0)
 run_apt_cache_cleanup >/dev/null 2>&1
 assert_eq "-y autoclean|-y clean|" "$APT_LOG" "confirming both runs autoclean then clean, in that order"
 
+echo "[journal cleanup] run_journal_cleanup"
+JOURNAL_LOG=""
+JOURNAL_USAGE_RC=0
+journalctl() {
+    if [[ "$1" == --disk-usage ]]; then
+        printf 'Archived and active journals take up 633.4M in the file system.\n'
+        return "$JOURNAL_USAGE_RC"
+    fi
+    JOURNAL_LOG+="$*|"
+}
+
+CONFIRM_QUEUE=(1)
+run_journal_cleanup >/dev/null 2>&1
+assert_eq "" "$JOURNAL_LOG" "declined journal vacuum executes nothing"
+
+JOURNAL_LOG=""
+CONFIRM_QUEUE=(0)
+run_journal_cleanup >/dev/null 2>&1
+assert_eq "--vacuum-size=200M|" "$JOURNAL_LOG" "confirmed journal vacuum runs --vacuum-size at the cap exactly once"
+
+JOURNAL_LOG=""
+JOURNAL_USAGE_RC=1
+CONFIRM_QUEUE=(0)
+run_journal_cleanup >/dev/null 2>&1
+assert_eq "" "$JOURNAL_LOG" "unreadable journal usage skips the vacuum even when confirm would accept"
+JOURNAL_USAGE_RC=0
+
+unset -f journalctl
+CONFIRM_QUEUE=(0)
+JOURNAL_OUT="$(PATH=/nonexistent run_journal_cleanup 2>&1)"
+case "$JOURNAL_OUT" in
+    *"journalctl not found"*) ok "missing journalctl skips the stage" ;;
+    *) bad "missing journalctl should skip (got: $JOURNAL_OUT)" ;;
+esac
+
 echo "[report mode] --report posture JSON (stubbed apt/apt-get on PATH)"
 
 # Unlike the source-and-stub cases above, --report is exercised as a real

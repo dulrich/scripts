@@ -8,6 +8,7 @@ set -euo pipefail
 export DEBIAN_FRONTEND=readline
 
 KEEP_NEWEST_KERNELS=2
+JOURNAL_VACUUM_SIZE=200M
 
 section() {
     printf '\n==== %s ====\n' "$1"
@@ -374,6 +375,33 @@ run_apt_cache_cleanup() {
     fi
 }
 
+# systemd's journal is root-owned log residue, like the apt archive above.
+# `--vacuum-size` removes only archived journal files (never the active one),
+# oldest first, until the total is under the cap; hosts without journald skip.
+run_journal_cleanup() {
+    local usage
+
+    section "Journal cleanup"
+
+    if ! command -v journalctl >/dev/null 2>&1; then
+        echo "journalctl not found; skipping journal cleanup."
+        return 0
+    fi
+
+    if usage="$(journalctl --disk-usage 2>&1)"; then
+        printf '%s\n' "$usage"
+    else
+        echo "Unable to read journal disk usage; skipping journal cleanup."
+        return 0
+    fi
+
+    if confirm "Vacuum archived journal files down to $JOURNAL_VACUUM_SIZE?"; then
+        journalctl --vacuum-size="$JOURNAL_VACUUM_SIZE"
+    else
+        echo "Skipping journal cleanup."
+    fi
+}
+
 # --- non-interactive posture report ---------------------------------------
 # `--report` is the machine-readable, read-only sibling of the interactive
 # flow: no root, no TTY, no `apt-get update`, no mutation. stdout carries one
@@ -462,6 +490,7 @@ main() {
     run_kernel_cleanup
     run_autoremove
     run_apt_cache_cleanup
+    run_journal_cleanup
 
     section "Done"
 }

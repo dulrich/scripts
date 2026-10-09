@@ -61,7 +61,8 @@ subcommand list from `util/*.sh`, so new commands complete automatically.
 
 `util debian-maintenance` is an interactive, root-only command. It updates APT,
 then simulates and separately confirms `upgrade --with-new-pkgs`,
-`full-upgrade`, explicit old-kernel purges, and general autoremove. It refuses
+`full-upgrade`, explicit old-kernel purges, general autoremove, apt archive
+cleanup, and a journal vacuum down to 200M. It refuses
 transactions that would remove boot-critical kernel, GRUB, shim, or initramfs
 packages.
 
