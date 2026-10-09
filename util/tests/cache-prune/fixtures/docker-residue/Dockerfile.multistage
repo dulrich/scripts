@@ -1,0 +1,6 @@
+ARG GO_VERSION=1.26.7
+FROM --platform=linux/amd64 golang:$GO_VERSION-trixie AS build
+FROM build AS test
+FROM scratch AS empty
+FROM alpine:latest
+COPY --from=build /out/app /usr/local/bin/app

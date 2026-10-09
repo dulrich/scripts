@@ -430,6 +430,8 @@ source "$HERE/cache-prune/actions.sh"
 source "$HERE/cache-prune/cli.sh"
 # shellcheck source=util/tests/cache-prune/repo.sh
 source "$HERE/cache-prune/repo.sh"
+# shellcheck source=util/tests/cache-prune/docker-residue.sh
+source "$HERE/cache-prune/docker-residue.sh"
 
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
 ((FAIL == 0))
