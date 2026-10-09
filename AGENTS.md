@@ -97,7 +97,7 @@ a separate private overlay repo and is symlinked into place locally; all such
 paths are gitignored here. When adding files, keep private/host-specific detail
 (hostnames, credentials, tokens, personal paths) out — this repo is public.
 
-- The control plane (plans, reviews, references, initiative tracking) for this repo lives in the private overlay at `../scripts-private/public/` and is never committed here.
+- The control plane (`plans/`, `reviews/`, `references/`, `INITIATIVE.md`) lives in this repo on `master` and is stripped from the GitHub `public` branch by the fleet `publish.mjs` projection. Agents never push; the user publishes.
 
 ## License
 

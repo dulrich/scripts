@@ -193,11 +193,18 @@ else
 	fail 'README.md and AGENTS.md do not mention lifi.sh, licenses/, or themegen/'
 fi
 
-# --- control plane is never tracked ----------------------------------------
-if [[ -z "$(git ls-files -- plans reviews references INITIATIVE.md FEEDBACK.md)" ]]; then
-	ok 'no root plans/, reviews/, references/, INITIATIVE.md, or FEEDBACK.md is tracked'
+# --- control plane is stripped from the public projection ------------------
+# The control plane is tracked on master; publish.mjs strips it when it
+# projects the local `public` branch. Offline: inspects only the local ref.
+control_plane_paths=(plans reviews references INITIATIVE.md FEEDBACK.md)
+if git rev-parse --verify --quiet refs/heads/public >/dev/null; then
+	if [[ -z "$(git ls-tree -r --name-only public -- "${control_plane_paths[@]}")" ]]; then
+		ok 'public branch carries no plans/, reviews/, references/, INITIATIVE.md, or FEEDBACK.md'
+	else
+		fail 'public branch carries no plans/, reviews/, references/, INITIATIVE.md, or FEEDBACK.md'
+	fi
 else
-	fail 'no root plans/, reviews/, references/, INITIATIVE.md, or FEEDBACK.md is tracked'
+	printf 'skip: no local public branch; control-plane strip check not run\n'
 fi
 
 printf 'public-contract-smoke: %d/%d passed\n' "$passed" "$total"
