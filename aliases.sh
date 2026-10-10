@@ -80,7 +80,7 @@ unset _cd_name
 
 unalias cl 2> /dev/null
 cl () {
-	local unpushed branch ghpush
+	local unpushed ghspec ghsrc ghdst ghpush
 
 	clear
 	if git rev-parse --is-inside-work-tree > /dev/null 2>&1; then
@@ -94,9 +94,21 @@ cl () {
 		# Public repos also carry a `github` remote; mirror there too.
 		# Only the existence check is silenced (private repos lack it) —
 		# github's own push output is shown, never swallowed.
+		# Hybrid repos map a scanned projection via remote.github.push
+		# (e.g. public:master); count that source, never the private HEAD,
+		# whose history the projection rewrote.
 		if git remote get-url github > /dev/null 2>&1; then
-			branch=$(git rev-parse --abbrev-ref HEAD)
-			ghpush=$(git rev-list --count "github/$branch..HEAD" 2> /dev/null)
+			if ghspec=$(git config --get remote.github.push 2> /dev/null); then
+				ghspec=${ghspec#+}
+				ghsrc=${ghspec%%:*}
+				ghdst=${ghspec#*:}
+				ghsrc=${ghsrc#refs/heads/}
+				ghdst=${ghdst#refs/heads/}
+			else
+				ghsrc=HEAD
+				ghdst=$(git rev-parse --abbrev-ref HEAD)
+			fi
+			ghpush=$(git rev-list --count "github/$ghdst..$ghsrc" 2> /dev/null)
 			if [ -z "$ghpush" ] || [ "$ghpush" -gt 0 ]; then
 				echo "(pushing ${ghpush:-all} refs to github)"
 				git push github

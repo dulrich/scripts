@@ -258,12 +258,31 @@ ls() {
 	printf '\n'
 }
 git_mode=outside
+gh_mode=none
 git() {
 	case "$1 ${2:-}" in
 		'rev-parse --is-inside-work-tree')
 			[[ "$git_mode" != outside ]]
 			;;
+		'remote get-url')
+			[[ "$gh_mode" != none ]]
+			;;
+		'config --get')
+			[[ "$gh_mode" == hybrid ]] && printf 'refs/heads/public:refs/heads/master\n'
+			;;
+		'rev-parse --abbrev-ref')
+			printf 'master\n'
+			;;
+		'push github')
+			printf 'PUSHED-GITHUB\n'
+			;;
 		'rev-list --count')
+			# github ranges: the projection is already published; the private
+			# HEAD never descends from it.
+			case "${3:-}" in
+				github/master..public) printf '0\n'; return ;;
+				github/master..HEAD) printf '1\n'; return ;;
+			esac
 			case "$git_mode" in
 				nothing) printf '0\n' ;;
 				unpushed) printf '2\n' ;;
@@ -299,6 +318,17 @@ git_mode=no-upstream
 output=$(cl 2>&1)
 assert_contains "$output" '(nothing to push)' 'cl does not push when no upstream range can be proven'
 assert_not_contains "$output" 'PUSHED' 'cl gates push on a successful positive count'
+
+git_mode=nothing
+gh_mode=plain
+output=$(cl 2>&1)
+assert_contains "$output" 'PUSHED-GITHUB' 'cl mirrors HEAD to a plain github remote'
+
+gh_mode=hybrid
+output=$(cl 2>&1)
+assert_contains "$output" '(nothing to push to github)' 'cl counts the projection, not private HEAD, on a hybrid repo'
+assert_not_contains "$output" 'PUSHED-GITHUB' 'cl does not re-push github when the projection is published'
+gh_mode=none
 
 if declare -F __git_complete >/dev/null; then
 	git_completion=$(complete -p a 2>/dev/null || true)
