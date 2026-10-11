@@ -273,6 +273,9 @@ git() {
 		'rev-parse --abbrev-ref')
 			printf 'master\n'
 			;;
+		'rev-parse --show-toplevel')
+			printf '%s\n' "$cl_top"
+			;;
 		'push github')
 			printf 'PUSHED-GITHUB\n'
 			;;
@@ -325,9 +328,35 @@ output=$(cl 2>&1)
 assert_contains "$output" 'PUSHED-GITHUB' 'cl mirrors HEAD to a plain github remote'
 
 gh_mode=hybrid
+cl_top=$(mktemp -d)
+publish_mjs="$cl_top/publish.mjs"
+: > "$publish_mjs"
+node_rc=0
+node() {
+	printf 'PROJECTED'
+	printf ' %q' "$@"
+	printf '\n'
+	return "$node_rc"
+}
 output=$(cl 2>&1)
 assert_contains "$output" '(nothing to push to github)' 'cl counts the projection, not private HEAD, on a hybrid repo'
 assert_not_contains "$output" 'PUSHED-GITHUB' 'cl does not re-push github when the projection is published'
+assert_not_contains "$output" 'PROJECTED' 'cl does not project a hybrid repo without a publication manifest'
+
+: > "$cl_top/.publication.json"
+output=$(cl 2>&1)
+assert_contains "$output" "PROJECTED $publish_mjs project --repo $cl_top" 'cl projects a manifest repo before the github push'
+assert_contains "$output" '(nothing to push to github)' 'cl still counts the projection after projecting'
+
+node_rc=1
+output=$(cl 2>&1)
+assert_contains "$output" '(projection failed; not pushing to github)' 'cl reports a failed projection'
+assert_not_contains "$output" 'nothing to push to github' 'cl skips the github count after a failed projection'
+assert_contains "$output" 'STATUS' 'cl still prints short status after a failed projection'
+
+rm -rf "$cl_top"
+unset -f node
+unset cl_top publish_mjs node_rc
 gh_mode=none
 
 if declare -F __git_complete >/dev/null; then
