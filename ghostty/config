@@ -31,6 +31,9 @@ font-family-bold-italic = Bitstream Vera Sans Mono
 font-size = 14
 
 
+shell-integration-features = ssh-terminfo,ssh-env
+
+
 # Window / appearance
 
 window-padding-x = 2
