@@ -20,6 +20,7 @@ work_user="username"
 EXTERNAL_OUTPUT="DP-1-3"
 INTERNAL_OUTPUT="eDP-1-1"
 AUDIO_DEVICE="default" # pulse on systems using pulseaudio
+publish_mjs="" # path to publish.mjs; cl projects .publication.json repos before pushing github
 
 # https://github.com/ElectricRCAircraftGuy/eRCaGuy_hello_world/blob/master/bash/get_script_path.sh
 here=$(dirname "$(realpath "${BASH_SOURCE[0]}")")
@@ -80,7 +81,7 @@ unset _cd_name
 
 unalias cl 2> /dev/null
 cl () {
-	local unpushed ghspec ghsrc ghdst ghpush
+	local unpushed ghspec ghsrc ghdst ghpush top pub
 
 	clear
 	if git rev-parse --is-inside-work-tree > /dev/null 2>&1; then
@@ -104,6 +105,23 @@ cl () {
 				ghdst=${ghspec#*:}
 				ghsrc=${ghsrc#refs/heads/}
 				ghdst=${ghdst#refs/heads/}
+				# A publication manifest means the projection must be rebuilt
+				# (and scanned) from the current private master first; a failed
+				# projection/scan stops the github push. Set publish_mjs in config.sh.
+				top=$(git rev-parse --show-toplevel 2> /dev/null)
+				if [ -n "$top" ] && [ -f "$top/.publication.json" ]; then
+					pub=$publish_mjs
+					if [ -n "$pub" ] && [ -f "$pub" ]; then
+						echo "(projecting $ghsrc)"
+						if ! node "$pub" project --repo "$top"; then
+							echo "(projection failed; not pushing to github)"
+							git status -bs
+							return 1
+						fi
+					else
+						echo "(publish_mjs unset or missing; pushing the existing projection)"
+					fi
+				fi
 			else
 				ghsrc=HEAD
 				ghdst=$(git rev-parse --abbrev-ref HEAD)
