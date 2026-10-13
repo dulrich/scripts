@@ -11,6 +11,12 @@
 
 export PS1='\[\033]0;\u@\h \d \t\a\]\[\033[00;36m\]\t \w \$ \[\033[00m\]'
 
+# A client TERM this host has no terminfo for (e.g. xterm-ghostty over a raw
+# ssh) breaks clear/tput; fall back to a universally known entry.
+if command -v infocmp >/dev/null 2>&1 && ! infocmp "$TERM" >/dev/null 2>&1; then
+    export TERM=xterm-256color
+fi
+
 
 # CONFIG VARIABLES
 code_path="$HOME/code/"
