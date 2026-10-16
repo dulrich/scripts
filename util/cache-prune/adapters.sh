@@ -330,6 +330,11 @@ REPO_ORPHAN_COUNT=0
 # the enumeration is over.
 REPO_ORPHAN_PATHS=""
 REPO_SPIKE_PATHS=""
+# "<bytes>\t<path>" lines, one per candidate: what rt_repo_detail lists under
+# each purge-tier bucket so the reader sees where the bytes are, not only
+# their sum. Kept apart from the *_PATHS lists, which the purge guards parse.
+REPO_ORPHAN_SIZES=""
+REPO_SPIKE_SIZES=""
 
 # The stdin-reading JSON sum for bucket (c). node is a hard dependency of
 # runs-closeout.mjs itself, so a `node -e` parse adds no new requirement,
@@ -497,6 +502,8 @@ rt_repo_scan() {
     REPO_ORPHAN_COUNT=0
     REPO_ORPHAN_PATHS=""
     REPO_SPIKE_PATHS=""
+    REPO_ORPHAN_SIZES=""
+    REPO_SPIKE_SIZES=""
     REPO_DISPATCH_STATUS=available
 
     # Process substitution, not a pipe: a `... | while read` loop runs in a
@@ -510,6 +517,7 @@ rt_repo_scan() {
             REPO_ORPHAN_PATHS+="$repo"$'\t'"$entry"$'\n'
             REPO_ORPHAN_COUNT=$((REPO_ORPHAN_COUNT + 1))
             bytes=$(repo_path_bytes "$entry")
+            REPO_ORPHAN_SIZES+="$bytes"$'\t'"$entry"$'\n'
             REPO_ORPHAN_BYTES=$((REPO_ORPHAN_BYTES + bytes))
         done < <(rt_repo_orphan_worktrees "$repo")
 
@@ -517,6 +525,7 @@ rt_repo_scan() {
             [[ -n "$entry" ]] || continue
             REPO_SPIKE_PATHS+="$repo"$'\t'"$entry"$'\n'
             bytes=$(repo_path_bytes "$entry")
+            REPO_SPIKE_SIZES+="$bytes"$'\t'"$entry"$'\n'
             REPO_SPIKE_BYTES=$((REPO_SPIKE_BYTES + bytes))
         done < <(rt_repo_spike_entries "$repo")
 
@@ -558,6 +567,23 @@ rt_repo_size() {
     probe_available "$total" "$reclaimable" "repo"
 }
 
+# repo_detail_entries: one indented "<size>  <path>" line per candidate of a
+# purge-tier bucket, largest first, the path relative to the fleet root (the
+# repository name leads it). Without it the bucket line says how much but not
+# where, and the reader cannot judge a destructive confirm on a sum.
+repo_detail_entries() {
+    local sizes="$1"
+    local root bytes path
+
+    [[ -n "$sizes" ]] || return 0
+    root=$(rt_repo_root)
+
+    while IFS=$'\t' read -r bytes path; do
+        [[ -n "$path" ]] || continue
+        printf '  %10s  %s\n' "$(human_bytes "$bytes")" "${path#"$root"/}"
+    done < <(printf '%s' "$sizes" | sort -t $'\t' -k1,1nr -k2,2)
+}
+
 # rt_repo_detail: the RT_DETAIL seam -- the three bucket lines, printed by
 # the report layer right under repo's size line. Not a probe: it prints
 # user-facing text and returns nothing on stdout that any caller parses.
@@ -570,8 +596,10 @@ rt_repo_detail() {
 
     printf 'repo orphaned worktrees: %s (%d bytes, %d dirs) -- purge tier\n' \
         "$(human_bytes "$REPO_ORPHAN_BYTES")" "$REPO_ORPHAN_BYTES" "$REPO_ORPHAN_COUNT"
+    repo_detail_entries "$REPO_ORPHAN_SIZES"
     printf 'repo spike scratch: %s (%d bytes) -- purge tier\n' \
         "$(human_bytes "$REPO_SPIKE_BYTES")" "$REPO_SPIKE_BYTES"
+    repo_detail_entries "$REPO_SPIKE_SIZES"
 
     if [[ "$REPO_DISPATCH_STATUS" == available ]]; then
         printf 'repo implemented dispatch records: %s (%d bytes) -- archive with runs-closeout.mjs --slug <s> --dispatch-dir <d> --apply; never deleted here\n' \

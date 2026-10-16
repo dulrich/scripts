@@ -173,6 +173,12 @@ assert_contains "$repo_report" "repo orphaned worktrees: $(human_bytes "$REPO_EX
 assert_contains "$repo_report" "repo spike scratch: $(human_bytes "$REPO_EXPECT_SPIKE") ($REPO_EXPECT_SPIKE bytes) -- purge tier" "bucket (b) is printed with its own byte count"
 assert_contains "$repo_report" "repo implemented dispatch records: $(human_bytes "$REPO_EXPECT_DISPATCH") ($REPO_EXPECT_DISPATCH bytes) -- archive with runs-closeout.mjs --slug <s> --dispatch-dir <d> --apply; never deleted here" "bucket (c) is printed as archive-not-delete, pointing at the closeout CLI"
 assert_contains "$repo_report" "repo reclaimable via the purge verb ($(human_bytes "$REPO_EXPECT_RECLAIM"), $REPO_EXPECT_RECLAIM bytes) -- requires --include-purge" "only (a)+(b) are offered as reclaimable"
+repo_entry_line() { printf '  %10s  %s' "$(human_bytes "$(repo_du_sum "$1")")" "${1#"$REPO_FLEET"/}"; }
+assert_contains "$repo_report" "$(repo_entry_line "$REPO_ORPHAN_DIR")" "bucket (a) lists each orphaned worktree with its size, relative to the fleet root"
+assert_contains "$repo_report" "$(repo_entry_line "$REPO_SPIKE_SCRATCH")" "bucket (b) lists each spike entry with its size, relative to the fleet root"
+assert_contains "$repo_report" "$(repo_entry_line "$REPO_SPIKE_TRACKED")" "bucket (b) lists every spike entry, not only the largest"
+repo_spike_listed=$(printf '%s\n' "$repo_report" | grep -F -e "alpha/runs/spike/scratch" -e "alpha/runs/spike/tracked.txt" | sed 's/.*  //')
+assert_eq $'alpha/runs/spike/scratch\nalpha/runs/spike/tracked.txt' "$repo_spike_listed" "spike entries are listed largest first"
 
 
 echo "[repo --report] reports every bucket and deletes nothing"
