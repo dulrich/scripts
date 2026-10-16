@@ -47,13 +47,31 @@ DR_COMPOSE_RESULT=0
 DR_IMAGES_JSON='[{"Id":"sha256:old","RepoTags":["webapp-overlay:v0.11.3"],"Created":"2026-01-01T00:00:00Z","Size":5},{"Id":"sha256:overlay","RepoTags":["webapp-overlay:v0.11.4"],"Created":"2026-09-01T00:00:00Z","Size":7}]'
 DR_CONTAINERS_JSON='[]'
 DR_DF_JSON=""
+DR_VOLUMES_JSON='[{"Name":"orphan-vol","Size":"43.35MB","Links":"0"}]'
+# Served instead of DR_VOLUMES_JSON once a `docker rm` has run in this
+# shell: the post-stale-removal capture the volume election re-reads.
+DR_VOLUMES_AFTER_RM_JSON=""
+DR_VOLUMES_FAIL=0
 DR_ORIGINAL_DOCKER="$(declare -f docker)"
 eval "dr_harness_$(declare -f docker)"
 docker() {
     case "$*" in
         "system df -v --format json")
             printf 'docker %s|' "$*" >> "$ALL_LOG_FILE"
-            printf '{"Volumes":[{"Name":"orphan-vol","Size":"43.35MB","Links":"0"}]}\n'
+            ((DR_VOLUMES_FAIL == 0)) || return 1
+            if [[ -n "$DR_VOLUMES_AFTER_RM_JSON" && "$MUTATE_LOG" == *"docker rm "* ]]; then
+                printf '{"Volumes":%s}\n' "$DR_VOLUMES_AFTER_RM_JSON"
+            else
+                printf '{"Volumes":%s}\n' "$DR_VOLUMES_JSON"
+            fi
+            ;;
+        volume\ rm\ *)
+            printf 'docker %s|' "$*" >> "$ALL_LOG_FILE"
+            MUTATE_LOG+="docker $*|"
+            if [[ -n "$DOCKER_RM_FAIL_TARGET" && "${*: -1}" == "$DOCKER_RM_FAIL_TARGET" ]]; then
+                printf 'Error response from daemon: remove %s: volume is in use\n' "$DOCKER_RM_FAIL_TARGET" >&2
+                return 1
+            fi
             ;;
         "compose version")
             printf 'docker %s|' "$*" >> "$ALL_LOG_FILE"
@@ -162,7 +180,7 @@ assert_contains "$dr_mut" "docker rmi webapp-overlay:v0.11.1|docker rmi webapp-o
 assert_not_contains "$dr_mut" "docker rm " "--yes removes no container"
 assert_not_contains "$dr_mut" "orphan-" "--yes removes no unreferenced image"
 assert_contains "$dr_out" "skipped: 2 unreferenced images need a per-image interactive confirm" "--yes says why unreferenced images are skipped"
-assert_contains "$dr_out" "docker images/containers: observed footprint change 0.0B" "the residue step prints its own measured footprint line"
+assert_contains "$dr_out" "docker images/containers/volumes: observed footprint change 0.0B" "the residue step prints its own measured footprint line"
 
 echo "[docker-residue] --yes --include-purge: stale containers first"
 dr_run yes true
@@ -201,12 +219,79 @@ assert_eq "docker builder prune --force|" "$dr_mut" "only the build-cache prune 
 assert_contains "$dr_out" "docker residue: nothing elected (images unavailable: compose config failed" "says why nothing was elected"
 DR_COMPOSE_RESULT=0
 
+# --- anonymous dangling volumes -------------------------------------------
+
+echo "[docker-residue] anonymous volumes: capture and classification"
+DR_VOLUMES_JSON='[{"Name":"anon-a","Size":"2MB","Links":"0","Labels":"com.docker.volume.anonymous="},{"Name":"anon-b","Size":"3MB","Links":"0","Labels":"com.example.x=1,com.docker.volume.anonymous="},{"Name":"anon-linked","Size":"1MB","Links":"1","Labels":"com.docker.volume.anonymous="},{"Name":"named-d","Size":"5MB","Links":"0","Labels":"com.docker.compose.project=p"},{"Name":"lookalike","Size":"1kB","Links":"0","Labels":"com.docker.volume.anonymous.not=1,x=com.docker.volume.anonymous"}]'
+dr_rows=$(docker_residue_capture | docker_residue_classify)
+assert_eq $'anonvolume	anon-b	3000000
+anonvolume	anon-a	2000000' "$(grep '^anonvolume' <<< "$dr_rows")" "only zero-link volumes carrying the anonymous label key (first or not) are anonvolume rows"
+assert_contains "$dr_rows" $'volume	named-d	5000000	0	dangling' "a named dangling volume keeps its volume row"
+assert_contains "$dr_rows" $'volume	anon-linked	1000000	1	linked' "a linked anonymous volume is a plain linked volume row"
+dr_report=$(docker_residue_report <<< "$dr_rows")
+assert_contains "$dr_report" "docker anonymous volumes: 2 dangling, 4.8MB (5000000 bytes) (purge tier, removed by name)" "the report prints the anonymous volumes line"
+assert_contains "$dr_report" "docker volumes: 5 (4 dangling" "the volumes line still counts every volume"
+assert_contains "$dr_report" "2 named dangling: report-only, no verb" "named dangling volumes say they are report-only"
+assert_not_contains "$dr_report" "never removes volumes" "the volumes line no longer claims no volume is ever removed"
+dr_report=$(printf 'unavailable\tvolumes\tdocker system df -v failed\n' | docker_residue_report)
+assert_contains "$dr_report" "docker anonymous volumes: unavailable (docker system df -v failed)" "volumes unavailable: the anonymous line claims no count"
+
+echo "[docker-residue] anonymous volumes: election and removal"
+dr_run yes false
+assert_not_contains "$dr_mut" "volume rm" "plain --yes never removes a volume"
+dr_run interactive false
+assert_not_contains "$dr_conf" "anonymous" "plain interactive never offers the volume step"
+assert_not_contains "$dr_mut" "volume rm" "plain interactive never removes a volume"
+dr_run yes true
+assert_contains "$dr_mut" "docker rm gone-x-1|docker volume rm anon-b|docker volume rm anon-a|docker rmi " "--yes --include-purge: stale rm, then volume rm per anonymous dangling name, then rmi"
+assert_eq "2" "$(grep -o 'volume rm [^|]*' <<< "$dr_mut" | wc -l)" "exactly the anonymous dangling set is removed"
+assert_not_contains "$dr_mut" "named-d" "a named dangling volume is never passed to volume rm"
+assert_contains "$dr_out" "anonymous volumes removed 2, failed 0" "the summary counts volumes"
+DR_CONFIRM_YES="anonymous dangling docker volumes"
+dr_run interactive true
+assert_contains "$dr_conf" "Remove 2 anonymous dangling docker volumes (4.8MB)? (purge tier)" "interactive --include-purge: one confirm naming count and size"
+assert_eq "docker volume rm anon-b|docker volume rm anon-a|" "$dr_mut" "a yes on the volume confirm removes exactly the anonymous set"
+DR_CONFIRM_YES=""
+
+echo "[docker-residue] a volume orphaned by this run's stale removal waits"
+DR_VOLUMES_AFTER_RM_JSON='[{"Name":"anon-a","Size":"2MB","Links":"0","Labels":"com.docker.volume.anonymous="},{"Name":"anon-linked","Size":"1MB","Links":"0","Labels":"com.docker.volume.anonymous="}]'
+dr_run yes true
+assert_contains "$dr_mut" "docker volume rm anon-a|" "a volume dangling before and after is removed"
+assert_not_contains "$dr_mut" "anon-linked" "a volume dangling only after the stale rm is not removed this run"
+assert_not_contains "$dr_mut" "anon-b" "a volume gone from the fresh capture is not removed"
+DR_VOLUMES_AFTER_RM_JSON=""
+
+echo "[docker-residue] a per-item volume rm failure warns and the run continues"
+dr_run yes true
+DOCKER_RM_FAIL_TARGET="anon-b"
+dr_out=$(process_runtime docker 2>&1; printf '\nMUTATE=%s' "$MUTATE_LOG")
+dr_banned_log+="${dr_out##*MUTATE=}"
+assert_contains "$dr_out" "could not remove volume anon-b" "the failing volume is warned about"
+assert_contains "$dr_out" "docker volume rm anon-a|" "the next volume is still removed"
+assert_contains "$dr_out" "anonymous volumes removed 1, failed 1" "the summary counts the failure"
+DOCKER_RM_FAIL_TARGET=""
+
+echo "[docker-residue] volumes unavailable elects no volume"
+DR_VOLUMES_FAIL=1
+dr_run yes true
+assert_not_contains "$dr_mut" "volume rm" "no volume is removed when the volume capture fails"
+DR_VOLUMES_FAIL=0
+
+echo "[docker-residue] the footprint line includes volumes"
+DR_DF_JSON=$'{"Type":"Images","Size":"40B"}\n{"Type":"Containers","Size":"1kB"}'
+dr_run yes true
+assert_contains "$dr_out" "docker images/containers/volumes: observed footprint change unavailable" "a missing Local Volumes row makes the footprint unavailable"
+DR_DF_JSON=$'{"Type":"Images","Size":"40B"}\n{"Type":"Containers","Size":"1kB"}\n{"Type":"Local Volumes","Size":"5MB"}'
+DR_VOLUMES_JSON='[{"Name":"orphan-vol","Size":"43.35MB","Links":"0"}]'
+
 echo "[docker-residue] banned verbs never appear in any mode"
 dr_banned=""
-for dr_verb in "system prune" "image prune" "volume prune" "volume rm" "rmi -f" "rmi --force" "rm -f" "rm --force"; do
+for dr_verb in "system prune" "image prune" "volume prune" "volume rm -f" "volume rm --force" "rmi -f" "rmi --force" "rm -f" "rm --force"; do
     [[ "$dr_banned_log" == *"$dr_verb"* ]] && dr_banned+="$dr_verb;"
 done
-assert_eq "" "$dr_banned" "no prune/volume/forced verb in MUTATE_LOG across every mode"
+assert_eq "" "$dr_banned" "no prune/forced verb in MUTATE_LOG across every mode"
+dr_bad_vol=$(grep -o 'volume rm [^|]*' <<< "$dr_banned_log" | grep -vxE 'volume rm (anon-a|anon-b)' || true)
+assert_eq "" "$dr_bad_vol" "every volume rm names an elected anonymous volume"
 
 eval "$DR_ORIGINAL_CONFIRM"
 
