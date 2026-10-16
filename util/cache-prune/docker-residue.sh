@@ -6,9 +6,11 @@
 # ../cache-prune.sh; not a util subcommand. Everything above the "removal"
 # section is read-only (images/image inspect/ps/container inspect/system df/
 # compose config); the only mutating calls in this file are the per-item
-# `docker rm <name>` and `docker rmi <ref|id>` in docker_residue_remove --
-# never -f, never any prune, never a volume
-# (decided in the docker image-residue work).
+# `docker rm <name>`, `docker rmi <ref|id>` and `docker volume rm <name>` in
+# docker_residue_remove -- the last only on anonymous volumes (label key
+# com.docker.volume.anonymous) that were already dangling before this run's
+# removals. Never -f, never any prune; named volumes are never removed
+# (decided in the docker image-residue and anonymous-volume work).
 #
 # Three layers, so the classifier stays a pure function of captured JSON:
 #
@@ -23,7 +25,9 @@
 #                         project, service, size_rw}],   size_rw: bytes|null
 #           compose:    [{project, services:[{name, image, build}]}],
 #           base_refs:  [ref],
-#           volumes:    [{name, size, links}],           size: bytes
+#           volumes:    [{name, size, links, anonymous}], size: bytes,
+#                         anonymous: true iff Labels carries the key
+#                         com.docker.volume.anonymous
 #           image_error: null|"reason",  volume_error: null|"reason" }
 #       Fail closed: any compose/Dockerfile/inspect failure sets image_error,
 #       which the classifier turns into "unavailable" with no candidates.
@@ -34,10 +38,14 @@
 #         unreferenced<TAB>ref<TAB>image_id<TAB>bytes<TAB>created<TAB>blockers
 #         stale<TAB>name<TAB>image_id<TAB>rw_bytes|unavailable<TAB>created<TAB>state<TAB>image_ref
 #         volume<TAB>name<TAB>bytes<TAB>links<TAB>dangling|linked
+#         anonvolume<TAB>name<TAB>bytes
 #         unavailable<TAB>images|volumes<TAB>reason
 #       blockers = comma-joined stale container names holding that image ID,
 #       or "-". created = ISO-8601 as docker reports it. When images are
 #       unavailable, no superseded/unreferenced/stale row is ever emitted.
+#       Every volume gets a `volume` row; an anonymous dangling one also gets
+#       an `anonvolume` row (the removal step's candidate set). When volumes
+#       are unavailable, neither row is emitted.
 #
 # CC0: This work has been marked as dedicated to the public domain.
 # https://creativecommons.org/publicdomain/zero/1.0/
@@ -153,7 +161,7 @@ docker_residue_capture() {
 
     # Volumes first: they report even when the image classes fail closed.
     if out=$(docker system df -v --format json 2>/dev/null) && [[ -n "$out" ]] \
-        && volumes=$(jq -c "$DOCKER_RESIDUE_JQ_BYTES"' [.Volumes[]? | {name: .Name, size: (.Size | hbytes // 0), links: ((.Links // "0") | tonumber? // 0)}]' <<< "$out" 2>/dev/null); then
+        && volumes=$(jq -c "$DOCKER_RESIDUE_JQ_BYTES"' [.Volumes[]? | {name: .Name, size: (.Size | hbytes // 0), links: ((.Links // "0") | tonumber? // 0), anonymous: ((.Labels // "") | tostring | split(",") | any(split("=")[0] == "com.docker.volume.anonymous"))}]' <<< "$out" 2>/dev/null); then
         :
     else
         volumes='[]'
@@ -257,6 +265,7 @@ def ts: ([capture("^(?<d>[0-9-]+T[0-9:]{8})(?<f>\\.[0-9]+)?(?<z>Z|[+-][0-9]{2}:[
 def tsv: map(tostring) | join("\t");
 
 ( [ .volumes | sort_by(-.size, .name)[]? | ["volume", .name, .size, .links, (if .links == 0 then "dangling" else "linked" end)] | tsv ]
+  + [ .volumes | sort_by(-.size, .name)[]? | select(.links == 0 and .anonymous == true) | ["anonvolume", .name, .size] | tsv ]
   + (if .volume_error then [["unavailable", "volumes", .volume_error] | tsv] else [] end) ) as $vol
 | if .image_error then ([["unavailable", "images", .image_error] | tsv] + $vol)[]
   else
@@ -306,6 +315,7 @@ docker_residue_report() {
     local -A seen_sup=() seen_unref=()
     local sup_bytes=0 unref_bytes=0 stale_bytes=0 stale_unknown=false
     local sup_n=0 unref_n=0 stale_n=0 vol_n=0 vol_dangling=0 vol_dangling_bytes=0
+    local anon_n=0 anon_bytes=0
     local images_unavailable="" volumes_unavailable=""
     local sup_lines="" unref_lines="" stale_lines="" vol_lines=""
 
@@ -344,6 +354,10 @@ docker_residue_report() {
                 vol_lines+=$(printf '  %s  %s  links %s%s' "$a" "$(human_bytes "$b")" "$c" \
                     "$([[ "$d" == dangling ]] && printf '  [dangling]')")$'\n'
                 ;;
+            anonvolume)
+                anon_n=$((anon_n + 1))
+                anon_bytes=$((anon_bytes + b))
+                ;;
             unavailable)
                 if [[ "$a" == images ]]; then images_unavailable="$b"; else volumes_unavailable="$b"; fi
                 ;;
@@ -373,10 +387,13 @@ docker_residue_report() {
 
     if [[ -n "$volumes_unavailable" ]]; then
         printf 'docker volumes: unavailable (%s)\n' "$volumes_unavailable"
+        printf 'docker anonymous volumes: unavailable (%s)\n' "$volumes_unavailable"
     else
-        printf 'docker volumes: %d (%d dangling, %s / %d bytes) -- report-only, no verb: this tool never removes volumes\n' \
-            "$vol_n" "$vol_dangling" "$(human_bytes "$vol_dangling_bytes")" "$vol_dangling_bytes"
+        printf 'docker volumes: %d (%d dangling, %s / %d bytes) -- %d named dangling: report-only, no verb (named volumes are never removed)\n' \
+            "$vol_n" "$vol_dangling" "$(human_bytes "$vol_dangling_bytes")" "$vol_dangling_bytes" "$((vol_dangling - anon_n))"
         printf '%s' "$vol_lines"
+        printf 'docker anonymous volumes: %d dangling, %s (%d bytes) (purge tier, removed by name)\n' \
+            "$anon_n" "$(human_bytes "$anon_bytes")" "$anon_bytes"
     fi
 }
 
@@ -403,14 +420,15 @@ rt_docker_detail() {
 
 ### removal (RT_RESIDUE seam, WP-2) ############################################
 
-# docker_residue_footprint: the image + container footprint docker reports
-# (`docker system df --format json`, Images + Containers `Size`), in bytes.
-# Exit 1 -- never a guess -- when the reading or either row is missing.
+# docker_residue_footprint: the image + container + volume footprint docker
+# reports (`docker system df --format json`, Images + Containers + Local
+# Volumes `Size`), in bytes. Exit 1 -- never a guess -- when the reading or
+# any of the three rows is missing.
 docker_residue_footprint() {
     local out
     out=$(docker system df --format json 2>/dev/null) && [[ -n "$out" ]] || return 1
-    jq -rs "$DOCKER_RESIDUE_JQ_BYTES"' (map(select(.Type == "Images" or .Type == "Containers")) | map(.Size | hbytes)) as $s
-        | if ($s | length) == 2 and all($s[]; . != null) then ($s | add) else error("incomplete") end' <<< "$out" 2>/dev/null
+    jq -rs "$DOCKER_RESIDUE_JQ_BYTES"' (map(select(.Type == "Images" or .Type == "Containers" or .Type == "Local Volumes")) | map(.Size | hbytes)) as $s
+        | if ($s | length) == 3 and all($s[]; . != null) then ($s | add) else error("incomplete") end' <<< "$out" 2>/dev/null
 }
 
 # docker_residue_remove: one item, never forced. A failure (an rmi conflict
@@ -420,6 +438,8 @@ docker_residue_remove() {
     local kind="$1" target="$2"
     if [[ "$kind" == container ]]; then
         docker rm "$target" >/dev/null && return 0
+    elif [[ "$kind" == volume ]]; then
+        docker volume rm "$target" >/dev/null && return 0
     else
         docker rmi "$target" >/dev/null && return 0
     fi
@@ -437,8 +457,13 @@ docker_residue_remove() {
 # error elects nothing. Elections: superseded -- --yes, or one interactive
 # confirm; stale containers -- --include-purge (one interactive confirm);
 # unreferenced -- never under --yes, one interactive confirm per image only
-# with --include-purge. Execution order: stale containers (they block rmi),
-# superseded, unreferenced. Per-item failures are warnings, never FAILED.
+# with --include-purge; anonymous dangling volumes -- same tier as stale
+# containers (one interactive confirm naming count and size). Execution
+# order: stale containers (they block rmi), anonymous volumes, superseded,
+# unreferenced. Volume election: names that were anonymous and dangling in
+# the capture above (before any removal) AND still are in a fresh capture
+# taken after the stale-container step -- a volume orphaned by this run's
+# `docker rm` waits for the next run. Per-item failures are warnings.
 # Sets RUNTIME_RESIDUE_ACTED when any removal was attempted.
 rt_docker_residue() {
     RUNTIME_RESIDUE_ACTED=false
@@ -449,8 +474,8 @@ rt_docker_residue() {
 
     local capture rows class a b c _rest reason
     local -a sup_refs=() stale_names=() unref_refs=() unref_targets=() unref_sizes=()
-    local -A sup_seen=()
-    local sup_bytes=0
+    local -A sup_seen=() anon_before=()
+    local sup_bytes=0 anon_bytes=0
 
     capture=$(docker_residue_capture)
     if ! rows=$(docker_residue_classify <<< "$capture") || [[ -z "$rows" ]]; then
@@ -477,10 +502,14 @@ rt_docker_residue() {
             stale)
                 stale_names+=("$a")
                 ;;
+            anonvolume)
+                anon_before[$a]=1
+                anon_bytes=$((anon_bytes + b))
+                ;;
         esac
     done <<< "$rows"
 
-    local do_sup=false do_stale=false
+    local do_sup=false do_stale=false do_vol=false
     if ((${#sup_refs[@]} > 0)); then
         case "$MODE" in
             yes) do_sup=true ;;
@@ -497,9 +526,17 @@ rt_docker_residue() {
                 ;;
         esac
     fi
+    if ((${#anon_before[@]} > 0)) && [[ "$INCLUDE_PURGE" == true ]]; then
+        case "$MODE" in
+            yes) do_vol=true ;;
+            interactive)
+                confirm "Remove ${#anon_before[@]} anonymous dangling docker volumes ($(human_bytes "$anon_bytes"))? (purge tier)" && do_vol=true
+                ;;
+        esac
+    fi
 
     local before="" after i ok_n fail_n summary=""
-    if [[ "$do_sup" == true || "$do_stale" == true || ( "$MODE" == interactive && "$INCLUDE_PURGE" == true && ${#unref_refs[@]} -gt 0 ) ]]; then
+    if [[ "$do_sup" == true || "$do_stale" == true || "$do_vol" == true || ( "$MODE" == interactive && "$INCLUDE_PURGE" == true && ${#unref_refs[@]} -gt 0 ) ]]; then
         before=$(docker_residue_footprint) || before=""
     fi
 
@@ -511,6 +548,26 @@ rt_docker_residue() {
         done
     fi
     summary+="stale containers removed $ok_n, failed $fail_n; "
+
+    ok_n=0 fail_n=0
+    if [[ "$do_vol" == true ]]; then
+        local fresh vrows
+        local -a vol_names=()
+        fresh=$(docker_residue_capture)
+        if vrows=$(docker_residue_classify <<< "$fresh") && [[ -n "$vrows" ]] \
+            && ! awk -F'\t' '$1 == "unavailable" && $2 == "volumes" { found = 1 } END { exit !found }' <<< "$vrows"; then
+            while IFS=$'\t' read -r class a _rest; do
+                [[ "$class" == anonvolume && -n "${anon_before[$a]:-}" ]] && vol_names+=("$a")
+            done <<< "$vrows"
+        else
+            printf 'docker anonymous volumes: nothing elected (fresh volume capture unavailable)\n'
+        fi
+        for i in "${vol_names[@]}"; do
+            RUNTIME_RESIDUE_ACTED=true
+            if docker_residue_remove volume "$i"; then ok_n=$((ok_n + 1)); else fail_n=$((fail_n + 1)); fi
+        done
+    fi
+    summary+="anonymous volumes removed $ok_n, failed $fail_n; "
 
     ok_n=0 fail_n=0
     if [[ "$do_sup" == true ]]; then
@@ -541,9 +598,9 @@ rt_docker_residue() {
     fi
     printf 'docker residue: %s\n' "$summary"
     if [[ -n "$before" ]] && after=$(docker_residue_footprint); then
-        printf 'docker images/containers: observed footprint change %s (%d bytes)\n' \
+        printf 'docker images/containers/volumes: observed footprint change %s (%d bytes)\n' \
             "$(human_bytes_signed "$((after - before))")" "$((after - before))"
     else
-        printf 'docker images/containers: observed footprint change unavailable (docker system df --format json reading failed)\n'
+        printf 'docker images/containers/volumes: observed footprint change unavailable (docker system df --format json reading failed)\n'
     fi
 }

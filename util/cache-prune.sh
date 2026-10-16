@@ -174,7 +174,7 @@ only when --include-purge was also passed -- without it, plain interactive
 use never risks their caches.
 
 Docker image/container residue (after the build-cache prune, from a fresh
-classification; never in --report; volumes are reported, never removed):
+classification; never in --report; named volumes are reported, never removed):
   superseded images      an older tag of a repository a live compose
                          service or Dockerfile base uses -- safe tier:
                          removed by --yes (docker rmi <repo:tag>), one
@@ -183,12 +183,16 @@ classification; never in --report; volumes are reported, never removed):
                          service -- purge tier: removed (docker rm) only by
                          --yes --include-purge, or one confirm interactively
                          with --include-purge
+  anonymous volumes      dangling volumes labelled com.docker.volume.anonymous
+                         that were already dangling before this run's
+                         removals -- purge tier, same rule as stale
+                         containers (docker volume rm <name>)
   unreferenced images    images nothing live references -- never removed
                          non-interactively; interactive --include-purge
                          offers one confirm per image
-  Order: stale containers, superseded, unreferenced. Never -f, never prune.
+  Order: stale containers, anonymous volumes, superseded, unreferenced. Never -f, never prune.
   A per-item failure (e.g. an image still in use) is a warning; the rest
-  continue. The step prints its own images/containers footprint change.
+  continue. The step prints its own images/containers/volumes footprint change.
 
 Options:
   --docker-until <window>  narrow the docker builder prune to records at
