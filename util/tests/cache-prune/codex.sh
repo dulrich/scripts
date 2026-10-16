@@ -68,8 +68,8 @@ assert_eq "available 0 0 codex" "$(rt_codex_size "")" "an empty .staging probes 
 echo "[codex size] old vs young: all entries count to total, only old ones reclaim"
 codex_build_fixture
 CACHE_PRUNE_CODEX_HOME_ROOT="$CODEX_ROOT"
-codex_expect_old=$(repo_du_sum "$CODEX_OLD")
-codex_expect_total=$(repo_du_sum "$CODEX_OLD" "$CODEX_YOUNG" "$CODEX_LINK" "$CODEX_ANC_OLD")
+codex_expect_old=$(fixture_du_sum "$CODEX_OLD")
+codex_expect_total=$(fixture_du_sum "$CODEX_OLD" "$CODEX_YOUNG" "$CODEX_LINK" "$CODEX_ANC_OLD")
 assert_eq "available $codex_expect_total $codex_expect_old codex" "$(rt_codex_size "")" \
     "total covers every marketplace-upgrade-* entry; reclaimable only entries over 24h with no symlink in their path"
 codex_detail="$(rt_codex_detail)"
@@ -112,7 +112,7 @@ assert_failure "the old entry is removed" test -e "$CODEX_OLD"
 assert_success "the young entry survives" test -d "$CODEX_YOUNG"
 assert_success "a marketplace-backup-* sibling survives" test -f "$CODEX_BACKUP/payload.bin"
 assert_success "an in-bound symlinked entry and its target survive" \
-    repo_paths_exist "$CODEX_LINK" "$CODEX_LINK_TARGET/payload.bin"
+    fixture_paths_exist "$CODEX_LINK" "$CODEX_LINK_TARGET/payload.bin"
 assert_success "an entry under a symlinked .staging ancestor survives" test -f "$CODEX_ANC_OLD/payload.bin"
 assert_not_contains "$codex_purge_output" "marketplace-upgrade-anc" "an entry under a symlinked ancestor is never a purge candidate"
 codex_guard_output="$(codex_purge_path "$CODEX_ROOT/.codex-anc" "$CODEX_ROOT/.codex-anc/.tmp/marketplaces/.staging/marketplace-upgrade-anc")"

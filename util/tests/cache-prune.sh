@@ -25,12 +25,6 @@ source "$HERE/../cache-prune.sh"
 # detect predicates, so tests can restore the real docker detect logic
 # (command -v docker && docker info) without duplicating it.
 ORIGINAL_RT_DOCKER_DETECT="$(declare -f rt_docker_detect)"
-# Same idea for repo: its real detect predicate is a plain "is the fleet root
-# a directory?" test against CACHE_PRUNE_REPO_ROOT, which the sandbox below
-# points at a synthetic root -- so all_present can restore the real one
-# instead of stubbing it, and the repo suite can exercise the genuine
-# predicate.
-ORIGINAL_RT_REPO_DETECT="$(declare -f rt_repo_detect)"
 ORIGINAL_RT_CODEX_DETECT="$(declare -f rt_codex_detect)"
 ORIGINAL_RT_TRASH_DETECT="$(declare -f rt_trash_detect)"
 
@@ -105,6 +99,30 @@ assert_not_contains() {
     fi
 }
 
+# fixture_du_sum: `du -sb` summed over an explicit path list -- so a suite's
+# expected byte counts are derived from the fixture paths it created,
+# independently of how the adapter under test enumerates them.
+fixture_du_sum() {
+    local total=0 path bytes
+
+    for path in "$@"; do
+        bytes=$(du -sb -- "$path" 2>/dev/null | awk 'NR == 1 { print $1 }') || bytes=0
+        [[ "$bytes" =~ ^[0-9]+$ ]] || bytes=0
+        total=$((total + bytes))
+    done
+
+    printf '%s\n' "$total"
+}
+
+# fixture_paths_exist: true only when every path given exists.
+fixture_paths_exist() {
+    local path
+
+    for path in "$@"; do
+        [[ -e "$path" ]] || return 1
+    done
+}
+
 # --- fixture sandbox ---------------------------------------------------
 
 SANDBOX="$(mktemp -d)"
@@ -126,17 +144,12 @@ BUN_DIR="$BUN_INSTALL/install/cache"
 CARGO_DIR="$CARGO_HOME/registry"
 mkdir -p "$UV_DIR" "$NPM_DIR" "$PIP_DIR" "$BUN_DIR" "$CARGO_DIR"
 
-# The repo runtime's fleet root. Exported here, before any suite runs,
-# because this is a safety guard and not a convenience: the suites below loop
-# over RUNTIME_ORDER with MODE=yes and INCLUDE_PURGE=true, and repo's purge
-# verb deletes directories itself. Left at its default, that root would be
-# the real /home/_shared_code. It is pointed at an *empty* sandbox directory
-# so those loops find no repositories at all; cache-prune/repo.sh builds its
-# own fixture fleet and re-points the variable for the duration of its own
-# assertions. CACHE_PRUNE_RUNS_CLOSEOUT is likewise pointed at a path that
-# does not exist, so no suite can reach the real runs-closeout.mjs.
+# The fleet root docker residue classification searches for compose files
+# (and any fleet module that enumerates it). Exported here, before any suite
+# runs, so nothing can reach the real /home/_shared_code: it is pointed at an
+# *empty* sandbox directory; suites that need a fixture root build their own
+# and re-point it for the duration of their own assertions.
 export CACHE_PRUNE_REPO_ROOT="$SANDBOX/empty-fleet-root"
-export CACHE_PRUNE_RUNS_CLOSEOUT="$SANDBOX/absent-runs-closeout.mjs"
 mkdir -p "$CACHE_PRUNE_REPO_ROOT"
 
 # The codex runtime's home root, for the same safety reason: its purge verb
@@ -167,6 +180,36 @@ chmod +x "$GIO_SHIM_DIR/gio"
 export CACHE_PRUNE_GIO="$GIO_SHIM_DIR/gio"
 export CACHE_PRUNE_TRASH_DIR="$SANDBOX/absent-trash"
 
+# --- optional fleet modules ----------------------------------------------
+#
+# util/cache-prune/fleet/*.sh runtimes (unpublished) have their own suites
+# under cache-prune/fleet/. Each suite may ship a <name>.bootstrap.sh, sourced
+# HERE -- before any core suite runs -- because the core suites loop over
+# every registered runtime with --include-purge: a loaded module's sandbox
+# must be in force first. A bootstrap may append functions to
+# FLEET_ALL_PRESENT_HOOKS / FLEET_ALL_ABSENT_HOOKS, which all_present /
+# all_absent below call. With the directory absent, none of this runs.
+FLEET_ALL_PRESENT_HOOKS=()
+FLEET_ALL_ABSENT_HOOKS=()
+FLEET_TEST_DIR="$HERE/cache-prune/fleet"
+
+run_fleet_hooks() {
+    local hook
+
+    for hook in "$@"; do
+        "$hook"
+    done
+}
+
+if [[ -d "$FLEET_TEST_DIR" ]]; then
+    for fleet_bootstrap in "$FLEET_TEST_DIR"/*.bootstrap.sh; do
+        [[ -f "$fleet_bootstrap" ]] || continue
+        # shellcheck source=/dev/null
+        source "$fleet_bootstrap"
+    done
+    unset fleet_bootstrap
+fi
+
 # All six detect predicates default to "present"; individual tests flip
 # specific ones back to "absent" (return 1) for isolation. docker restores
 # the *real* rt_docker_detect (command -v docker && docker info) rather than
@@ -179,9 +222,9 @@ all_present() {
     rt_pip_detect() { return 0; }
     rt_bun_detect() { return 0; }
     rt_cargo_detect() { return 0; }
-    eval "$ORIGINAL_RT_REPO_DETECT"
     eval "$ORIGINAL_RT_CODEX_DETECT"
     eval "$ORIGINAL_RT_TRASH_DETECT"
+    run_fleet_hooks "${FLEET_ALL_PRESENT_HOOKS[@]}"
 }
 
 all_absent() {
@@ -191,9 +234,9 @@ all_absent() {
     rt_pip_detect() { return 1; }
     rt_bun_detect() { return 1; }
     rt_cargo_detect() { return 1; }
-    rt_repo_detect() { return 1; }
     rt_codex_detect() { return 1; }
     rt_trash_detect() { return 1; }
+    run_fleet_hooks "${FLEET_ALL_ABSENT_HOOKS[@]}"
 }
 
 # --- command-log doubles -------------------------------------------------
@@ -474,14 +517,22 @@ source "$HERE/cache-prune/measurement.sh"
 source "$HERE/cache-prune/actions.sh"
 # shellcheck source=util/tests/cache-prune/cli.sh
 source "$HERE/cache-prune/cli.sh"
-# shellcheck source=util/tests/cache-prune/repo.sh
-source "$HERE/cache-prune/repo.sh"
 # shellcheck source=util/tests/cache-prune/docker-residue.sh
 source "$HERE/cache-prune/docker-residue.sh"
 # shellcheck source=util/tests/cache-prune/codex.sh
 source "$HERE/cache-prune/codex.sh"
 # shellcheck source=util/tests/cache-prune/trash.sh
 source "$HERE/cache-prune/trash.sh"
+
+# Fleet module suites, after every core suite (bootstraps ran above).
+if [[ -d "$FLEET_TEST_DIR" ]]; then
+    for fleet_suite in "$FLEET_TEST_DIR"/*.sh; do
+        [[ "$fleet_suite" == *.bootstrap.sh || ! -f "$fleet_suite" ]] && continue
+        # shellcheck source=/dev/null
+        source "$fleet_suite"
+    done
+    unset fleet_suite
+fi
 
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
 ((FAIL == 0))
