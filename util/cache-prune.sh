@@ -130,14 +130,26 @@ require_tty() {
     fi
 }
 
+# print_help_fragments: print each help fragment a fleet module contributed
+# (CACHE_PRUNE_HELP_RUNTIMES / CACHE_PRUNE_HELP_ENV), verbatim. With no
+# module loaded it prints nothing, so the core help is unchanged.
+print_help_fragments() {
+    local fragment
+
+    for fragment in "$@"; do
+        printf '%s\n' "$fragment"
+    done
+}
+
 usage() {
     cat <<'EOF'
 usage: cache-prune [--report | --yes [--include-purge]]
                     [--docker-until <window>] [-h|--help]
 
 Reports (and, outside --report, optionally prunes) rebuildable
-language-runtime caches (uv, npm, docker, pip, bun, cargo) plus rebuildable
-repository residue (repo) for the invoking user. Refuses to run as root.
+language-runtime caches (uv, npm, docker, pip, bun, cargo) plus leaked
+Codex staging copies (codex) and the home trash (trash) for the invoking
+user. Refuses to run as root.
 
 Modes:
   (default)              interactive; per-runtime confirm (default: No)
@@ -145,7 +157,7 @@ Modes:
   --yes                  auto-confirm the safe verb for uv, npm, docker;
                          pip and bun have no safe verb and are skipped
                          entirely, never prompted
-  --yes --include-purge  purges pip, bun, repo and codex (their only verb); for uv
+  --yes --include-purge  purges pip, bun and codex (their only verb); for uv
                          and npm this instead runs their purge verb in place
                          of their safe verb, not in addition to it
 
@@ -154,9 +166,9 @@ npm cache verify) that frees little by design, and a destructive purge
 verb (uv cache clean, npm cache clean --force) that clears the whole
 cache and forces a re-download on next use -- the cache-only bytes this
 tool reports as reclaimable are mostly only reachable via the purge verb.
-pip, bun and repo have only the destructive purge verb. Interactively, each
+pip and bun have only the destructive purge verb. Interactively, each
 destructive purge gets its own separate confirm: pip/bun are offered
-theirs unconditionally (it is their only verb, as it is for repo), uv/npm
+theirs unconditionally (it is their only verb), uv/npm
 are offered theirs
 only when --include-purge was also passed -- without it, plain interactive
 use never risks their caches.
@@ -187,15 +199,9 @@ Options:
                            highest-risk behaviour change.
   -h, --help               show this help and exit
 
-The repo runtime is not a package-manager cache: it reports fleet repository
-residue under CACHE_PRUNE_REPO_ROOT (default /home/_shared_code), split into
-three buckets on their own lines -- orphaned git worktrees under
-<repo>/.claude/worktrees, spike scratch under <repo>/runs/spike (both
-purge-tier, removed only by --yes --include-purge) and the dispatch records
-of IMPLEMENTED plans (reported only, never deleted here: they are archived
-by runs-closeout.mjs). Its purge refuses any path whose realpath leaves the
-repository, any git-tracked path, and any worktree git still lists as live.
-
+EOF
+    print_help_fragments "${CACHE_PRUNE_HELP_RUNTIMES[@]}"
+    cat <<'EOF'
 The codex runtime reports leaked Codex CLI marketplace staging copies:
 <home>/.tmp/marketplaces/.staging/marketplace-upgrade-* (direct children
 only) for every home $HOME/.codex and $HOME/.codex-* (root overridable via
@@ -235,14 +241,11 @@ Honoured environment:
   CARGO_HOME    overrides cargo's home (registry cache is reported, never
                 pruned -- there is no safe cargo prune verb yet)
   CACHE_PRUNE_REPO_ROOT
-                overrides the fleet root the repo runtime enumerates
-                (default /home/_shared_code); repos are its direct child
-                directories containing a .git, never a recursive search
-  CACHE_PRUNE_RUNS_CLOSEOUT
-                overrides the path to runs-closeout.mjs, the script whose
-                --report-json output sizes the implemented-dispatch-records
-                bucket (default: context-control/scripts/runs-closeout.mjs
-                under the default fleet root above)
+                overrides the root docker residue classification searches
+                for compose files (default /home/_shared_code)
+EOF
+    print_help_fragments "${CACHE_PRUNE_HELP_ENV[@]}"
+    cat <<'EOF'
   CACHE_PRUNE_CODEX_HOME_ROOT
                 overrides the directory whose .codex and .codex-* children
                 the codex runtime scans (default $HOME)
@@ -257,7 +260,7 @@ EOF
 
 ### registry ##################################################################
 
-RUNTIME_ORDER=(uv npm docker pip bun cargo repo codex trash)
+RUNTIME_ORDER=(uv npm docker pip bun cargo codex trash)
 
 # RT_CLASS describes how a runtime participates in the *safe* tier only
 # (RT_PRUNE below) -- it says nothing about purge-tier (RT_PURGE) membership,
@@ -272,7 +275,6 @@ declare -A RT_CLASS=(
     [pip]=optin
     [bun]=optin
     [cargo]=report
-    [repo]=optin
     [codex]=optin
     [trash]=optin
 )
@@ -284,17 +286,15 @@ declare -A RT_DETECT=(
     [pip]=rt_pip_detect
     [bun]=rt_bun_detect
     [cargo]=rt_cargo_detect
-    [repo]=rt_repo_detect
     [codex]=rt_codex_detect
     [trash]=rt_trash_detect
 )
 
 # docker intentionally has no entry here: its cache is daemon-owned, not a
-# directory this account can resolve or `du`. repo likewise has none, for the
-# mirror-image reason -- its residue is spread over many directories in many
-# repositories, so there is no single path to resolve. resolve_cache_dir
-# already treats a missing entry as "nothing to resolve" and leaves
-# RUNTIME_CACHE_DIR empty, which is exactly what both want; their size
+# directory this account can resolve or `du`. Runtimes whose residue is spread
+# over many directories (codex, trash, fleet modules) likewise have none.
+# resolve_cache_dir already treats a missing entry as "nothing to resolve" and
+# leaves RUNTIME_CACHE_DIR empty, which is exactly what they want; their size
 # adapters ignore the positional argument they are handed.
 declare -A RT_CACHE_DIR=(
     [uv]=rt_uv_cache_dir
@@ -311,7 +311,6 @@ declare -A RT_SIZE=(
     [pip]=rt_generic_size
     [bun]=rt_generic_size
     [cargo]=rt_generic_size
-    [repo]=rt_repo_size
     [codex]=rt_codex_size
     [trash]=rt_trash_size
 )
@@ -329,18 +328,17 @@ declare -A RT_PRUNE=(
 )
 
 # RT_PURGE holds destructive purge verbs. uv and npm carry both a safe verb
-# above and a purge verb here; pip, bun and repo have no safe verb and live
+# above and a purge verb here; pip, bun and codex have no safe verb and live
 # only here; docker and cargo have no entry -- docker has no destructive verb
 # at all (its safe prune is the only action), and cargo has neither verb (see
-# RT_CLASS above). repo's purge is the one verb in this table that deletes
-# files directly rather than delegating to a package manager, which is why
-# every path it touches passes the guards in rt_repo_purge first.
+# RT_CLASS above). A verb that deletes files directly rather than delegating
+# to a package manager (codex, fleet modules) passes every path through its
+# own guards first.
 declare -A RT_PURGE=(
     [uv]=rt_uv_purge
     [npm]=rt_npm_purge
     [pip]=rt_pip_purge
     [bun]=rt_bun_purge
-    [repo]=rt_repo_purge
     [codex]=rt_codex_purge
     [trash]=rt_trash_purge
 )
@@ -348,16 +346,15 @@ declare -A RT_PURGE=(
 # RT_DETAIL: an optional per-runtime breakdown printed immediately after the
 # runtime's own size line. Registry data, like RT_SAFE_ESTIMATE_NOTE above:
 # a runtime whose single reported figure is a sum over materially different
-# kinds of residue (repo: orphaned worktrees, spike scratch, implemented
-# dispatch records -- only the first two reclaimable, the third archive-only)
-# owes the reader that split, and the fact that it does is a property of that
+# kinds of residue (docker: build cache vs image/container residue; codex:
+# per-profile staging copies, only the old ones reclaimable) owes the reader
+# that split, and the fact that it does is a property of that
 # runtime's source, not of the reporting lifecycle. The seam exists so the
 # size adapter stays a pure probe: it returns one record and prints nothing,
 # per the contract at the top of cache-prune/measurement.sh, and the
 # user-facing breakdown is printed from here.
 declare -A RT_DETAIL=(
     [docker]=rt_docker_detail
-    [repo]=rt_repo_detail
     [codex]=rt_codex_detail
     [trash]=rt_trash_detail
 )
@@ -398,6 +395,48 @@ declare -A RT_INTERACTIVE_ONLY=(
 declare -A RT_PURGE_PROMPT=(
     [trash]=rt_trash_purge_prompt
 )
+
+### fleet modules #############################################################
+
+# Optional, unpublished runtime modules: every util/cache-prune/fleet/*.sh
+# present is sourced here, after the core modules and the registry above and
+# before anything consumes them. A module registers itself through
+# register_runtime (its RUNTIME_ORDER slot) plus its own RT_* entries, and
+# appends its help text to CACHE_PRUNE_HELP_RUNTIMES / CACHE_PRUNE_HELP_ENV.
+# The directory is absent from the public projection; with it absent nothing
+# below runs and core behaviour and output are unchanged. It sits under
+# cache-prune/, which util/dispatch.sh's util/*.sh glob cannot reach.
+CACHE_PRUNE_HELP_RUNTIMES=()
+CACHE_PRUNE_HELP_ENV=()
+
+# register_runtime <name> <after>: insert <name> into RUNTIME_ORDER right
+# after <after> (appended when <after> is not registered).
+register_runtime() {
+    local name="$1"
+    local after="$2"
+    local entry
+    local -a order=()
+    local placed=false
+
+    for entry in "${RUNTIME_ORDER[@]}"; do
+        order+=("$entry")
+        if [[ "$entry" == "$after" ]]; then
+            order+=("$name")
+            placed=true
+        fi
+    done
+    $placed || order+=("$name")
+    RUNTIME_ORDER=("${order[@]}")
+}
+
+if [[ -d "$CACHE_PRUNE_LIB/fleet" ]]; then
+    for cache_prune_module in "$CACHE_PRUNE_LIB"/fleet/*.sh; do
+        [[ -f "$cache_prune_module" ]] || continue
+        # shellcheck source=/dev/null
+        source "$cache_prune_module"
+    done
+    unset cache_prune_module
+fi
 
 ### mode matrix ###############################################################
 
