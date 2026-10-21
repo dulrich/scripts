@@ -210,21 +210,77 @@ assert_contains "$MUTATE_LOG" "until=24h" "docker prune filter reflects --docker
 DOCKER_UNTIL=""
 
 
-echo "[cargo] report-only, never mutates"
-all_present
-reset_logs
-FAILED=0
-MODE="yes"
-INCLUDE_PURGE=true
-process_runtime cargo >/dev/null 2>&1 || true
-assert_eq "" "$MUTATE_LOG" "cargo never has a mutating call, even under --yes --include-purge"
+echo "[cargo] purge-only: registry/src children, filesystem-backed (sandboxed CARGO_HOME)"
+cargo_fixture() {
+    rm -rf "$CARGO_HOME"
+    mkdir -p "$CARGO_HOME/registry/src/idx-1/foo-1.0/src" "$CARGO_HOME/registry/src/idx-1/bar-2.0" \
+        "$CARGO_HOME/registry/cache/idx-1" "$CARGO_HOME/registry/index/idx-1"
+    printf 'fn main() {}\n' > "$CARGO_HOME/registry/src/idx-1/foo-1.0/src/lib.rs"
+    printf 'bar\n' > "$CARGO_HOME/registry/src/idx-1/bar-2.0/lib.rs"
+    printf 'crate' > "$CARGO_HOME/registry/cache/idx-1/foo-1.0.crate"
+    printf 'idx' > "$CARGO_HOME/registry/index/idx-1/cfg"
+}
+cargo_run() {
+    all_present
+    reset_logs
+    FAILED=0
+    MODE="yes"
+    INCLUDE_PURGE="$1"
+    CARGO_STATUS=0
+    process_runtime cargo >/dev/null 2>"$SANDBOX/cargo-warn.log" || CARGO_STATUS=$?
+    cargo_warn="$(cat "$SANDBOX/cargo-warn.log")"
+}
+assert_eq "set" "${RT_PURGE[cargo]+set}" "cargo has an RT_PURGE entry"
+assert_eq "optin" "${RT_CLASS[cargo]}" "cargo is a purge-only opt-in runtime"
 assert_eq "" "${RT_PRUNE[cargo]+set}" "cargo intentionally has no prune-registry entry"
+
+cargo_fixture
+cargo_run false
+assert_success "--yes alone leaves registry/src untouched" test -f "$CARGO_HOME/registry/src/idx-1/foo-1.0/src/lib.rs"
+assert_eq "" "$MUTATE_LOG" "cargo makes no command-double mutating call"
+
+cargo_fixture
+cargo_run true
+assert_eq "00" "$CARGO_STATUS$FAILED" "--yes --include-purge purge of cargo succeeds"
+assert_eq "" "$(ls -A "$CARGO_HOME/registry/src")" "purge empties registry/src children"
+assert_success "registry/src itself is kept" test -d "$CARGO_HOME/registry/src"
+assert_success "registry/cache contents survive" test -f "$CARGO_HOME/registry/cache/idx-1/foo-1.0.crate"
+assert_success "registry/index contents survive" test -f "$CARGO_HOME/registry/index/idx-1/cfg"
+assert_success "lock files absent beforehand are created, never removed" \
+    test -e "$CARGO_HOME/.package-cache" -a -e "$CARGO_HOME/.package-cache-mutate"
+
+for held in .package-cache .package-cache-mutate; do
+    cargo_fixture
+    : > "$CARGO_HOME/$held"
+    rm -f "$SANDBOX/cargo-ready"
+    ( exec 9<>"$CARGO_HOME/$held"; flock -n 9 && : > "$SANDBOX/cargo-ready"; exec sleep 30 ) &
+    holder=$!
+    for _ in $(seq 1 100); do [[ -e "$SANDBOX/cargo-ready" ]] && break; sleep 0.05; done
+    cargo_run true
+    kill "$holder" 2>/dev/null || true
+    wait "$holder" 2>/dev/null || true
+    assert_success "held $held skips: nothing deleted" test -f "$CARGO_HOME/registry/src/idx-1/foo-1.0/src/lib.rs"
+    assert_contains "$cargo_warn" "cargo: skipped $CARGO_HOME/registry/src (guard: a cargo package-cache lock is held)" "held $held warns"
+    assert_eq "00" "$CARGO_STATUS$FAILED" "held $held leaves exit status and FAILED unchanged"
+done
+
+cargo_fixture
+rm -rf "$CARGO_HOME/registry/src"
+mkdir -p "$SANDBOX/cargo-elsewhere/keep"
+printf 'x' > "$SANDBOX/cargo-elsewhere/keep/file"
+ln -s "$SANDBOX/cargo-elsewhere" "$CARGO_HOME/registry/src"
+cargo_run true
+assert_success "symlinked registry/src: the target contents survive" test -f "$SANDBOX/cargo-elsewhere/keep/file"
+assert_contains "$cargo_warn" "(guard: symlinked or escapes CARGO_HOME)" "symlinked registry/src warns"
+assert_eq "00" "$CARGO_STATUS$FAILED" "a symlink skip leaves exit status and FAILED unchanged"
+rm -rf "$SANDBOX/cargo-elsewhere" "$CARGO_HOME"
+mkdir -p "$CARGO_DIR"
 
 
 echo "[registry] RT_PRUNE/RT_PURGE membership matches the safe/purge split"
 assert_eq "" "${RT_PRUNE[pip]+set}" "pip has no RT_PRUNE entry -- it migrated to RT_PURGE entirely"
 assert_eq "" "${RT_PRUNE[bun]+set}" "bun has no RT_PRUNE entry -- it migrated to RT_PURGE entirely"
-assert_eq "" "${RT_PURGE[cargo]+set}" "cargo has no RT_PURGE entry (report-only, no verbs at all)"
+assert_eq "set" "${RT_PURGE[cargo]+set}" "cargo has an RT_PURGE entry (purge-only, registry/src)"
 assert_eq "" "${RT_PURGE[docker]+set}" "docker has no RT_PURGE entry (safe-only, no destructive verb)"
 assert_eq "set" "${RT_PRUNE[uv]+set}" "uv keeps its RT_PRUNE (safe) entry"
 assert_eq "set" "${RT_PURGE[uv]+set}" "uv also gained an RT_PURGE entry"

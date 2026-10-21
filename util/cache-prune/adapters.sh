@@ -262,7 +262,7 @@ rt_bun_cache_dir() {
     printf '%s\n' "${BUN_INSTALL:-$HOME/.bun}/install/cache"
 }
 
-### cargo (report-only) #######################################################
+### cargo (opt-in, registry/src purge only) ###################################
 
 rt_cargo_detect() {
     command -v cargo >/dev/null 2>&1
@@ -270,6 +270,24 @@ rt_cargo_detect() {
 
 rt_cargo_cache_dir() {
     printf '%s\n' "${CARGO_HOME:-$HOME/.cargo}/registry"
+}
+
+# rt_cargo_size: total is the whole registry/ dir (cache/, index/, src/);
+# reclaimable is registry/src alone -- the only part the purge verb removes.
+rt_cargo_size() {
+    local pair total reclaimable src_pair
+
+    pair=$(dir_census_bytes "$1")
+    read -r total _ <<< "$pair"
+    src_pair=$(dir_census_bytes "$1/src")
+    read -r reclaimable _ <<< "$src_pair"
+
+    if [[ ! "$total" =~ ^[0-9]+$ || ! "$reclaimable" =~ ^[0-9]+$ ]]; then
+        probe_unavailable
+        return 0
+    fi
+
+    probe_available "$total" "$reclaimable" "census"
 }
 
 ### path sizing ##############################################################

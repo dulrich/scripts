@@ -227,7 +227,7 @@ SAFE_RECLAIMABLE_BYTES=0
 PURGE_RECLAIMABLE_BYTES=0
 
 
-echo "[cargo] reclaimable bytes count toward footprint only, never either reclaimable tier"
+echo "[cargo] reclaimable is registry/src bytes, routed to the purge tier"
 all_present
 reset_logs
 FAILED=0
@@ -235,22 +235,21 @@ TOTAL_BYTES=0
 SAFE_RECLAIMABLE_BYTES=0
 PURGE_RECLAIMABLE_BYTES=0
 MODE="report"
-rt_size_cargo_fixed() { printf 'available 4000 4000 census\n'; }
-ORIGINAL_RT_SIZE_CARGO="${RT_SIZE[cargo]}"
-RT_SIZE[cargo]=rt_size_cargo_fixed
+rm -rf "$CARGO_HOME"
+mkdir -p "$CARGO_HOME/registry/src/i/a" "$CARGO_HOME/registry/cache/i"
+head -c 3000 /dev/zero > "$CARGO_HOME/registry/src/i/a/f"
+head -c 5000 /dev/zero > "$CARGO_HOME/registry/cache/i/c.crate"
+assert_eq "available 8000 3000 census" "$(rt_cargo_size "$CARGO_HOME/registry")" "cargo size: total is whole registry/, reclaimable is registry/src bytes"
 CARGO_OUTPUT_FILE="$SANDBOX/cargo-output.log"
 : > "$CARGO_OUTPUT_FILE"
 process_runtime cargo >"$CARGO_OUTPUT_FILE" 2>&1 || true
 cargo_output="$(cat "$CARGO_OUTPUT_FILE")"
-# Regression guard for the exact defect named in the WP-3 brief: measured on
-# pre-WP-3 master, a cargo probe of "4000 4000" put 4000 bytes into the
-# headline estimate even though cargo has no prune verb in either registry.
-assert_eq "4000" "$TOTAL_BYTES" "cargo's bytes still count toward total footprint"
-assert_eq "0" "$SAFE_RECLAIMABLE_BYTES" "cargo's bytes never reach the safe-tier reclaimable total (it has no safe verb)"
-assert_eq "0" "$PURGE_RECLAIMABLE_BYTES" "cargo's bytes never reach the purge-tier reclaimable total (it has no purge verb)"
-assert_not_contains "$cargo_output" "reclaimable via" "cargo prints no per-verb reclaimable line at all -- no verb exists to report one against"
-assert_contains "$cargo_output" "no prune verb exists for cargo" "cargo's report-only note explains why it has no reclaimable figure"
-RT_SIZE[cargo]="$ORIGINAL_RT_SIZE_CARGO"
+assert_eq "8000" "$TOTAL_BYTES" "cargo's bytes count toward total footprint"
+assert_eq "0" "$SAFE_RECLAIMABLE_BYTES" "cargo's bytes never reach the safe-tier reclaimable total"
+assert_eq "3000" "$PURGE_RECLAIMABLE_BYTES" "cargo's registry/src bytes reach the purge-tier reclaimable total"
+assert_contains "$cargo_output" "cargo reclaimable via the purge verb" "cargo prints a purge-verb reclaimable line"
+rm -rf "$CARGO_HOME"
+mkdir -p "$CARGO_DIR"
 TOTAL_BYTES=0
 
 
@@ -458,7 +457,7 @@ for rt in "${RUNTIME_ORDER[@]}"; do
 done
 assert_eq "10000048000" "$TOTAL_BYTES" "footprint total sums every runtime's total, including cargo's and docker's"
 assert_eq "6000000000" "$SAFE_RECLAIMABLE_BYTES" "safe-tier total is docker's reclaimable alone"
-assert_eq "14000" "$PURGE_RECLAIMABLE_BYTES" "purge-tier total sums uv+npm+pip+bun's reclaimable, excluding cargo (no verb) and docker (safe-only)"
+assert_eq "21000" "$PURGE_RECLAIMABLE_BYTES" "purge-tier total sums uv+npm+pip+bun+cargo's reclaimable, excluding docker (safe-only)"
 RT_SIZE[uv]="$ORIGINAL_RT_SIZE_UV"
 RT_SIZE[npm]="$ORIGINAL_RT_SIZE_NPM"
 RT_SIZE[pip]="$ORIGINAL_RT_SIZE_PIP"
