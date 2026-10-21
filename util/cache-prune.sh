@@ -243,7 +243,9 @@ Notes:
 Honoured environment:
   BUN_INSTALL   overrides bun's install prefix (cache under install/cache)
   CARGO_HOME    overrides cargo's home (registry cache is reported, never
-                pruned -- there is no safe cargo prune verb yet)
+                pruned -- stable cargo garbage-collects it itself, tracked
+                in CARGO_HOME/.global-cache, and its manual
+                `cargo clean gc` is nightly-only)
   CACHE_PRUNE_REPO_ROOT
                 overrides the root docker residue classification searches
                 for compose files (default /home/_shared_code)
@@ -321,10 +323,12 @@ declare -A RT_SIZE=(
 
 # RT_PRUNE holds *only* safe verbs -- pip and bun's destructive purges live
 # in RT_PURGE below, ending the old conflation where this array held both.
-# cargo intentionally has no entry here: report-only, no safe prune verb
-# exists yet (cargo-cache is not installed). A future `command -v
-# cargo-cache` check could add an entry (and flip cargo's class to safe)
-# without restructuring anything else.
+# cargo intentionally has no entry here, by decision rather than as a gap:
+# stable cargo already deletes registry files it has not used
+# recently, tracking access in $CARGO_HOME/.global-cache, and its manual
+# `cargo clean gc` is nightly-only. A verb here would duplicate that GC or
+# hand-delete what cargo manages, so cargo stays report-only. Cargo build
+# output (target/ dirs) is not this cache at all.
 declare -A RT_PRUNE=(
     [uv]=rt_uv_prune
     [npm]=rt_npm_prune
@@ -642,7 +646,7 @@ process_runtime() {
     fi
 
     if [[ "${RT_CLASS[$name]}" == report ]]; then
-        printf 'note: no prune verb exists for %s yet; report-only -- these bytes count toward total footprint only, never a reclaimable tier.\n' "$name"
+        printf 'note: no prune verb exists for %s (by design, see -h); report-only -- these bytes count toward total footprint only, never a reclaimable tier.\n' "$name"
         return 0
     fi
 
