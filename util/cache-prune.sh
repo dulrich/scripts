@@ -46,8 +46,8 @@ TOTAL_BYTES=0
 # The old single RECLAIMABLE_BYTES conflated a safe-verb prediction with a
 # purge-verb one under one figure -- split per tier during the cache-prune
 # reclaim-effectiveness work: a runtime's census reclaimable
-# bytes are routed into exactly one of these (or neither, for cargo, which
-# has no verb at all) by report_measurement, never both.
+# bytes are routed into exactly one of these (or neither, for a
+# report-class runtime) by report_measurement, never both.
 SAFE_RECLAIMABLE_BYTES=0
 PURGE_RECLAIMABLE_BYTES=0
 # DELTA_BYTES: the grand-total observed footprint change, summed only over
@@ -242,10 +242,10 @@ Notes:
 
 Honoured environment:
   BUN_INSTALL   overrides bun's install prefix (cache under install/cache)
-  CARGO_HOME    overrides cargo's home (registry cache is reported, never
-                pruned -- stable cargo garbage-collects it itself, tracked
-                in CARGO_HOME/.global-cache, and its manual
-                `cargo clean gc` is nightly-only)
+  CARGO_HOME    overrides cargo's home (the purge verb removes only the
+                children of registry/src, the unpacked crate sources;
+                registry/cache, registry/index and git/ are kept, and
+                cargo re-extracts src from registry/cache offline)
   CACHE_PRUNE_REPO_ROOT
                 overrides the root docker residue classification searches
                 for compose files (default /home/_shared_code)
@@ -280,7 +280,7 @@ declare -A RT_CLASS=(
     [docker]=safe
     [pip]=optin
     [bun]=optin
-    [cargo]=report
+    [cargo]=optin
     [codex]=optin
     [trash]=optin
 )
@@ -316,19 +316,16 @@ declare -A RT_SIZE=(
     [docker]=rt_docker_size
     [pip]=rt_generic_size
     [bun]=rt_generic_size
-    [cargo]=rt_generic_size
+    [cargo]=rt_cargo_size
     [codex]=rt_codex_size
     [trash]=rt_trash_size
 )
 
 # RT_PRUNE holds *only* safe verbs -- pip and bun's destructive purges live
 # in RT_PURGE below, ending the old conflation where this array held both.
-# cargo intentionally has no entry here, by decision rather than as a gap:
-# stable cargo already deletes registry files it has not used
-# recently, tracking access in $CARGO_HOME/.global-cache, and its manual
-# `cargo clean gc` is nightly-only. A verb here would duplicate that GC or
-# hand-delete what cargo manages, so cargo stays report-only. Cargo build
-# output (target/ dirs) is not this cache at all.
+# cargo has no entry here, by decision: its only verb is the purge of
+# registry/src (see RT_PURGE below); cargo's own GC of registry files is left
+# alone. Cargo build output (target/ dirs) is not this cache at all.
 declare -A RT_PRUNE=(
     [uv]=rt_uv_prune
     [npm]=rt_npm_prune
@@ -337,15 +334,17 @@ declare -A RT_PRUNE=(
 
 # RT_PURGE holds destructive purge verbs. uv and npm carry both a safe verb
 # above and a purge verb here; pip, bun and codex have no safe verb and live
-# only here; docker and cargo have no entry -- docker has no destructive verb
-# at all (its safe prune is the only action), and cargo has neither verb (see
-# RT_CLASS above). A verb that deletes files directly rather than delegating
+# only here, as does cargo (registry/src children only: re-extraction from
+# registry/cache is offline and cheap, so cache/, index/ and git/ are kept);
+# docker has no entry -- it has no destructive verb at all (its safe prune is
+# the only action). A verb that deletes files directly rather than delegating
 # to a package manager (codex, fleet modules) passes every path through its
 # own guards first.
 declare -A RT_PURGE=(
     [uv]=rt_uv_purge
     [npm]=rt_npm_purge
     [pip]=rt_pip_purge
+    [cargo]=rt_cargo_purge
     [bun]=rt_bun_purge
     [codex]=rt_codex_purge
     [trash]=rt_trash_purge
@@ -506,8 +505,8 @@ measure_runtime() {
 # verb (uv/npm dual-verb, pip/bun purge-only) reports it as a purge-tier
 # estimate -- for uv/npm this is the *only* figure printed, because their
 # safe verb cannot be predicted (premises (b)/(c)); a runtime with only a
-# safe verb (docker) reports it safe-tier; a runtime with neither (cargo)
-# reports neither -- its bytes go into TOTAL_BYTES and stop there.
+# safe verb (docker) reports it safe-tier; a runtime with neither (none
+# today) reports neither -- its bytes go into TOTAL_BYTES and stop there.
 report_measurement() {
     local name="$1"
     local total="$2"
@@ -752,7 +751,7 @@ main() {
         printf 'Observed footprint change (measured, not predicted): %s (%d bytes)\n' \
             "$(human_bytes_signed "$DELTA_BYTES")" "$DELTA_BYTES"
     fi
-    printf 'Total counts every byte present, including cargo'"'"'s (it has no prune verb); the safe- and purge-tier figures are separate per-verb estimates and are never summed into one number; the observed footprint change is what was actually measured before/after acting, not a prediction.\n'
+    printf 'Total counts every byte present, including any runtime with no verb; the safe- and purge-tier figures are separate per-verb estimates and are never summed into one number; the observed footprint change is what was actually measured before/after acting, not a prediction.\n'
 
     if ((FAILED != 0)); then
         return 1

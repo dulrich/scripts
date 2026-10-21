@@ -89,6 +89,50 @@ rt_bun_purge() {
     return "$status"
 }
 
+# rt_cargo_purge: removes only the children of $CARGO_HOME/registry/src (the
+# unpacked crate sources). Cargo re-extracts them from registry/cache offline
+# and cheaply, so cache/, index/ and git/ are never touched. This verb deletes
+# files directly, so it is guarded: no symlinked registry/src component, and
+# both cargo package-cache locks must be free (cargo takes them while it
+# reads or extracts the registry). Every guarded skip warns and returns 0 --
+# a skip is not a verb failure. Lock files are opened read-write (which
+# creates them when absent) and are never removed.
+rt_cargo_purge() {
+    local home src real_home lock fd status
+    local -a fds=()
+
+    home="${CARGO_HOME:-$HOME/.cargo}"
+    src="$home/registry/src"
+    [[ -e "$src" || -L "$src" ]] || return 0
+
+    real_home=$(realpath -e -- "$home" 2>/dev/null) || real_home=""
+    if [[ -z "$real_home" || -L "$home/registry" || -L "$src" ||
+        "$(realpath -e -- "$src" 2>/dev/null)" != "$real_home/registry/src" ]]; then
+        warn "cargo: skipped $src (guard: symlinked or escapes CARGO_HOME)"
+        return 0
+    fi
+
+    for lock in "$home/.package-cache" "$home/.package-cache-mutate"; do
+        if ! { exec {fd}<>"$lock"; } 2>/dev/null; then
+            for fd in "${fds[@]}"; do exec {fd}>&-; done
+            warn "cargo: skipped $src (guard: a cargo package-cache lock is held)"
+            return 0
+        fi
+        fds+=("$fd")
+        if ! flock -n "$fd"; then
+            for fd in "${fds[@]}"; do exec {fd}>&-; done
+            warn "cargo: skipped $src (guard: a cargo package-cache lock is held)"
+            return 0
+        fi
+    done
+
+    status=0
+    find -P "$src" -mindepth 1 -maxdepth 1 -exec rm -rf --one-file-system -- {} + || status=$?
+
+    for fd in "${fds[@]}"; do exec {fd}>&-; done
+    return "$status"
+}
+
 # rt_codex_purge: re-scans immediately before deleting (the list it deletes
 # from is never inherited from an older walk) and hands each reclaimable
 # candidate to codex_purge_path.
@@ -161,7 +205,7 @@ codex_purge_path() {
 # Each returns false outright when the runtime has no entry in its own
 # registry array, regardless of mode -- a runtime with no RT_PRUNE entry
 # (pip, bun) can never be safe_elected, and one with no RT_PURGE entry
-# (docker, cargo) can never be purge_elected.
+# (docker) can never be purge_elected.
 #
 #   safe_elected:  --report -> never; --yes -> always; interactive ->
 #                  confirm "Prune $name cache?"
