@@ -296,6 +296,31 @@ declare -A RT_DETECT=(
     [trash]=rt_trash_detect
 )
 
+# RT_ABSENT: the optional "why was this runtime not detected" function per
+# runtime; prints one short reason. A missing executable reads `no <tool> on
+# host`; a runtime with no entry (or an empty reason) reads `not detected`.
+# Read only from the report layer (process_runtime) -- detect predicates stay
+# silent so the probe-record seam is untouched.
+declare -A RT_ABSENT=(
+    [uv]=rt_uv_absent
+    [npm]=rt_npm_absent
+    [docker]=rt_docker_absent
+    [pip]=rt_pip_absent
+    [bun]=rt_bun_absent
+    [cargo]=rt_cargo_absent
+    [trash]=rt_trash_absent
+)
+
+# runtime_absent_reason: the skip reason for a runtime whose detect failed.
+runtime_absent_reason() {
+    local name="$1" reason=""
+
+    if [[ -n "${RT_ABSENT[$name]:-}" ]]; then
+        reason=$("${RT_ABSENT[$name]}")
+    fi
+    printf '%s\n' "${reason:-not detected}"
+}
+
 # docker intentionally has no entry here: its cache is daemon-owned, not a
 # directory this account can resolve or `du`. Runtimes whose residue is spread
 # over many directories (codex, trash, fleet modules) likewise have none.
@@ -604,7 +629,7 @@ process_runtime() {
     section "$name"
 
     if ! "${RT_DETECT[$name]}"; then
-        printf 'skip: %s not detected\n' "$name"
+        printf 'skip: %s: %s\n' "$name" "$(runtime_absent_reason "$name")"
         return 0
     fi
 

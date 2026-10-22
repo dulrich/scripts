@@ -27,6 +27,11 @@ source "$HERE/../cache-prune.sh"
 ORIGINAL_RT_DOCKER_DETECT="$(declare -f rt_docker_detect)"
 ORIGINAL_RT_CODEX_DETECT="$(declare -f rt_codex_detect)"
 ORIGINAL_RT_TRASH_DETECT="$(declare -f rt_trash_detect)"
+declare -A ORIGINAL_RT_DETECT=()
+for mt_name in uv npm pip bun cargo; do
+    ORIGINAL_RT_DETECT[$mt_name]="$(declare -f "rt_${mt_name}_detect")"
+done
+unset mt_name
 
 PASS=0
 FAIL=0
@@ -523,6 +528,8 @@ source "$HERE/cache-prune/docker-residue.sh"
 source "$HERE/cache-prune/codex.sh"
 # shellcheck source=util/tests/cache-prune/trash.sh
 source "$HERE/cache-prune/trash.sh"
+# shellcheck source=util/tests/cache-prune/missing-tool.sh
+source "$HERE/cache-prune/missing-tool.sh"
 
 # Fleet module suites, after every core suite (bootstraps ran above).
 if [[ -d "$FLEET_TEST_DIR" ]]; then
