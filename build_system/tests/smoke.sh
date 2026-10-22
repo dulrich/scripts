@@ -1,4 +1,8 @@
 #!/bin/bash
+for _a in "$@"; do case "$_a" in --help|-h)
+	printf 'usage: %s %s\n' "${0##*/}" ''
+	printf '%s\n' 'Smoke tests for the build system using a temporary fixture; takes no arguments.'
+	exit 0;; esac; done
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)

@@ -1,4 +1,8 @@
 #!/bin/sh
+for _a in "$@"; do case "$_a" in --help|-h)
+	printf 'usage: %s %s\n' "${0##*/}" ''
+	printf '%s\n' 'Lock the screen with i3lock in the house colors.'
+	exit 0;; esac; done
 
 BLANK='#00000000'
 CLEAR='#ffffff22'

@@ -6,6 +6,11 @@ set -euo pipefail
 # CC0: This work has been marked as dedicated to the public domain.
 # https://creativecommons.org/publicdomain/zero/1.0/
 
+for _a in "$@"; do case "$_a" in --help|-h)
+	printf 'usage: %s\n' "${0##*/}"
+	printf '%s\n' 'Symlink the standard dotfiles (aliases, Xresources, ghostty, zellij config) into the home directory; takes no arguments.'
+	exit 0;; esac; done
+
 here=$(dirname "$(realpath "${BASH_SOURCE[0]}")")
 
 # aliases load on every shell (~/.bash_aliases is sourced by ~/.bashrc)

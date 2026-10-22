@@ -1,4 +1,8 @@
 #!/bin/bash
+for _a in "$@"; do case "$_a" in --help)
+	printf 'usage: %s %s\n' "${0##*/}" '-h SSH_HOST -s SSH_USER -[bgr] [-[iI]] CLIENT | -[bgr] [-[iI]] -L URL CLIENT'
+	printf '%s\n' 'mysqldump wrapper with optional compressed transfer; -h is the ssh host, so only --help prints this.'
+	exit 0;; esac; done
 set -euo pipefail
 
 # mysql-dump.sh: mysqldump wrapper, with optional compressed network transfer
