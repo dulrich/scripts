@@ -155,7 +155,7 @@ docker_residue_capture() {
     local ids out sizes file cfg dockerfile refs root
 
     if ! command -v jq >/dev/null 2>&1; then
-        printf '{"images":[],"containers":[],"compose":[],"base_refs":[],"volumes":[],"image_error":"jq not found","volume_error":"jq not found"}\n'
+        printf '{"images":[],"containers":[],"compose":[],"base_refs":[],"volumes":[],"image_error":"no jq on host","volume_error":"no jq on host"}\n'
         return 0
     fi
 
@@ -402,7 +402,7 @@ docker_residue_report() {
 # and before/after delta are exactly what they were.
 rt_docker_detail() {
     if ! command -v jq >/dev/null 2>&1; then
-        printf 'docker image/container/volume residue: unavailable (jq not found)\n'
+        printf 'docker image/container/volume residue: unavailable (no jq on host)\n'
         return 0
     fi
     local capture rows
@@ -468,7 +468,7 @@ docker_residue_remove() {
 rt_docker_residue() {
     RUNTIME_RESIDUE_ACTED=false
     if ! command -v jq >/dev/null 2>&1; then
-        printf 'docker residue: nothing elected (jq not found)\n'
+        printf 'docker residue: nothing elected (no jq on host)\n'
         return 0
     fi
 

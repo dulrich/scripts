@@ -72,6 +72,10 @@ rt_uv_detect() {
     command -v uv >/dev/null 2>&1
 }
 
+rt_uv_absent() {
+    printf 'no uv on host\n'
+}
+
 rt_uv_cache_dir() {
     local dir
 
@@ -84,6 +88,10 @@ rt_uv_cache_dir() {
 
 rt_npm_detect() {
     command -v npm >/dev/null 2>&1
+}
+
+rt_npm_absent() {
+    printf 'no npm on host\n'
 }
 
 # npm here is nvm-managed: its cache location is PATH-dependent, so it is
@@ -106,6 +114,16 @@ rt_npm_cache_dir() {
 # `docker info` succeeding is part of the detect predicate itself.
 rt_docker_detect() {
     command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1
+}
+
+# rt_docker_absent: one reason per cause -- a missing CLI is `no docker on
+# host`; a present CLI with a dead daemon (or no permission) is its own line.
+rt_docker_absent() {
+    if ! command -v docker >/dev/null 2>&1; then
+        printf 'no docker on host\n'
+    else
+        printf 'docker daemon not reachable\n'
+    fi
 }
 
 # docker_window_seconds: parse a duration like "168h" into seconds. Supports
@@ -244,6 +262,10 @@ rt_pip_detect() {
     command -v pip >/dev/null 2>&1
 }
 
+rt_pip_absent() {
+    printf 'no pip on host\n'
+}
+
 rt_pip_cache_dir() {
     local dir
 
@@ -258,6 +280,10 @@ rt_bun_detect() {
     command -v bun >/dev/null 2>&1
 }
 
+rt_bun_absent() {
+    printf 'no bun on host\n'
+}
+
 rt_bun_cache_dir() {
     printf '%s\n' "${BUN_INSTALL:-$HOME/.bun}/install/cache"
 }
@@ -266,6 +292,10 @@ rt_bun_cache_dir() {
 
 rt_cargo_detect() {
     command -v cargo >/dev/null 2>&1
+}
+
+rt_cargo_absent() {
+    printf 'no cargo on host\n'
 }
 
 rt_cargo_cache_dir() {
@@ -450,6 +480,17 @@ rt_trash_gio() {
 
 rt_trash_detect() {
     command -v "$(rt_trash_gio)" >/dev/null 2>&1 && [[ -d "$(rt_trash_dir)" ]]
+}
+
+rt_trash_absent() {
+    local gio
+
+    gio=$(rt_trash_gio)
+    if ! command -v "$gio" >/dev/null 2>&1; then
+        printf 'no %s on host\n' "${gio##*/}"
+    else
+        printf 'trash dir %s absent\n' "$(rt_trash_dir)"
+    fi
 }
 
 # rt_trash_bytes: files/ + info/ (+ expunged/ when present); absent subdirs

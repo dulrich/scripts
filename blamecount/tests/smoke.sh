@@ -4,7 +4,16 @@ set -euo pipefail
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 SCRIPT="$ROOT/blamecount.js"
 
-command -v node >/dev/null 2>&1 || { printf 'blamecount smoke: node not found on PATH\n' >&2; exit 1; }
+# blamecount targets Node (built-ins only); the smoke prefers node and falls back to bun, which this
+# fleet's hosts guarantee and which runs the same built-ins-only script.
+if command -v node >/dev/null 2>&1; then
+	JS=node
+elif command -v bun >/dev/null 2>&1; then
+	JS=bun
+else
+	printf 'blamecount smoke: neither node nor bun found on PATH\n' >&2
+	exit 1
+fi
 command -v git >/dev/null 2>&1 || { printf 'blamecount smoke: git not found on PATH\n' >&2; exit 1; }
 
 fixture=$(mktemp -d)
@@ -102,7 +111,7 @@ cat > "$repo/config.json" <<CONFIG
 }
 CONFIG
 
-output=$(node "$SCRIPT" --config "$repo/config.json")
+output=$("$JS" "$SCRIPT" --config "$repo/config.json")
 status=$?
 
 if [[ "$status" -eq 0 ]]; then
@@ -111,7 +120,7 @@ else
 	fail 'main fixture: exit 0'
 fi
 
-expected=$(node -e '
+expected=$("$JS" -e '
 const table = {
 	c: 0, cc: 0, cpp: 0, cs: 0, css: 0, h: 0, htm: 0, html: 0, js: 0,
 	less: 0, lua: 0, php: 0, pl: 0, py: 0, rb: 0, sh: 0, sql: 0,
@@ -151,7 +160,7 @@ SHIM
 chmod +x "$shimdir/git"
 
 set +e
-failure_output=$(PATH="$shimdir:$PATH" node "$SCRIPT" --config "$repo/config.json" 2>&1)
+failure_output=$(PATH="$shimdir:$PATH" "$JS" "$SCRIPT" --config "$repo/config.json" 2>&1)
 failure_status=$?
 set -e
 
@@ -165,7 +174,7 @@ assert_contains "$failure_output" 'a.c' 'forced git blame failure: stderr names 
 # --- missing config file -----------------------------------------------
 
 set +e
-missing_config_output=$(node "$SCRIPT" --config "$fixture/does-not-exist/config.json" 2>&1)
+missing_config_output=$("$JS" "$SCRIPT" --config "$fixture/does-not-exist/config.json" 2>&1)
 missing_config_status=$?
 set -e
 
@@ -183,7 +192,7 @@ mkdir -p "$nonrepo"
 printf '{ "basepath" : "%s" }' "$nonrepo" > "$nonrepo/config.json"
 
 set +e
-nonrepo_output=$(node "$SCRIPT" --config "$nonrepo/config.json" 2>&1)
+nonrepo_output=$("$JS" "$SCRIPT" --config "$nonrepo/config.json" 2>&1)
 nonrepo_status=$?
 set -e
 
@@ -201,7 +210,7 @@ mkdir -p "$emptyrepo"
 git init -q "$emptyrepo"
 printf '{ "basepath" : "%s" }' "$emptyrepo" > "$emptyrepo/config.json"
 
-empty_output=$(node "$SCRIPT" --config "$emptyrepo/config.json")
+empty_output=$("$JS" "$SCRIPT" --config "$emptyrepo/config.json")
 empty_status=$?
 
 if [[ "$empty_status" -eq 0 ]]; then
