@@ -1,4 +1,8 @@
 #!/bin/bash
+for _a in "$@"; do case "$_a" in --help)
+	printf 'usage: %s %s\n' "${0##*/}" '<program> [args]'
+	printf '%s\n' 'Run a program under valgrind with full leak checking.'
+	exit 0;; esac; done
 
  valgrind --leak-check=full --show-leak-kinds=all --error-limit=no --track-origins=yes $@
 # valgrind  --error-limit=no --track-origins=yes --suppressions=./valgrind-gl-suppress.supp $@

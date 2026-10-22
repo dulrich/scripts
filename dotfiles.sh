@@ -452,6 +452,13 @@ guard_in_project() {
 
 # --- parse and validate: no filesystem writes past this point until dispatch --
 
+# Help anywhere in argv (also after a subcommand) answers before any command runs.
+for arg in "$@"; do
+	case "$arg" in
+		'--help'|'-h') help_show; exit 0 ;;
+	esac
+done
+
 flag_all=0
 proj_name=''
 translated_args=()

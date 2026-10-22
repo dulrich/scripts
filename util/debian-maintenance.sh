@@ -463,6 +463,17 @@ run_report() {
 }
 
 main() {
+    local arg
+    for arg in "$@"; do
+        case "$arg" in
+            --help|-h)
+                printf 'usage: %s [--report]\n' "${0##*/}"
+                echo "Interactive APT maintenance (root, TTY); --report prints a read-only JSON posture report."
+                return 0
+                ;;
+        esac
+    done
+
     if (($# > 1)); then
         die "usage: $0 [--report]"
         return 2

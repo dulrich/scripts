@@ -138,6 +138,15 @@ void global_init() {
 int main(int argc, char* argv[]) {
 	char* cmd;
 
+	// help is answered before any init, filesystem or build work
+	for(int a = 1; a < argc; a++) {
+		if(!strcmp(argv[a], "--help") || !strcmp(argv[a], "-h")) {
+			printf("usage: %s [-d] [-p] [-r] [-c] [-v]\n"
+				"  -d debug build, -p profiling, -r release, -c clean first, -v verbose\n", argv[0]);
+			return 0;
+		}
+	}
+
 	global_init();
 	
 	// defaults

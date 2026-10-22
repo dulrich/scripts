@@ -1,4 +1,8 @@
 #!/bin/bash
+for _a in "$@"; do case "$_a" in --help|-h)
+	printf 'usage: %s\n' "${0##*/}"
+	printf '%s\n' 'Print how this script path resolves (dirname, symlink target, BASH_SOURCE examples); takes no arguments.'
+	exit 0;; esac; done
 
 DIR="$( dirname -- "${BASH_SOURCE[0]}"; )";   # Get the directory name
 DIR="$( realpath -e -- "$DIR"; )";    # Resolve its full path if need be

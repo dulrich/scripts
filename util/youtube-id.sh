@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+for _a in "$@"; do case "$_a" in --help|-h)
+	printf 'usage: %s %s\n' "${0##*/}" '<youtube-channel-url-or-handle>'
+	printf '%s\n' 'Print the channel id (UC...) found at the given channel URL or @handle.'
+	exit 0;; esac; done
 set -euo pipefail
 
 url="${1:-}"

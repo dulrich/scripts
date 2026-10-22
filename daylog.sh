@@ -1,4 +1,8 @@
 #!/bin/bash
+for _a in "$@"; do case "$_a" in --help|-h)
+	printf 'usage: %s %s\n' "${0##*/}" '[-b DAYS|-d DATE|-y] [-c] [-f FOLDER] [-s] [message...]'
+	printf '%s\n' 'Append a message to the day log, or view a previous day log (-b/-d/-y), optionally with elapsed times (-c).'
+	exit 0;; esac; done
 set -euo pipefail
 
 # daylog.sh: track what happens at a certain time, and view previous logs

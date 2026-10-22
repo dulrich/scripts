@@ -68,6 +68,12 @@ Run the complete tracked-shell gate before reporting a change complete:
 bash tests/shell-gate.sh
 ```
 
+The `--help` contract gate (every entrypoint prints usage on a bare `--help` with no side effect; manifest `.help-gate.json`):
+
+```bash
+bun /home/_shared_code/context-control/scripts/help-gate.mjs .
+```
+
 The gate enumerates public tracked scripts with `git ls-files -z '*.sh'`, then
 runs ShellCheck and `bash -n` over that exact set. It also runs the Debian
 maintenance, util router, cache-prune, alias-chain, root-utility, and `pkg-ioc`

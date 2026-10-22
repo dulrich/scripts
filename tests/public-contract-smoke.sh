@@ -1,4 +1,8 @@
 #!/bin/bash
+for _a in "$@"; do case "$_a" in --help|-h)
+	printf 'usage: %s %s\n' "${0##*/}" ''
+	printf '%s\n' 'Check the public runtime surface contract of this repo (read-only); takes no arguments.'
+	exit 0;; esac; done
 set -euo pipefail
 
 # Guards the repo's advertised public runtime surface: every alias that points

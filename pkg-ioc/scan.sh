@@ -27,6 +27,7 @@ while [ $# -gt 0 ]; do
     --ecosystem) ECOSYSTEM="${2:-all}"; shift 2 ;;
     --ecosystem=*) ECOSYSTEM="${1#*=}"; shift ;;
     -h|--help)
+      echo "usage: scan.sh [--ecosystem npm|pypi|all] [scan-root]"
       sed -n '5,20p' "$0"; exit 0 ;;
     *) ROOT="$1"; shift ;;
   esac
