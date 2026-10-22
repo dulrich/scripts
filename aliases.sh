@@ -119,7 +119,7 @@ cl () {
 					pub=$publish_mjs
 					if [ -n "$pub" ] && [ -f "$pub" ]; then
 						echo "(projecting $ghsrc)"
-						if ! node "$pub" project --repo "$top"; then
+						if ! bun "$pub" project --repo "$top"; then
 							echo "(projection failed; not pushing to github)"
 							git status -bs
 							return 1
