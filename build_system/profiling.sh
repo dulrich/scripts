@@ -1,4 +1,8 @@
 #!/bin/bash
+for _a in "$@"; do case "$_a" in --help)
+	printf 'usage: %s %s\n' "${0##*/}" '[program args]'
+	printf '%s\n' 'Compile _build.c, build with profiling, run under gdb, then gprof into prof.out.'
+	exit 0;; esac; done
 set -euo pipefail
 
 declare -a gcc_flags

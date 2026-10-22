@@ -1,4 +1,8 @@
 #!/bin/bash
+case "${1:-}" in --help|-h)
+	printf 'usage: %s %s\n' "${0##*/}" '<command> [args...]'
+	printf '%s\n' 'Route to util/<command>[.sh]; run with no arguments to list commands.'
+	exit 0;; esac
 
 # dispatch.sh: filesystem-router for util/ subcommands.
 # `util <name> [args...]` execs util/<name>[.sh]. Adding a command is just
