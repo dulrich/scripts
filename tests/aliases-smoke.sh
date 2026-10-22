@@ -331,12 +331,12 @@ gh_mode=hybrid
 cl_top=$(mktemp -d)
 publish_mjs="$cl_top/publish.mjs"
 : > "$publish_mjs"
-node_rc=0
-node() {
+bun_rc=0
+bun() {
 	printf 'PROJECTED'
 	printf ' %q' "$@"
 	printf '\n'
-	return "$node_rc"
+	return "$bun_rc"
 }
 output=$(cl 2>&1)
 assert_contains "$output" '(nothing to push to github)' 'cl counts the projection, not private HEAD, on a hybrid repo'
@@ -348,15 +348,15 @@ output=$(cl 2>&1)
 assert_contains "$output" "PROJECTED $publish_mjs project --repo $cl_top" 'cl projects a manifest repo before the github push'
 assert_contains "$output" '(nothing to push to github)' 'cl still counts the projection after projecting'
 
-node_rc=1
+bun_rc=1
 output=$(cl 2>&1)
 assert_contains "$output" '(projection failed; not pushing to github)' 'cl reports a failed projection'
 assert_not_contains "$output" 'nothing to push to github' 'cl skips the github count after a failed projection'
 assert_contains "$output" 'STATUS' 'cl still prints short status after a failed projection'
 
 rm -rf "$cl_top"
-unset -f node
-unset cl_top publish_mjs node_rc
+unset -f bun
+unset cl_top publish_mjs bun_rc
 gh_mode=none
 
 if declare -F __git_complete >/dev/null; then
