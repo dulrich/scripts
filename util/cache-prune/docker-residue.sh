@@ -2,7 +2,7 @@
 
 # docker-residue.sh: read-only classifier for docker image / container /
 # volume residue, reported under the docker runtime through the RT_DETAIL
-# seam, plus the residue removal step (RT_RESIDUE seam, WP-2). Sourced by
+# seam, plus the residue removal step (RT_RESIDUE seam). Sourced by
 # ../cache-prune.sh; not a util subcommand. Everything above the "removal"
 # section is read-only (images/image inspect/ps/container inspect/system df/
 # compose config); the only mutating calls in this file are the per-item
@@ -10,7 +10,7 @@
 # docker_residue_remove -- the last only on anonymous volumes (label key
 # com.docker.volume.anonymous) that were already dangling before this run's
 # removals. Never -f, never any prune; named volumes are never removed
-# (decided in the docker image-residue and anonymous-volume work).
+# (they may hold user data; only anonymous volumes are disposable).
 #
 # Two layers, so the classifier stays a pure function of captured JSON:
 #
@@ -32,7 +32,7 @@
 #       Fail closed: any compose/Dockerfile/inspect failure sets image_error,
 #       which the classifier turns into "unavailable" with no candidates.
 #   docker_residue_classify  (stdin: the capture JSON)
-#       THE STABLE OUTPUT SHAPE (consumed by WP-2's election), one TSV line
+#       THE STABLE OUTPUT SHAPE (consumed by the residue election), one TSV line
 #       per row, first field the class:
 #         superseded<TAB>ref<TAB>image_id<TAB>bytes<TAB>created<TAB>blockers
 #         unreferenced<TAB>ref<TAB>image_id<TAB>bytes<TAB>created<TAB>blockers
@@ -216,7 +216,7 @@ rt_docker_detail() {
     docker_residue_report <<< "$rows"
 }
 
-### removal (RT_RESIDUE seam, WP-2) ############################################
+### removal (RT_RESIDUE seam) ############################################
 
 # docker_residue_footprint: the image + container + volume footprint docker
 # reports (`docker system df --format json`, Images + Containers + Local
