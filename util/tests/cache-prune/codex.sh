@@ -106,7 +106,12 @@ assert_success "an accepted confirm keeps the young entry" test -d "$CODEX_YOUNG
 echo "[codex --yes --include-purge] removes only old marketplace-upgrade-* entries, under the guards"
 codex_build_fixture
 reset_logs
+CODEX_RM_LOG="$SANDBOX/codex-rm-args.log"
+: > "$CODEX_RM_LOG"
+rm() { printf '%s\n' "$*" >> "$CODEX_RM_LOG"; command rm "$@"; }
 codex_run yes true "$CODEX_OUT"
+unset -f rm
+assert_contains "$(cat "$CODEX_RM_LOG")" "--one-file-system" "codex deletions carry --one-file-system"
 codex_purge_output="$(cat "$CODEX_OUT")"
 assert_failure "the old entry is removed" test -e "$CODEX_OLD"
 assert_success "the young entry survives" test -d "$CODEX_YOUNG"

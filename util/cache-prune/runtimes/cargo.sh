@@ -100,7 +100,15 @@ rt_cargo_purge() {
     done
 
     status=0
-    find -P "$src" -mindepth 1 -maxdepth 1 -exec rm -rf --one-file-system -- {} + || status=$?
+    local child rc
+    while IFS= read -r -d '' child; do
+        rc=0
+        guarded_remove "$real_home/registry/src" "$child" || rc=$?
+        if ((rc != 0)); then
+            status=1
+            ((rc != 3)) || warn "cargo: failed to remove $child"
+        fi
+    done < <(find -P "$src" -mindepth 1 -maxdepth 1 -print0)
 
     for fd in "${fds[@]}"; do exec {fd}>&-; done
     return "$status"

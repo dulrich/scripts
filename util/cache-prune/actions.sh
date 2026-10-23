@@ -176,3 +176,28 @@ run_elected_verbs() {
 
     return 0
 }
+
+### guarded deletion ##########################################################
+
+# guarded_remove <root-real> <path>: the one deletion every guarded purge
+# ends in. The parent of <path> is resolved and the basename re-appended, so
+# a symlinked leaf is removed as a link and never followed. Prints nothing;
+# GUARDED_REMOVE_PATH is set to the candidate for the caller's own message.
+#   0  removed
+#   1  parent unresolvable, or candidate does not exist
+#   2  candidate is not strictly inside <root-real> (the root itself too)
+#   3  rm failed
+guarded_remove() {
+    local root_real="$1"
+    local path="$2"
+    local parent_real candidate
+
+    GUARDED_REMOVE_PATH=""
+    parent_real=$(realpath -e -- "${path%/*}" 2>/dev/null) || return 1
+    candidate="$parent_real/${path##*/}"
+    # shellcheck disable=SC2034  # read by callers that name the path in a message
+    GUARDED_REMOVE_PATH="$candidate"
+    [[ -e "$candidate" || -L "$candidate" ]] || return 1
+    [[ "$candidate" == "$root_real"/* ]] || return 2
+    rm -rf --one-file-system -- "$candidate" || return 3
+}

@@ -213,5 +213,7 @@ codex_purge_path() {
         return 0
     fi
 
-    rm -rf -- "$path_real"
+    guarded_remove "$staging_real" "$path_real" ||
+        printf 'note: skipped %s (guard: rm failed or path vanished)\n' "$path"
+    return 0
 }

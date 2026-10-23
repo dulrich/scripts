@@ -369,3 +369,28 @@ assert_eq "- E E ?E ?E " "$(tier_matrix safe)" "safe: --yes always, interactive 
 assert_eq "- - E - ?E " "$(tier_matrix purge)" "purge: --yes needs --include-purge, interactive confirms only with it"
 assert_eq "- - - ?E ?E " "$(tier_matrix optin "interactive only")" "interactive-only: never under --yes, interactive confirms"
 assert_eq "- - - - ?E " "$(tier_matrix item)" "per-item: never under --yes, interactive confirms only with --include-purge"
+
+echo "[guarded_remove] root-contained deletion, return codes, symlinked leaf"
+GR_ROOT="$SANDBOX/guarded-root"
+GR_OUTSIDE="$SANDBOX/guarded-outside"
+rm -rf "$GR_ROOT" "$GR_OUTSIDE"
+mkdir -p "$GR_ROOT/dir/sub" "$GR_OUTSIDE/keep"
+printf x > "$GR_OUTSIDE/keep/payload"
+ln -s "$GR_OUTSIDE/keep" "$GR_ROOT/link"
+GR_RC=0
+guarded_remove "$GR_ROOT" "$GR_ROOT/dir" || GR_RC=$?
+assert_eq "0" "$GR_RC" "guarded_remove removes a directory inside the root"
+assert_failure "the removed directory is gone" test -e "$GR_ROOT/dir"
+GR_RC=0
+guarded_remove "$GR_ROOT" "$GR_ROOT" || GR_RC=$?
+assert_eq "2" "$GR_RC" "guarded_remove refuses the root itself"
+GR_RC=0
+guarded_remove "$GR_ROOT" "$GR_OUTSIDE/keep" || GR_RC=$?
+assert_eq "2" "$GR_RC" "guarded_remove refuses a sibling outside the root"
+GR_RC=0
+guarded_remove "$GR_ROOT" "$GR_ROOT/missing" || GR_RC=$?
+assert_eq "1" "$GR_RC" "guarded_remove reports a missing path as 1"
+GR_RC=0
+guarded_remove "$GR_ROOT" "$GR_ROOT/link" || GR_RC=$?
+assert_eq "0" "$GR_RC" "guarded_remove removes a symlinked leaf as a link"
+assert_success "the symlink target outside the root survives" test -f "$GR_OUTSIDE/keep/payload"
