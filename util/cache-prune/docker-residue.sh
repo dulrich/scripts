@@ -125,7 +125,7 @@ docker_residue_subst_args() {
     while [[ "$ref" =~ \$\{([A-Za-z_][A-Za-z0-9_]*)(:-([^}]*))?\}|\$([A-Za-z_][A-Za-z0-9_]*) ]]; do
         var="${BASH_REMATCH[1]:-${BASH_REMATCH[4]}}"
         fallback="${BASH_REMATCH[3]}"
-        value=$(jq -r --arg k "$var" 'if type == "object" and (.[$k] | type) == "string" then .[$k] else empty end' <<< "$args_json" 2>/dev/null)
+        value=$(perl "$DOCKER_RESIDUE_PL" argval "$var" <<< "$args_json" 2>/dev/null)
         if [[ -z "$value" ]]; then
             value="${defaults[$var]:-$fallback}"
         fi
@@ -141,27 +141,34 @@ docker_residue_repo_root() {
     printf '%s\n' "${CACHE_PRUNE_REPO_ROOT:-/home/_shared_code}"
 }
 
-# docker_residue_human_bytes_jq: jq def turning docker's decimal human sizes
-# ("43.35MB", "24.6kB (virtual 300MB)", "0B") into integer bytes.
-# shellcheck disable=SC2016  # jq program, not shell expansion
-DOCKER_RESIDUE_JQ_BYTES='def hbytes: (tostring | split(" ")[0] | capture("^(?<n>[0-9.]+)(?<u>[A-Za-z]*)$")?) as $m
-  | if $m == null then null
-    else ($m.n | tonumber) * ({"": 1, "B": 1, "kB": 1e3, "KB": 1e3, "MB": 1e6, "GB": 1e9, "TB": 1e12}[$m.u] // 1) | floor
-    end;'
+# The JSON half of this module (capture shaping, classifier, footprint sum)
+# lives in the sibling perl + JSON::PP helper, so cache-prune needs no jq.
+DOCKER_RESIDUE_PL="$(dirname "$(realpath "${BASH_SOURCE[0]}")")/docker-residue.pl"
+
+# docker_residue_perl_reason: empty when perl and JSON::PP are usable, else
+# the `no <tool> on host` reason the three entry points report.
+docker_residue_perl_reason() {
+    if ! command -v perl >/dev/null 2>&1; then
+        printf 'no perl on host'
+    elif ! perl -MJSON::PP -e 1 >/dev/null 2>&1; then
+        printf 'no JSON::PP on host'
+    fi
+}
 
 docker_residue_capture() {
     local image_error="" volume_error=""
-    local images='[]' containers='[]' compose='[]' bases='[]' volumes='[]'
-    local ids out sizes file cfg dockerfile refs root
+    local images='[]' containers='[]' compose='[]' bases='' volumes='[]'
+    local ids out sizes file cfg dockerfile refs root reason
 
-    if ! command -v jq >/dev/null 2>&1; then
-        printf '{"images":[],"containers":[],"compose":[],"base_refs":[],"volumes":[],"image_error":"no jq on host","volume_error":"no jq on host"}\n'
+    reason=$(docker_residue_perl_reason)
+    if [[ -n "$reason" ]]; then
+        printf '{"images":[],"containers":[],"compose":[],"base_refs":[],"volumes":[],"image_error":"%s","volume_error":"%s"}\n' "$reason" "$reason"
         return 0
     fi
 
     # Volumes first: they report even when the image classes fail closed.
     if out=$(docker system df -v --format json 2>/dev/null) && [[ -n "$out" ]] \
-        && volumes=$(jq -c "$DOCKER_RESIDUE_JQ_BYTES"' [.Volumes[]? | {name: .Name, size: (.Size | hbytes // 0), links: ((.Links // "0") | tonumber? // 0), anonymous: ((.Labels // "") | tostring | split(",") | any(split("=")[0] == "com.docker.volume.anonymous"))}]' <<< "$out" 2>/dev/null); then
+        && volumes=$(perl "$DOCKER_RESIDUE_PL" volumes <<< "$out" 2>/dev/null); then
         :
     else
         volumes='[]'
@@ -177,7 +184,7 @@ docker_residue_capture() {
         if [[ -z "$image_error" && -n "$ids" ]]; then
             # shellcheck disable=SC2086  # word-split the ID list on purpose
             out=$(docker image inspect $ids 2>/dev/null) \
-                && images=$(jq -c '[.[] | {id: .Id, tags: (.RepoTags // []), created: .Created, size: .Size}]' <<< "$out" 2>/dev/null) \
+                && images=$(perl "$DOCKER_RESIDUE_PL" images <<< "$out" 2>/dev/null) \
                 || image_error="docker image inspect failed"
         fi
     fi
@@ -186,16 +193,11 @@ docker_residue_capture() {
         ids=$(docker ps -aq --no-trunc 2>/dev/null) || image_error="docker ps failed"
         if [[ -z "$image_error" && -n "$ids" ]]; then
             sizes=$(docker ps -a --size --no-trunc --format '{"id":{{json .ID}},"size":{{json .Size}}}' 2>/dev/null \
-                | jq -sc "$DOCKER_RESIDUE_JQ_BYTES"' map({(.id): (.size | hbytes)}) | add // {}' 2>/dev/null) || sizes='{}'
+                | perl "$DOCKER_RESIDUE_PL" sizes 2>/dev/null) || sizes='{}'
             [[ -n "$sizes" ]] || sizes='{}'
             # shellcheck disable=SC2086
             out=$(docker container inspect $ids 2>/dev/null) \
-                && containers=$(jq -c --argjson sizes "$sizes" '[.[] | {
-                        name: (.Name | ltrimstr("/")), id: .Id, image_id: .Image,
-                        image_ref: .Config.Image, state: .State.Status, created: .Created,
-                        project: (.Config.Labels["com.docker.compose.project"] // null),
-                        service: (.Config.Labels["com.docker.compose.service"] // null),
-                        size_rw: ($sizes[.Id] // null)}]' <<< "$out" 2>/dev/null) \
+                && containers=$(perl "$DOCKER_RESIDUE_PL" containers "$sizes" <<< "$out" 2>/dev/null) \
                 || image_error="docker container inspect failed"
         fi
     fi
@@ -211,89 +213,36 @@ docker_residue_capture() {
         fi
         for file in "${files[@]}"; do
             if ! cfg=$(docker compose -f "$file" --profile '*' config --format json 2>/dev/null) \
-                || ! jq -e '.name and (.services | type == "object")' <<< "$cfg" >/dev/null 2>&1; then
+                || ! perl "$DOCKER_RESIDUE_PL" cfgok <<< "$cfg" >/dev/null 2>&1; then
                 image_error="compose config failed: $file"
                 break
             fi
-            compose=$(jq -c --argjson cfg "$cfg" '. + [{project: $cfg.name, services: [$cfg.services | to_entries[] | {name: .key, image: (.value.image // null), build: (.value.build != null)}]}]' <<< "$compose")
+            compose=$(perl "$DOCKER_RESIDUE_PL" compose-append "$cfg" <<< "$compose")
             while IFS=$'\t' read -r dockerfile args; do
                 [[ -n "$dockerfile" ]] || continue
                 if ! refs=$(docker_residue_dockerfile_bases "$dockerfile" "$args"); then
                     image_error="Dockerfile unreadable or unresolved FROM: $dockerfile"
                     break 2
                 fi
-                bases=$(jq -c --arg r "$refs" '. + ($r | split("\n") | map(select(length > 0)))' <<< "$bases")
-            done < <(jq -r '.services[] | .build | select(. != null)
-                | [(if (.dockerfile // "Dockerfile") | startswith("/") then .dockerfile else (.context + "/" + (.dockerfile // "Dockerfile")) end),
-                   ((.args // null) | tojson)] | @tsv' <<< "$cfg")
+                bases+="$refs"$'\n'
+            done < <(perl "$DOCKER_RESIDUE_PL" builds <<< "$cfg")
         done
     fi
 
     if [[ -n "$image_error" ]]; then
-        images='[]' containers='[]' compose='[]' bases='[]'
+        images='[]' containers='[]' compose='[]' bases=''
     fi
 
-    jq -nc --argjson images "$images" --argjson containers "$containers" \
-        --argjson compose "$compose" --argjson bases "$bases" --argjson volumes "$volumes" \
-        --arg ie "$image_error" --arg ve "$volume_error" \
-        '{images: $images, containers: $containers, compose: $compose, base_refs: ($bases | unique),
-          volumes: $volumes,
-          image_error: (if $ie == "" then null else $ie end),
-          volume_error: (if $ve == "" then null else $ve end)}'
+    perl "$DOCKER_RESIDUE_PL" assemble "$images" "$containers" "$compose" "$volumes" \
+        "$image_error" "$volume_error" <<< "$bases"
 }
 
 ### classifier #################################################################
 
-# Pure jq over the capture JSON; see the header for the output shape.
-# shellcheck disable=SC2016  # jq program, not shell expansion
-DOCKER_RESIDUE_CLASSIFY_JQ='
-def norm: sub("^docker\\.io/"; "") | sub("^library/"; "")
-  | if test("@") then . elif (split("/") | last | test(":")) then . else . + ":latest" end;
-def repo: if test("@") then split("@")[0] else sub(":[^:/]*$"; "") end;
-# ts: ISO-8601 with optional fraction and Z or +-HH:MM offset -> epoch secs,
-# or null when unparsable (a bare `capture(...)?` yields empty, which
-# silently dropped the class field of the row). Fail safe: superseded needs both sides non-null
-# (max ignores nulls unless every live time is null), so a malformed time
-# can only ever make an image unreferenced, never safe-tier removable.
-def ts: ([capture("^(?<d>[0-9-]+T[0-9:]{8})(?<f>\\.[0-9]+)?(?<z>Z|[+-][0-9]{2}:[0-9]{2})$")?][0]) as $m
-  | if $m == null then null
-    else (($m.d + "Z") | fromdateiso8601)
-      + (("0" + ($m.f // "")) | tonumber)
-      - (if $m.z == "Z" then 0
-         else ($m.z[0:1] + "1" | tonumber) * (($m.z[1:3] | tonumber) * 3600 + ($m.z[4:6] | tonumber) * 60) end)
-    end;
-def tsv: map(tostring) | join("\t");
-
-( [ .volumes | sort_by(-.size, .name)[]? | ["volume", .name, .size, .links, (if .links == 0 then "dangling" else "linked" end)] | tsv ]
-  + [ .volumes | sort_by(-.size, .name)[]? | select(.links == 0 and .anonymous == true) | ["anonvolume", .name, .size] | tsv ]
-  + (if .volume_error then [["unavailable", "volumes", .volume_error] | tsv] else [] end) ) as $vol
-| if .image_error then ([["unavailable", "images", .image_error] | tsv] + $vol)[]
-  else
-    . as $in
-    | ([ .images[] | .id as $id | .tags[] | {key: norm, value: $id} ] | from_entries) as $byref
-    | ([ .compose[] | .project as $p | .services[] | "\($p)/\(.name)" ]) as $svcs
-    | ([ .compose[] | .project as $p | .services[]
-         | (.image // (if .build then "\($p)-\(.name):latest" else empty end)) ]) as $crefs
-    | [ .containers[] | select((.state == "created" or .state == "exited")
-          and ((.project != null and .service != null and ("\(.project)/\(.service)" | IN($svcs[]))) | not)) ] as $stale
-    | (([ .containers[] | select(.id | IN($stale[].id) | not) | .image_id ]
-        + [ ($crefs + .base_refs)[] | norm | $byref[.] // empty ]) | unique) as $live
-    | [ .images[] | select(.id | IN($live[])) | .created as $c | .tags[] | {repo: (norm | repo), t: ($c | ts)} ]
-      | group_by(.repo) | map({key: .[0].repo, value: (map(.t) | max)}) | from_entries
-      | . as $newest
-    | ( [ $in.images[] | select(.id | IN($live[]) | not) | . as $img
-          | ((.tags | if length == 0 then ["<none>"] else . end)[]) as $tag
-          | ($newest[$tag | norm | repo] // null) as $n
-          | [ (if $tag != "<none>" and $n != null and ($img.created | ts) != null and ($img.created | ts) <= $n then "superseded" else "unreferenced" end),
-              $tag, $img.id, $img.size, $img.created,
-              ([ $stale[] | select(.image_id == $img.id) | .name ] | if length == 0 then "-" else join(",") end) ] | tsv ] | sort
-      + [ $stale[] | ["stale", .name, .image_id, (.size_rw // "unavailable"), .created, .state, (.image_ref // "-")] | tsv ]
-      + $vol )[]
-  end
-'
-
+# Pure function of the capture JSON (perl helper, mode `classify`); see the
+# header for the output shape.
 docker_residue_classify() {
-    jq -r "$DOCKER_RESIDUE_CLASSIFY_JQ"
+    perl "$DOCKER_RESIDUE_PL" classify
 }
 
 ### report (RT_DETAIL seam) ####################################################
@@ -401,11 +350,12 @@ docker_residue_report() {
 # never part of the probe record, so docker's size line, safe-tier estimate
 # and before/after delta are exactly what they were.
 rt_docker_detail() {
-    if ! command -v jq >/dev/null 2>&1; then
-        printf 'docker image/container/volume residue: unavailable (no jq on host)\n'
+    local capture rows reason
+    reason=$(docker_residue_perl_reason)
+    if [[ -n "$reason" ]]; then
+        printf 'docker image/container/volume residue: unavailable (%s)\n' "$reason"
         return 0
     fi
-    local capture rows
 
     capture=$(docker_residue_capture)
     # Fail closed: a classifier that errors (or prints nothing at all, which
@@ -427,8 +377,7 @@ rt_docker_detail() {
 docker_residue_footprint() {
     local out
     out=$(docker system df --format json 2>/dev/null) && [[ -n "$out" ]] || return 1
-    jq -rs "$DOCKER_RESIDUE_JQ_BYTES"' (map(select(.Type == "Images" or .Type == "Containers" or .Type == "Local Volumes")) | map(.Size | hbytes)) as $s
-        | if ($s | length) == 3 and all($s[]; . != null) then ($s | add) else error("incomplete") end' <<< "$out" 2>/dev/null
+    perl "$DOCKER_RESIDUE_PL" footprint <<< "$out" 2>/dev/null
 }
 
 # docker_residue_remove: one item, never forced. A failure (an rmi conflict
@@ -467,12 +416,12 @@ docker_residue_remove() {
 # Sets RUNTIME_RESIDUE_ACTED when any removal was attempted.
 rt_docker_residue() {
     RUNTIME_RESIDUE_ACTED=false
-    if ! command -v jq >/dev/null 2>&1; then
-        printf 'docker residue: nothing elected (no jq on host)\n'
+    local capture rows class a b c _rest reason
+    reason=$(docker_residue_perl_reason)
+    if [[ -n "$reason" ]]; then
+        printf 'docker residue: nothing elected (%s)\n' "$reason"
         return 0
     fi
-
-    local capture rows class a b c _rest reason
     local -a sup_refs=() stale_names=() unref_refs=() unref_targets=() unref_sizes=()
     local -A sup_seen=() anon_before=()
     local sup_bytes=0 anon_bytes=0

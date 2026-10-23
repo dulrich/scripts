@@ -83,7 +83,7 @@ docker() {
             ;;
         "images -q --no-trunc")
             printf 'docker %s|' "$*" >> "$ALL_LOG_FILE"
-            jq -r '.[].Id' <<< "$DR_IMAGES_JSON"
+            perl -MJSON::PP -e 'print "$_->{Id}\n" for @{decode_json(join "", <STDIN>)}' <<< "$DR_IMAGES_JSON"
             ;;
         image\ inspect*)
             printf 'docker %s|' "$*" >> "$ALL_LOG_FILE"
@@ -91,11 +91,11 @@ docker() {
             ;;
         "ps -aq --no-trunc")
             printf 'docker %s|' "$*" >> "$ALL_LOG_FILE"
-            jq -r '.[].Id' <<< "$DR_CONTAINERS_JSON"
+            perl -MJSON::PP -e 'print "$_->{Id}\n" for @{decode_json(join "", <STDIN>)}' <<< "$DR_CONTAINERS_JSON"
             ;;
         ps\ -a\ --size*)
             printf 'docker %s|' "$*" >> "$ALL_LOG_FILE"
-            jq -c '.[] | {id: .Id, size: "1kB"}' <<< "$DR_CONTAINERS_JSON"
+            perl -MJSON::PP -e 'print JSON::PP->new->canonical->encode({id => $_->{Id}, size => "1kB"}), "\n" for @{decode_json(join "", <STDIN>)}' <<< "$DR_CONTAINERS_JSON"
             ;;
         container\ inspect*)
             printf 'docker %s|' "$*" >> "$ALL_LOG_FILE"
@@ -140,7 +140,7 @@ assert_eq "" "$MUTATE_LOG" "--report issues no mutating docker command"
 
 
 echo "[docker-residue] an unparsable created time fails safe (never superseded)"
-dr_bad=$(jq -c '.images += [{id: "sha256:badts", tags: ["webapp-overlay:v0.0.1"], created: "not-a-date", size: 3}]' <<< '{"images":[{"id":"sha256:live","tags":["webapp-overlay:v0.11.4"],"created":"2026-09-01T00:00:00Z","size":7},{"id":"sha256:old2","tags":["dead:1"],"created":"2026-01-01T00:00:00Z","size":1},{"id":"sha256:liveb","tags":["dead:2"],"created":"garbage","size":1}],"containers":[],"compose":[{"project":"p","services":[{"name":"a","image":"webapp-overlay:v0.11.4","build":false},{"name":"b","image":"dead:2","build":false}]}],"base_refs":[],"volumes":[],"image_error":null,"volume_error":null}' | docker_residue_classify)
+dr_bad=$(perl -MJSON::PP -e '$d = decode_json(join "", <STDIN>); push @{$d->{images}}, {id => "sha256:badts", tags => ["webapp-overlay:v0.0.1"], created => "not-a-date", size => 3}; print encode_json($d), "\n"' <<< '{"images":[{"id":"sha256:live","tags":["webapp-overlay:v0.11.4"],"created":"2026-09-01T00:00:00Z","size":7},{"id":"sha256:old2","tags":["dead:1"],"created":"2026-01-01T00:00:00Z","size":1},{"id":"sha256:liveb","tags":["dead:2"],"created":"garbage","size":1}],"containers":[],"compose":[{"project":"p","services":[{"name":"a","image":"webapp-overlay:v0.11.4","build":false},{"name":"b","image":"dead:2","build":false}]}],"base_refs":[],"volumes":[],"image_error":null,"volume_error":null}' | docker_residue_classify)
 assert_eq "unreferenced" "$(awk -F'\t' '$2 == "webapp-overlay:v0.0.1" { print $1 }' <<< "$dr_bad")" "a candidate with an unparsable created time is unreferenced"
 assert_eq "unreferenced" "$(awk -F'\t' '$2 == "dead:1" { print $1 }' <<< "$dr_bad")" "a candidate whose live sibling's time is unparsable is unreferenced"
 
