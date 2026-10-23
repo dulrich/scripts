@@ -31,9 +31,16 @@ confirm() {
 }
 
 require_root() {
-    if ((EUID != 0)); then
-        die "Run as root, e.g.: sudo $0"
+    if ((EUID == 0)); then
+        return 0
     fi
+    # Self-elevate so `util debian-maintenance` works unprefixed: the `util`
+    # router is a shell alias, which `sudo` alone cannot see (and secure_path
+    # drops the user PATH), so re-exec this script by absolute path under sudo.
+    if command -v sudo >/dev/null 2>&1; then
+        exec sudo -- "$(realpath "$0")" "$@"
+    fi
+    die "Run as root, e.g.: sudo $0"
 }
 
 require_tty() {
@@ -488,7 +495,7 @@ main() {
         return 0
     fi
 
-    require_root
+    require_root "$@"
     require_tty
 
     section "APT update"

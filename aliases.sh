@@ -471,6 +471,10 @@ fi
 source "$here/git-aliases.sh"
 
 
+# Trailing space: bash then alias-expands the word after `sudo`, so
+# `sudo util <command>` reaches the router like a bare `util <command>`.
+alias sudo='sudo '
+
 # util script router: `util <command> [args]` -> util/<command>[.sh]
 if [ -f "$here/util/dispatch.sh" ]; then
 	# The resolved path is intentionally captured when the alias chain is sourced.
