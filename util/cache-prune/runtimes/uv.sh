@@ -46,9 +46,8 @@ rt_uv_prune() {
 
 # rt_uv_purge / rt_npm_purge: the destructive purge verbs (RT_PURGE). Each
 # clears the whole cache and forces a re-download on next use -- see the
-# near-no-op behaviour of their safe counterparts above (premise (c),
-# measured during the reclaim-effectiveness work) for why this is the verb that
-# actually reaches the reported reclaimable bytes.
+# near-no-op behaviour of their safe counterparts above (measured) for why
+# this is the verb that actually reaches the reported reclaimable bytes.
 rt_uv_purge() {
     uv cache clean
 }

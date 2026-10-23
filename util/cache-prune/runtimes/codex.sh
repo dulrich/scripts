@@ -178,7 +178,7 @@ rt_codex_purge() {
 }
 
 # codex_purge_path: the guards, then the deletion. This
-# refuses symlinks outright (audit E2): a symlinked candidate, a symlinked
+# refuses symlinks outright: a symlinked candidate, a symlinked
 # home/.tmp/marketplaces/.staging component, or a candidate whose realpath is
 # not strictly inside the realpath of .staging is skipped with a note.
 codex_purge_path() {
