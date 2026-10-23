@@ -160,9 +160,9 @@ Modes:
                          skipped entirely, never prompted; trash is never
                          emptied under --yes
   --yes --include-purge  purges pip, bun, cargo and codex (their only verb;
-                         cargo clears registry/src children only); for uv
-                         and npm this instead runs their purge verb in place
-                         of their safe verb, not in addition to it; trash
+                         cargo clears registry/src children only); for uv,
+                         npm and docker this instead runs their purge verb in
+                         place of their safe verb, not in addition to it; trash
                          is still skipped (interactive confirm only)
 
 uv and npm each carry two verbs: a conservative safe verb (uv cache prune,
@@ -170,14 +170,18 @@ npm cache verify) that frees little by design, and a destructive purge
 verb (uv cache clean, npm cache clean --force) that clears the whole
 cache and forces a re-download on next use -- the cache-only bytes this
 tool reports as reclaimable are mostly only reachable via the purge verb.
+docker carries two verbs too: its safe verb (docker builder prune) frees
+the figure reported as reclaimable; its purge verb (docker builder
+prune -a) clears the whole unused build cache, up to its reported total,
+forcing cold rebuilds, and is never age-filtered.
 pip and bun have only the destructive purge verb. Interactively, each
 destructive purge gets its own separate confirm: pip/bun are offered
-theirs unconditionally (it is their only verb), uv/npm
+theirs unconditionally (it is their only verb), uv/npm/docker
 are offered theirs
 only when --include-purge was also passed -- without it, plain interactive
 use never risks their caches.
 
-Docker image/container residue (after the build-cache prune, from a fresh
+Docker image/container residue (after the build-cache verb(s), from a fresh
 classification; never in --report; named volumes are reported, never removed):
   superseded images      an older tag of a repository a live compose
                          service or Dockerfile base uses -- safe tier:
@@ -199,7 +203,8 @@ classification; never in --report; named volumes are reported, never removed):
   continue. The step prints its own images/containers/volumes footprint change.
 
 Options:
-  --docker-until <window>  narrow the docker builder prune to records at
+  --docker-until <window>  narrow the docker safe builder prune (never the
+                           purge verb, which is always unfiltered) to records at
                            least that old (default: no filter -- the safe
                            prune targets the full build cache docker
                            itself reports as reclaimable). Opt-in because
@@ -245,7 +250,7 @@ EOF
 # (fleet/*.sh) -- registers itself through register_runtime (its
 # RUNTIME_ORDER slot) plus its own RT_* entries below. A runtime's tier
 # follows from membership alone: it is safe-tier exactly when it has an
-# RT_PRUNE entry, purge-tier when it has an RT_PURGE entry (uv/npm carry
+# RT_PRUNE entry, purge-tier when it has an RT_PURGE entry (uv/npm/docker carry
 # both), and has no verbs when it has neither.
 RUNTIME_ORDER=()
 
@@ -286,6 +291,13 @@ declare -A RT_PRUNE=()
 # rather than delegating to a package manager (codex, fleet modules) passes
 # every path through its own guards first.
 declare -A RT_PURGE=()
+
+# RT_PURGE_UNPREDICTED_NOTE: for a runtime carrying both verbs whose size probe
+# predicts the *safe* verb (docker), not the purge verb. The report keeps the
+# probe's reclaimable on the safe line (SAFE_RECLAIMABLE_BYTES) and prints this
+# note naming the purge verb's scope instead of a purge figure. The value is the
+# note text.
+declare -A RT_PURGE_UNPREDICTED_NOTE=()
 
 # RT_DETAIL: an optional per-runtime breakdown printed immediately after the
 # runtime's own size line. Registry data, like RT_SAFE_ESTIMATE_NOTE below:
@@ -467,7 +479,9 @@ measure_runtime() {
 # verb (uv/npm dual-verb, pip/bun purge-only) reports it as a purge-tier
 # estimate -- for uv/npm this is the *only* figure printed, because their
 # safe verb cannot be predicted (no dry run exists); a runtime with only a
-# safe verb (docker) reports it safe-tier; a runtime with neither (none
+# safe verb (docker) reports it safe-tier -- as does a dual-verb runtime whose
+# probe predicts the safe verb (docker, RT_PURGE_UNPREDICTED_NOTE), which adds a
+# purge-scope note and never a purge figure; a runtime with neither (none
 # today) reports neither -- its bytes go into TOTAL_BYTES and stop there.
 report_measurement() {
     local name="$1"
@@ -478,7 +492,7 @@ report_measurement() {
         "$name" "$(human_bytes "$total")" "$total"
     TOTAL_BYTES=$((TOTAL_BYTES + total))
 
-    if [[ -n "${RT_PURGE[$name]:-}" ]]; then
+    if [[ -n "${RT_PURGE[$name]:-}" && -z "${RT_PURGE_UNPREDICTED_NOTE[$name]:-}" ]]; then
         local gate='requires --include-purge'
         if [[ -n "${RT_INTERACTIVE_ONLY[$name]:-}" ]]; then
             gate='emptied only after an interactive confirm, never under --yes'
@@ -495,6 +509,9 @@ report_measurement() {
         SAFE_RECLAIMABLE_BYTES=$((SAFE_RECLAIMABLE_BYTES + reclaimable))
         if [[ -n "${RT_SAFE_ESTIMATE_NOTE[$name]:-}" ]]; then
             printf '%s\n' "${RT_SAFE_ESTIMATE_NOTE[$name]}"
+        fi
+        if [[ -n "${RT_PURGE[$name]:-}" && -n "${RT_PURGE_UNPREDICTED_NOTE[$name]:-}" ]]; then
+            printf '%s\n' "${RT_PURGE_UNPREDICTED_NOTE[$name]}"
         fi
     fi
 }
