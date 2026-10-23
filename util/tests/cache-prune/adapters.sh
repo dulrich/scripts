@@ -101,7 +101,7 @@ reset_logs
 FAILED=0
 DOCKER_INFO_RESULT=0
 DOCKER_SYSTEM_DF_FIXTURE="$DOCKER_SYSTEM_DF_FIXTURE_OK"
-size_out="$(rt_docker_size "")"
+size_out="$(probe_of rt_docker_size "")"
 assert_eq "$DOCKER_SYSTEM_DF_EXPECTED_RECORD" "$size_out" "rt_docker_size reports the system df pair end to end, with system-df named as its source"
 assert_contains "$(all_log)" "docker system df" "system df is the source actually queried when it succeeds"
 assert_not_contains "$(all_log)" "docker buildx du" "buildx du is never queried when system df already succeeded"
@@ -115,7 +115,7 @@ DOCKER_INFO_RESULT=0
 DOCKER_SYSTEM_DF_RESULT=1
 DOCKER_SYSTEM_DF_FIXTURE=""
 DOCKER_BUILDX_DU_FIXTURE="$DOCKER_BUILDX_DU_FIXTURE_OK"
-size_out="$(rt_docker_size "")"
+size_out="$(probe_of rt_docker_size "")"
 assert_eq "$DOCKER_BUILDX_DU_EXPECTED_RECORD" "$size_out" "rt_docker_size falls back to buildx du end to end when system df fails, and names buildx-du as its source"
 assert_contains "$(all_log)" "docker system df" "system df is attempted first even though it fails"
 assert_contains "$(all_log)" "docker buildx du" "the fallback is reached after system df fails"
@@ -131,7 +131,7 @@ DOCKER_INFO_RESULT=0
 DOCKER_BUILDX_DU_RESULT=1
 DOCKER_BUILDX_DU_FIXTURE=""
 DOCKER_SYSTEM_DF_FIXTURE=$'Images space usage:\n\nno build-cache row here at all\n'
-size_out="$(rt_docker_size "")"
+size_out="$(probe_of rt_docker_size "")"
 assert_eq "unavailable 0 0 -" "$size_out" "neither source parses, so rt_docker_size reports unavailable rather than a guess"
 MODE="yes"
 process_runtime docker >/dev/null 2>&1 || true
@@ -174,11 +174,11 @@ assert_eq "0 0" "$(dir_census_bytes "$CENSUS_EMPTY")" "an empty directory return
 assert_eq "0 0" "$(dir_census_bytes "$SANDBOX/census-does-not-exist")" "a nonexistent path returns 0 0"
 
 echo "[rt_generic_size] the census reaches the registry as a probe record, source and all"
-assert_eq "available 111 111 census" "$(rt_generic_size "$CENSUS_PLAIN")" \
+assert_eq "available 111 111 census" "$(probe_of rt_generic_size "$CENSUS_PLAIN")" \
     "the directory adapter wraps the census pair in a record naming census as its source"
-assert_eq "available 333 0 census" "$(rt_generic_size "$CENSUS_EXTERNAL")" \
+assert_eq "available 333 0 census" "$(probe_of rt_generic_size "$CENSUS_EXTERNAL")" \
     "the record keeps total and reclaimable distinct and in the documented field order"
-assert_eq "available 0 0 census" "$(rt_generic_size "$SANDBOX/census-does-not-exist")" \
+assert_eq "available 0 0 census" "$(probe_of rt_generic_size "$SANDBOX/census-does-not-exist")" \
     "a nonexistent cache directory is an available zero measurement, not an unavailable one"
 assert_success "every directory-backed runtime therefore measures with one comparable source" \
-    probe_is_available "$(rt_generic_size "$CENSUS_EMPTY")"
+    probe_is_available "$(probe_of rt_generic_size "$CENSUS_EMPTY")"

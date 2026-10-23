@@ -435,19 +435,26 @@ resolve_cache_dir() {
     fi
 }
 
-# measure_runtime: run a runtime's size adapter and echo the probe record it
-# returned. Prints nothing else, so the caller can capture it. Exit 1 = the
-# probe itself failed; exit 2 = it returned something that is not a
-# well-formed record (a regressed adapter emitting a bare pair, junk, or
-# nothing). Both are the caller's to report.
+# measure_runtime: run a runtime's size adapter in the current shell -- so
+# the scan globals it fills survive for RT_DETAIL and RT_PURGE_PROMPT -- and
+# leave the validated probe record in PROBE_RECORD (measurement.sh). PROBE_RECORD
+# is emptied before the adapter runs, so an adapter that sets nothing can
+# never pass off a previous call's record as its own. Exit 1 = the probe
+# itself failed; exit 2 = it left something that is not a well-formed record
+# (a regressed adapter setting a bare pair, junk, or nothing). Both are the
+# caller's to report, and on either PROBE_RECORD is left empty.
 measure_runtime() {
     local name="$1"
-    local record
 
-    record=$("${RT_SIZE[$name]}" "$RUNTIME_CACHE_DIR") || return 1
-    probe_is_valid "$record" || return 2
-
-    printf '%s\n' "$record"
+    PROBE_RECORD=""
+    if ! "${RT_SIZE[$name]}" "$RUNTIME_CACHE_DIR"; then
+        PROBE_RECORD=""
+        return 1
+    fi
+    if [[ -z "$PROBE_RECORD" ]] || ! probe_is_valid "$PROBE_RECORD"; then
+        PROBE_RECORD=""
+        return 2
+    fi
 }
 
 # report_measurement: print one runtime's size line and its per-tier
@@ -512,7 +519,10 @@ report_delta() {
     local before="$2"
     local after verdict verdict_status delta note
 
-    after=$(measure_runtime "$name") || after=""
+    after=""
+    if measure_runtime "$name"; then
+        after="$PROBE_RECORD"
+    fi
 
     verdict=$(probe_compare "$name" "$before" "$after")
     read -r verdict_status delta <<< "$verdict"
@@ -571,7 +581,8 @@ process_runtime() {
     fi
 
     status=0
-    before=$(measure_runtime "$name") || status=$?
+    measure_runtime "$name" || status=$?
+    before="$PROBE_RECORD"
     if ((status == 1)); then
         warn "$name: failed to determine cache size"
         FAILED=1

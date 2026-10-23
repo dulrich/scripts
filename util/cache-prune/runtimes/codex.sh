@@ -53,9 +53,9 @@ CACHE_PRUNE_HELP_CORE_ENV+=('  CACHE_PRUNE_CODEX_HOME_ROOT
 
 CODEX_STAGING_MIN_AGE_SECONDS=86400
 
-# Scan globals, re-derived by every consumer: the size probe runs inside
-# measure_runtime's command substitution, so its assignments die with that
-# subshell (see measurement.sh's header).
+# Scan globals. The size probe runs in the current shell (measure_runtime),
+# so rt_codex_detail reads the probe's scan as-is; rt_codex_purge re-scans
+# immediately before deleting.
 CODEX_TOTAL_BYTES=0
 CODEX_RECLAIM_BYTES=0
 # One "<home>\t<count>\t<bytes>\t<young>" line per home with a .staging dir.
@@ -151,8 +151,6 @@ rt_codex_size() {
 # rt_codex_detail: the RT_DETAIL seam -- one line per Codex home.
 rt_codex_detail() {
     local home count bytes young
-
-    rt_codex_scan
 
     while IFS=$'\t' read -r home count bytes young; do
         [[ -n "$home" ]] || continue
