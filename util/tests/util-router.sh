@@ -190,9 +190,10 @@ set +e
 real_listing=$("$repo_dir/util/dispatch.sh" 2>&1)
 set -e
 assert_contains "$real_listing" 'cache-prune' 'the real router still lists cache-prune itself'
-for helper in "$repo_dir"/util/cache-prune/*.sh; do
+assert_status 0 "$(test -e "$repo_dir/util/cache-prune/runtimes/uv.sh"; echo $?)" 'util/cache-prune/runtimes/ holds the core runtime modules'
+for helper in "$repo_dir"/util/cache-prune/*.sh "$repo_dir"/util/cache-prune/runtimes/*.sh; do
 	[ -e "$helper" ] || continue
-	assert_not_contains "$real_listing" "$(basename "$helper" .sh)" "the real router does not list util/cache-prune/$(basename "$helper")"
+	assert_not_contains "$real_listing" "$(basename "$helper" .sh)" "the real router does not list ${helper#"$repo_dir"/}"
 done
 
 completion_output=$(

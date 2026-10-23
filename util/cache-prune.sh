@@ -10,20 +10,23 @@ set -euo pipefail
 # the mirror of debian-maintenance.sh's require_root.
 #
 # Runtimes are described by a small registry (name -> detect / cache-dir /
-# size-probe / prune functions, plus a safety class). Adding an ecosystem is
-# adding a registry entry, not editing the dispatch logic in process_runtime.
+# size-probe / verb functions). Each runtime registers itself from its own
+# module, so adding an ecosystem is adding a module, not editing the
+# registry or the dispatch logic in process_runtime.
 #
-# This file owns the command-line surface, the registry and the per-runtime
-# lifecycle only. The three modules it sources own the rest, split by
+# This file owns the command-line surface, the (empty) registry and the
+# per-runtime lifecycle only. The modules it sources own the rest, split by
 # responsibility -- they live in a subdirectory precisely so util/dispatch.sh,
 # which routes util/*.sh, cannot mistake them for subcommands:
 #
 #   cache-prune/measurement.sh  the probe-record type + the one delta helper
-#   cache-prune/adapters.sh     per-runtime detect / locate / size probes
-#   cache-prune/actions.sh      the verbs and the election rules
+#   cache-prune/adapters.sh     shared size probes (census, path du)
+#   cache-prune/actions.sh      the election rules and verb execution
 #   cache-prune/docker-residue.sh  docker image/container/volume residue:
 #                               classifier (docker's RT_DETAIL) and the
 #                               residue removal step (docker's RT_RESIDUE)
+#   cache-prune/runtimes/*.sh   one self-registering module per core runtime
+#                               (its adapters, verbs and help text)
 #
 # CC0: This work has been marked as dedicated to the public domain.
 # https://creativecommons.org/publicdomain/zero/1.0/
@@ -47,7 +50,7 @@ TOTAL_BYTES=0
 # purge-verb one under one figure -- split per tier during the cache-prune
 # reclaim-effectiveness work: a runtime's census reclaimable
 # bytes are routed into exactly one of these (or neither, for a
-# report-class runtime) by report_measurement, never both.
+# runtime with no verbs) by report_measurement, never both.
 SAFE_RECLAIMABLE_BYTES=0
 PURGE_RECLAIMABLE_BYTES=0
 # DELTA_BYTES: the grand-total observed footprint change, summed only over
@@ -130,9 +133,9 @@ require_tty() {
     fi
 }
 
-# print_help_fragments: print each help fragment a fleet module contributed
-# (CACHE_PRUNE_HELP_RUNTIMES / CACHE_PRUNE_HELP_ENV), verbatim. With no
-# module loaded it prints nothing, so the core help is unchanged.
+# print_help_fragments: print each help fragment a runtime module contributed
+# (see "help fragments" in the registry section), verbatim. An empty array
+# prints nothing, so with no fleet module loaded the core help is unchanged.
 print_help_fragments() {
     local fragment
 
@@ -205,25 +208,8 @@ Options:
 
 EOF
     print_help_fragments "${CACHE_PRUNE_HELP_RUNTIMES[@]}"
+    print_help_fragments "${CACHE_PRUNE_HELP_CORE_RUNTIMES[@]}"
     cat <<'EOF'
-The codex runtime reports leaked Codex CLI marketplace staging copies:
-<home>/.tmp/marketplaces/.staging/marketplace-upgrade-* (direct children
-only) for every home $HOME/.codex and $HOME/.codex-* (root overridable via
-CACHE_PRUNE_CODEX_HOME_ROOT). All entries count toward total; only those
-older than 24 h are reclaimable. Purge tier (optin): removed only by
---yes --include-purge, or one confirm interactively. Its purge refuses a
-symlinked entry, a symlinked home/.tmp/marketplaces/.staging component, and
-any entry whose realpath is not inside .staging. Nothing else under a Codex
-home is touched.
-
-The trash runtime reports the user's home trash (files/, info/ and
-expunged/ under ${XDG_DATA_HOME:-$HOME/.local/share}/Trash); detected only
-when gio is installed and that dir exists. Purge tier, interactive-only:
-it is user-deleted data, not a rebuildable cache, so it is NEVER emptied
-under --yes (not even with --include-purge) -- only by one interactive
-confirm, via `gio trash --empty` (never a direct rm). gio also empties
-per-mount .Trash-$UID dirs, which are not sized here.
-
 Notes:
   Reclaimable is reported per tier, never as one combined figure: docker's
   safe-tier figure is an upper bound (Docker's own "not pinned by an active
@@ -241,75 +227,35 @@ Notes:
   0B explicitly rather than falling back to the estimate.
 
 Honoured environment:
-  BUN_INSTALL   overrides bun's install prefix (cache under install/cache)
-  CARGO_HOME    overrides cargo's home (the purge verb removes only the
-                children of registry/src, the unpacked crate sources;
-                registry/cache, registry/index and git/ are kept, and
-                cargo re-extracts src from registry/cache offline)
+EOF
+    print_help_fragments "${CACHE_PRUNE_HELP_CORE_ENV_LEAD[@]}"
+    cat <<'EOF'
   CACHE_PRUNE_REPO_ROOT
                 overrides the root docker residue classification searches
                 for compose files (default /home/_shared_code)
 EOF
     print_help_fragments "${CACHE_PRUNE_HELP_ENV[@]}"
-    cat <<'EOF'
-  CACHE_PRUNE_CODEX_HOME_ROOT
-                overrides the directory whose .codex and .codex-* children
-                the codex runtime scans (default $HOME)
-  CACHE_PRUNE_TRASH_DIR
-                overrides the trash dir the trash runtime sizes (default
-                ${XDG_DATA_HOME:-$HOME/.local/share}/Trash)
-  CACHE_PRUNE_GIO
-                overrides the gio command the trash runtime detects and
-                runs (default gio)
-EOF
+    print_help_fragments "${CACHE_PRUNE_HELP_CORE_ENV[@]}"
 }
 
 ### registry ##################################################################
 
-RUNTIME_ORDER=(uv npm docker pip bun cargo codex trash)
+# The registry starts empty: every runtime -- core (runtimes/*.sh) and fleet
+# (fleet/*.sh) -- registers itself through register_runtime (its
+# RUNTIME_ORDER slot) plus its own RT_* entries below. A runtime's tier
+# follows from membership alone: it is safe-tier exactly when it has an
+# RT_PRUNE entry, purge-tier when it has an RT_PURGE entry (uv/npm carry
+# both), and has no verbs when it has neither.
+RUNTIME_ORDER=()
 
-# RT_CLASS describes how a runtime participates in the *safe* tier only
-# (RT_PRUNE below) -- it says nothing about purge-tier (RT_PURGE) membership,
-# which a safe runtime may or may not also have (uv/npm carry both):
-#   safe   -- has a safe verb that runs unprompted under --yes
-#   optin  -- has no safe verb; reachable only through the purge tier
-#   report -- has no verbs at all
-declare -A RT_CLASS=(
-    [uv]=safe
-    [npm]=safe
-    [docker]=safe
-    [pip]=optin
-    [bun]=optin
-    [cargo]=optin
-    [codex]=optin
-    [trash]=optin
-)
-
-declare -A RT_DETECT=(
-    [uv]=rt_uv_detect
-    [npm]=rt_npm_detect
-    [docker]=rt_docker_detect
-    [pip]=rt_pip_detect
-    [bun]=rt_bun_detect
-    [cargo]=rt_cargo_detect
-    [codex]=rt_codex_detect
-    [trash]=rt_trash_detect
-)
+declare -A RT_DETECT=()
 
 # RT_ABSENT: the optional "why was this runtime not detected" function per
 # runtime; prints one short reason. A missing executable reads `no <tool> on
 # host`; a runtime with no entry (or an empty reason) reads `not detected`.
 # Read only from the report layer (process_runtime) -- detect predicates stay
 # silent so the probe-record seam is untouched.
-declare -A RT_ABSENT=(
-    [uv]=rt_uv_absent
-    [npm]=rt_npm_absent
-    [docker]=rt_docker_absent
-    [pip]=rt_pip_absent
-    [bun]=rt_bun_absent
-    [cargo]=rt_cargo_absent
-    [trash]=rt_trash_absent
-)
+declare -A RT_ABSENT=()
 
 # runtime_absent_reason: the skip reason for a runtime whose detect failed.
 runtime_absent_reason() {
@@ -321,62 +267,27 @@ runtime_absent_reason() {
     printf '%s\n' "${reason:-not detected}"
 }
 
-# docker intentionally has no entry here: its cache is daemon-owned, not a
-# directory this account can resolve or `du`. Runtimes whose residue is spread
-# over many directories (codex, trash, fleet modules) likewise have none.
-# resolve_cache_dir already treats a missing entry as "nothing to resolve" and
-# leaves RUNTIME_CACHE_DIR empty, which is exactly what they want; their size
-# adapters ignore the positional argument they are handed.
-declare -A RT_CACHE_DIR=(
-    [uv]=rt_uv_cache_dir
-    [npm]=rt_npm_cache_dir
-    [pip]=rt_pip_cache_dir
-    [bun]=rt_bun_cache_dir
-    [cargo]=rt_cargo_cache_dir
-)
+# RT_CACHE_DIR: optional. A runtime whose cache is not one resolvable
+# directory (docker's is daemon-owned; codex, trash and fleet residue is
+# spread over many directories) has no entry. resolve_cache_dir already
+# treats a missing entry as "nothing to resolve" and leaves RUNTIME_CACHE_DIR
+# empty, which is exactly what they want; their size adapters ignore the
+# positional argument they are handed.
+declare -A RT_CACHE_DIR=()
 
-declare -A RT_SIZE=(
-    [uv]=rt_generic_size
-    [npm]=rt_generic_size
-    [docker]=rt_docker_size
-    [pip]=rt_generic_size
-    [bun]=rt_generic_size
-    [cargo]=rt_cargo_size
-    [codex]=rt_codex_size
-    [trash]=rt_trash_size
-)
+declare -A RT_SIZE=()
 
-# RT_PRUNE holds *only* safe verbs -- pip and bun's destructive purges live
-# in RT_PURGE below, ending the old conflation where this array held both.
-# cargo has no entry here, by decision: its only verb is the purge of
-# registry/src (see RT_PURGE below); cargo's own GC of registry files is left
-# alone. Cargo build output (target/ dirs) is not this cache at all.
-declare -A RT_PRUNE=(
-    [uv]=rt_uv_prune
-    [npm]=rt_npm_prune
-    [docker]=rt_docker_prune
-)
+# RT_PRUNE holds *only* safe verbs -- destructive purges live in RT_PURGE
+# below, ending the old conflation where this array held both.
+declare -A RT_PRUNE=()
 
-# RT_PURGE holds destructive purge verbs. uv and npm carry both a safe verb
-# above and a purge verb here; pip, bun and codex have no safe verb and live
-# only here, as does cargo (registry/src children only: re-extraction from
-# registry/cache is offline and cheap, so cache/, index/ and git/ are kept);
-# docker has no entry -- it has no destructive verb at all (its safe prune is
-# the only action). A verb that deletes files directly rather than delegating
-# to a package manager (codex, fleet modules) passes every path through its
-# own guards first.
-declare -A RT_PURGE=(
-    [uv]=rt_uv_purge
-    [npm]=rt_npm_purge
-    [pip]=rt_pip_purge
-    [cargo]=rt_cargo_purge
-    [bun]=rt_bun_purge
-    [codex]=rt_codex_purge
-    [trash]=rt_trash_purge
-)
+# RT_PURGE holds destructive purge verbs. A verb that deletes files directly
+# rather than delegating to a package manager (codex, fleet modules) passes
+# every path through its own guards first.
+declare -A RT_PURGE=()
 
 # RT_DETAIL: an optional per-runtime breakdown printed immediately after the
-# runtime's own size line. Registry data, like RT_SAFE_ESTIMATE_NOTE above:
+# runtime's own size line. Registry data, like RT_SAFE_ESTIMATE_NOTE below:
 # a runtime whose single reported figure is a sum over materially different
 # kinds of residue (docker: build cache vs image/container residue; codex:
 # per-profile staging copies, only the old ones reclaimable) owes the reader
@@ -385,11 +296,7 @@ declare -A RT_PURGE=(
 # size adapter stays a pure probe: it returns one record and prints nothing,
 # per the contract at the top of cache-prune/measurement.sh, and the
 # user-facing breakdown is printed from here.
-declare -A RT_DETAIL=(
-    [docker]=rt_docker_detail
-    [codex]=rt_codex_detail
-    [trash]=rt_trash_detail
-)
+declare -A RT_DETAIL=()
 
 # RT_RESIDUE: an optional per-runtime residue step, run by process_runtime
 # after run_elected_verbs and the build-cache delta (outside --report, and
@@ -398,17 +305,13 @@ declare -A RT_DETAIL=(
 # safe verb under --yes, which would stop `docker builder prune` running.
 # The step sets RUNTIME_ACTED when it removes anything (after the build-cache
 # delta has already been reported) and prints its own measured delta.
-declare -A RT_RESIDUE=(
-    [docker]=rt_docker_residue
-)
+declare -A RT_RESIDUE=()
 
 # RT_SAFE_ESTIMATE_NOTE: an optional caveat printed under a runtime's
 # safe-tier estimate. Registry data rather than an `if [[ $name == docker ]]`
 # branch in the report layer -- the reason docker's number needs a caveat is
 # a property of docker's source, not of the reporting lifecycle.
-declare -A RT_SAFE_ESTIMATE_NOTE=(
-    [docker]='note: docker reclaimable is an upper bound (not pinned by an active build), not a guarantee of what a prune will free.'
-)
+declare -A RT_SAFE_ESTIMATE_NOTE=()
 
 # RT_INTERACTIVE_ONLY: purge-tier runtimes that are never elected under
 # --yes, whatever --include-purge says -- only an interactive confirm empties
@@ -417,43 +320,39 @@ declare -A RT_SAFE_ESTIMATE_NOTE=(
 # its source, not of the election logic (same posture as unreferenced docker
 # images in cache-prune/docker-residue.sh). The value is the skip note
 # purge_elected prints under --yes.
-declare -A RT_INTERACTIVE_ONLY=(
-    [trash]='skipped: trash needs an interactive confirm (user-deleted data; never emptied under --yes)'
-)
+declare -A RT_INTERACTIVE_ONLY=()
 
 # RT_PURGE_PROMPT: an optional function printing a runtime's interactive purge
 # confirm text, in place of the generic "Purge <name> cache?" prompt -- for a
 # runtime whose confirm owes the user more (trash: the size, and that it is
 # user-deleted data).
-declare -A RT_PURGE_PROMPT=(
-    [trash]=rt_trash_purge_prompt
-)
+declare -A RT_PURGE_PROMPT=()
 
-### fleet modules #############################################################
-
-# Optional, unpublished runtime modules: every util/cache-prune/fleet/*.sh
-# present is sourced here, after the core modules and the registry above and
-# before anything consumes them. A module registers itself through
-# register_runtime (its RUNTIME_ORDER slot) plus its own RT_* entries, and
-# appends its help text to CACHE_PRUNE_HELP_RUNTIMES / CACHE_PRUNE_HELP_ENV.
-# The directory is absent from the public projection; with it absent nothing
-# below runs and core behaviour and output are unchanged. It sits under
-# cache-prune/, which util/dispatch.sh's util/*.sh glob cannot reach.
+# Help fragments, printed verbatim by usage(). Fleet modules append to
+# CACHE_PRUNE_HELP_RUNTIMES / CACHE_PRUNE_HELP_ENV. Core runtime modules use
+# their own arrays, because usage() prints them at fixed slots around the
+# fleet fragments: CACHE_PRUNE_HELP_CORE_ENV_LEAD before the shared
+# CACHE_PRUNE_REPO_ROOT entry and the fleet env, CACHE_PRUNE_HELP_CORE_RUNTIMES
+# and CACHE_PRUNE_HELP_CORE_ENV after the fleet fragments.
 CACHE_PRUNE_HELP_RUNTIMES=()
 CACHE_PRUNE_HELP_ENV=()
+CACHE_PRUNE_HELP_CORE_RUNTIMES=()
+CACHE_PRUNE_HELP_CORE_ENV_LEAD=()
+CACHE_PRUNE_HELP_CORE_ENV=()
 
-# register_runtime <name> <after>: insert <name> into RUNTIME_ORDER right
-# after <after> (appended when <after> is not registered).
+# register_runtime <name> [<after>]: insert <name> into RUNTIME_ORDER right
+# after <after>; appended when <after> is omitted or not registered (the core
+# modules register by appending, in their fixed source order below).
 register_runtime() {
     local name="$1"
-    local after="$2"
+    local after="${2:-}"
     local entry
     local -a order=()
     local placed=false
 
     for entry in "${RUNTIME_ORDER[@]}"; do
         order+=("$entry")
-        if [[ "$entry" == "$after" ]]; then
+        if [[ -n "$after" && "$entry" == "$after" ]]; then
             order+=("$name")
             placed=true
         fi
@@ -462,6 +361,35 @@ register_runtime() {
     RUNTIME_ORDER=("${order[@]}")
 }
 
+### core runtimes #############################################################
+
+# Sourced in this fixed order, which is RUNTIME_ORDER's core order.
+# shellcheck source=util/cache-prune/runtimes/uv.sh
+source "$CACHE_PRUNE_LIB/runtimes/uv.sh"
+# shellcheck source=util/cache-prune/runtimes/npm.sh
+source "$CACHE_PRUNE_LIB/runtimes/npm.sh"
+# shellcheck source=util/cache-prune/runtimes/docker.sh
+source "$CACHE_PRUNE_LIB/runtimes/docker.sh"
+# shellcheck source=util/cache-prune/runtimes/pip.sh
+source "$CACHE_PRUNE_LIB/runtimes/pip.sh"
+# shellcheck source=util/cache-prune/runtimes/bun.sh
+source "$CACHE_PRUNE_LIB/runtimes/bun.sh"
+# shellcheck source=util/cache-prune/runtimes/cargo.sh
+source "$CACHE_PRUNE_LIB/runtimes/cargo.sh"
+# shellcheck source=util/cache-prune/runtimes/codex.sh
+source "$CACHE_PRUNE_LIB/runtimes/codex.sh"
+# shellcheck source=util/cache-prune/runtimes/trash.sh
+source "$CACHE_PRUNE_LIB/runtimes/trash.sh"
+
+### fleet modules #############################################################
+
+# Optional, unpublished runtime modules: every util/cache-prune/fleet/*.sh
+# present is sourced here, after the core runtimes and before anything
+# consumes the registry. A module follows the same contract as runtimes/*.sh,
+# and may name a core runtime as its register_runtime <after> slot.
+# The directory is absent from the public projection; with it absent nothing
+# below runs and core behaviour and output are unchanged. It sits under
+# cache-prune/, which util/dispatch.sh's util/*.sh glob cannot reach.
 if [[ -d "$CACHE_PRUNE_LIB/fleet" ]]; then
     for cache_prune_module in "$CACHE_PRUNE_LIB"/fleet/*.sh; do
         [[ -f "$cache_prune_module" ]] || continue
@@ -668,11 +596,6 @@ process_runtime() {
         fi
     else
         printf '%s cache size: unavailable\n' "$name"
-    fi
-
-    if [[ "${RT_CLASS[$name]}" == report ]]; then
-        printf 'note: no prune verb exists for %s (by design, see -h); report-only -- these bytes count toward total footprint only, never a reclaimable tier.\n' "$name"
-        return 0
     fi
 
     if ! probe_is_available "$before"; then
