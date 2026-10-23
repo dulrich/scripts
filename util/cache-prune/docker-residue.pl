@@ -279,6 +279,33 @@ sub compose_files {
     return sort @out;
 }
 
+# compose_project_dir: the `--project-directory` argv for one compose file.
+# Only the fleet compose file is pinned (its path is set privately
+# -> its project dir), mirroring the fleet compose wrapper;
+# every other file keeps compose's default project directory.
+sub compose_project_dir {
+    my ($root, $file) = @_;
+    my $base = $root =~ m{/\z} ? $root : "$root/";
+    return ();  # fleet pin: not part of the public projection
+    return ();
+}
+
+# compose_has_unresolved: any service image, or build context/dockerfile, still
+# holds a variable reference. Build args are guarded in subst_args, only when a
+# FROM actually consumes them.
+sub compose_has_unresolved {
+    my $cfg = shift;
+    my $svc = $cfg->{services};
+    for my $k (keys %$svc) {
+        my $s = $svc->{$k};
+        return 1 if unresolved_ref($s->{image});
+        my $b = $s->{build};
+        if (isobj($b)) { return 1 if unresolved_ref($b->{context}) || unresolved_ref($b->{dockerfile}); }
+        elsif (defined $b) { return 1 if unresolved_ref($b); }
+    }
+    return 0;
+}
+
 # compose_entry: one resolved compose config -> {project, services}, plus the
 # Dockerfiles its services build: [{path, args}] in service-name order.
 sub compose_entry {
@@ -296,6 +323,16 @@ sub compose_entry {
         push @builds, { path => tostr($path), args => alt($b->{args}, undef) };
     }
     return ($entry, \@builds);
+}
+
+# unresolved_ref: true when a compose string still holds a variable reference
+# (${VAR} or unbraced $VAR) -- `config --no-interpolate` leaves them verbatim.
+# $$ is compose's escape for a literal dollar, not a reference.
+sub unresolved_ref {
+    my $s = shift;
+    return 0 if !defined $s || ref $s;
+    $s =~ s/\$\$//g;
+    return $s =~ /\$(?:\{|[A-Za-z_])/ ? 1 : 0;
 }
 
 # arg_value: build-arg $key of the compose `args` object when it is a string
@@ -325,6 +362,7 @@ sub subst_args {
             $value = (defined $defaults->{$var} && length $defaults->{$var}) ? $defaults->{$var} : $fallback;
         }
         return undef unless length $value;
+        return undef if unresolved_ref($value);  # an uninterpolated compose arg feeding FROM
         substr($ref, index($ref, $whole), length $whole) = $value;
     }
     return $ref;
@@ -435,10 +473,12 @@ sub capture {
         FILE: for my $file (@files) {
             my $name = $file;
             utf8::decode($name);
-            ($ok, $out) = run_cmd(qw(docker compose -f), $file, '--profile', '*', qw(config --format json));
+            my @pd = compose_project_dir($root, $file);
+            ($ok, $out) = run_cmd(qw(docker compose -f), $file, @pd, '--profile', '*', qw(config --no-interpolate --format json));
             my $cfg = $ok ? eval { dec($out) } : undef;
             my ($entry, $builds) = isobj($cfg) && truthy($cfg->{name}) && isobj($cfg->{services}) ? eval { compose_entry($cfg) } : ();
             if (!defined $entry) { $image_error = "compose config failed: $name"; last FILE; }
+            if (compose_has_unresolved($cfg)) { $image_error = "compose config has unresolved variable: $name"; last FILE; }
             push @$compose, $entry;
             for my $b (@$builds) {
                 my $refs = dockerfile_bases($b->{path}, $b->{args});

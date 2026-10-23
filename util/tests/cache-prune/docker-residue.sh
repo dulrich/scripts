@@ -159,8 +159,38 @@ echo "[docker-residue] capture: compose resolved with every profile, fail closed
 CACHE_PRUNE_REPO_ROOT="$DR_ROOT"
 reset_logs
 dr_rows=$(docker_residue_capture | docker_residue_classify)
-assert_contains "$(all_log)" "--profile * config --format json" "compose is resolved with --profile '*'"
+assert_contains "$(all_log)" "--profile * config --no-interpolate --format json" "compose is resolved uninterpolated with --profile '*'"
+assert_eq "0" "$(grep -c -e "--project-directory" <<< "$(all_log)")" "an ordinary compose file gets no --project-directory"
 assert_eq $'superseded\twebapp-overlay:v0.11.3\tsha256:old\t5\t2026-01-01T00:00:00Z\t-' "$(grep -v '^volume' <<< "$dr_rows")" "captured compose + Dockerfiles classify end to end"
+
+echo "[docker-residue] capture: fleet project-directory pin and the unresolved-variable guard"
+DR_FLEET_ROOT="$SANDBOX/docker-residue-fleet-root"
+mkdir -p "$DR_FLEET_ROOT/context-control/fleet"
+: > "$DR_FLEET_ROOT/context-control/fleet/compose.home.yml"
+(
+    CACHE_PRUNE_REPO_ROOT="$DR_FLEET_ROOT"
+    DR_IMAGES_JSON='[]'
+    DR_CONTAINERS_JSON='[]'
+    reset_logs
+    docker_residue_capture > /dev/null
+    assert_contains "$(all_log)" "compose -f $DR_FLEET_ROOT/context-control/fleet/compose.home.yml --project-directory $DR_FLEET_ROOT/context-control --profile * config --no-interpolate --format json" "the fleet compose file alone is pinned with --project-directory <root>/context-control"
+)
+
+dr_capture_json() (
+    CACHE_PRUNE_REPO_ROOT="$DR_ROOT"
+    DR_IMAGES_JSON='[]'
+    DR_CONTAINERS_JSON='[]'
+    DR_COMPOSE_JSON="$1"
+    docker_residue_capture
+)
+# shellcheck disable=SC2016  # literal $ in compose fixtures
+assert_eq "compose config has unresolved variable: $DR_ROOT/homelab/compose.yml" "$(dr_capture_json '{"name":"p","services":{"s":{"image":"foo:${TAG}"}}}' | dr_capture_field image_error)" "an unresolved \${VAR} image fails closed"
+# shellcheck disable=SC2016  # literal $ in compose fixtures
+assert_eq "compose config has unresolved variable: $DR_ROOT/homelab/compose.yml" "$(dr_capture_json '{"name":"p","services":{"s":{"image":"foo:$TAG"}}}' | dr_capture_field image_error)" "an unresolved unbraced \$VAR image fails closed"
+# shellcheck disable=SC2016  # literal $ in compose fixtures
+assert_eq "null" "$(dr_capture_json '{"name":"p","services":{"s":{"image":"foo:a$$b"}}}' | dr_capture_field image_error)" "\$\$ is an escape, not a reference"
+# shellcheck disable=SC2016  # literal $ in compose fixtures
+assert_eq "null" "$(dr_capture_build Dockerfile.overlay '{"GIT_SHA":"${X:-unknown}"}' | dr_capture_field image_error)" "an unresolved build arg that no FROM uses does not fail"
 
 reset_logs
 DR_COMPOSE_RESULT=1
