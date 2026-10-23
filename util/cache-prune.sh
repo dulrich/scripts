@@ -46,9 +46,8 @@ source "$CACHE_PRUNE_LIB/docker-residue.sh"
 
 FAILED=0
 TOTAL_BYTES=0
-# The old single RECLAIMABLE_BYTES conflated a safe-verb prediction with a
-# purge-verb one under one figure -- split per tier during the cache-prune
-# reclaim-effectiveness work: a runtime's census reclaimable
+# Reclaimable bytes are kept per tier, never as one figure that would conflate
+# a safe-verb prediction with a purge-verb one: a runtime's census reclaimable
 # bytes are routed into exactly one of these (or neither, for a
 # runtime with no verbs) by report_measurement, never both.
 SAFE_RECLAIMABLE_BYTES=0
@@ -94,8 +93,7 @@ confirm() {
 
 # set_docker_until: validate a --docker-until window before accepting it.
 # Validation lives here, at parse time, rather than inside the docker size
-# probe where it used to sit as a side effect of the age-sum walk. Once that
-# walk was removed the string flowed unchecked into `docker builder prune
+# probe, because the string flows unchecked into `docker builder prune
 # --filter`, leaving only the daemon to reject it -- after every other
 # runtime had already been reported. An invalid window is a usage error, so
 # it is caught before any work happens, like every other bad flag.
@@ -158,11 +156,14 @@ Modes:
   (default)              interactive; per-runtime confirm (default: No)
   --report               report cache sizes only; never prompts, never mutates
   --yes                  auto-confirm the safe verb for uv, npm, docker;
-                         pip and bun have no safe verb and are skipped
-                         entirely, never prompted
-  --yes --include-purge  purges pip, bun and codex (their only verb); for uv
+                         pip, bun, cargo and codex have no safe verb and are
+                         skipped entirely, never prompted; trash is never
+                         emptied under --yes
+  --yes --include-purge  purges pip, bun, cargo and codex (their only verb;
+                         cargo clears registry/src children only); for uv
                          and npm this instead runs their purge verb in place
-                         of their safe verb, not in addition to it
+                         of their safe verb, not in addition to it; trash
+                         is still skipped (interactive confirm only)
 
 uv and npm each carry two verbs: a conservative safe verb (uv cache prune,
 npm cache verify) that frees little by design, and a destructive purge
@@ -201,9 +202,9 @@ Options:
   --docker-until <window>  narrow the docker builder prune to records at
                            least that old (default: no filter -- the safe
                            prune targets the full build cache docker
-                           itself reports as reclaimable). This widens the
-                           tool's previous default scope and is its single
-                           highest-risk behaviour change.
+                           itself reports as reclaimable). Opt-in because
+                           a window leaves recent build cache in place,
+                           while the default clears all of it.
   -h, --help               show this help and exit
 
 EOF
@@ -461,11 +462,11 @@ measure_runtime() {
 # reclaimable estimate, and fold both into the grand totals.
 #
 # Which tier a runtime's census reclaimable bytes belong to follows purely
-# from registry membership (WP-3 decision 4: never one conflated figure),
+# from registry membership (reclaimable is never one conflated figure),
 # matching the pinned per-runtime-kind table exactly: a runtime with a purge
 # verb (uv/npm dual-verb, pip/bun purge-only) reports it as a purge-tier
 # estimate -- for uv/npm this is the *only* figure printed, because their
-# safe verb cannot be predicted (premises (b)/(c)); a runtime with only a
+# safe verb cannot be predicted (no dry run exists); a runtime with only a
 # safe verb (docker) reports it safe-tier; a runtime with neither (none
 # today) reports neither -- its bytes go into TOTAL_BYTES and stop there.
 report_measurement() {
@@ -504,14 +505,14 @@ report_measurement() {
 # One post-action probe spans every verb that ran: a dual-verb runtime gets
 # exactly one before-probe and one after-probe covering both, never a probe
 # between them. It runs whether or not a verb reported failure -- a failed
-# verb can still have done partial work (edge case 4), and the destructive
-# step already happened regardless of whether it can be measured (edge case
-# 3), so neither is a reason to skip measuring.
+# verb can still have done partial work, and the destructive step already
+# happened regardless of whether it can be measured, so neither is a reason
+# to skip measuring.
 #
 # Whether the two measurements may be subtracted at all is not decided here:
 # probe_compare owns that, for every runtime alike. An ineligible pair is
 # reported as unavailable with probe_compare's reason and contributes
-# nothing to DELTA_BYTES -- and, per edge case 3, does not set FAILED: the
+# nothing to DELTA_BYTES -- and does not set FAILED: the
 # action itself already happened and the user's caches are fine either way,
 # only the measurement failed.
 report_delta() {

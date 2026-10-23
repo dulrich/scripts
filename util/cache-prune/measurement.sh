@@ -20,18 +20,13 @@
 # command substitution), so the scan globals they fill survive for the
 # detail and purge-prompt readers; measure_runtime empties PROBE_RECORD
 # before every adapter call, so an adapter that sets nothing can never
-# inherit a previous record. That is the whole point: the previous
-# design returned the two byte counts on stdout and smuggled the source
-# identity out through a module-level scratch-file path, because an adapter
-# runs inside the subshell a command substitution forks and a plain variable
-# assignment made there does not survive. When creating that temporary file
-# failed, its path silently became "", both source labels read back empty,
-# the "did the source change?" guard compared "" with "" and passed, and a
-# system-df reading minus a buildx-du reading was reported as a 600-byte
-# measurement (found in a code review). One transport
-# cannot half-arrive: a record either carries its provenance or is not a
-# valid record. The regression is pinned in
-# util/tests/cache-prune/measurement.sh.
+# inherit a previous record. Adapters must run in-shell because a variable
+# assigned inside a command-substitution subshell does not survive it, so
+# the source identity could not travel any other way without a side channel
+# that can fail silently (an empty source would compare equal to an empty
+# source and let a cross-source subtraction through). One transport cannot
+# half-arrive: a record either carries its provenance or is not a valid
+# record. Pinned in util/tests/cache-prune/measurement.sh.
 #
 # CC0: This work has been marked as dedicated to the public domain.
 # https://creativecommons.org/publicdomain/zero/1.0/
@@ -92,8 +87,7 @@ probe_is_available() {
 # identical. A missing, malformed, failed, empty-source or changed-source
 # provenance yields "unavailable" for every runtime -- there is no runtime
 # for which a cross-source subtraction is a measurement. Docker's two
-# sources were measured disagreeing by ~9 GB on one cache (premise (d),
-# during the reclaim-effectiveness work); subtracting one from the
+# sources were measured disagreeing by ~9 GB on one cache; subtracting one from the
 # other reports that disagreement as if it were freed disk.
 #
 # Always exits 0: "these cannot be compared" is an answer, not an error.

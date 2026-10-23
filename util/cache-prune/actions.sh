@@ -110,8 +110,8 @@ purge_elected() {
 
 # run_verb: execute one verb function (either tier), with the shared
 # failure/success reporting both share. Wording says "prune" even for a
-# purge -- imprecise, left as-is: pip/bun's output must stay byte-identical
-# to 4b9652d.
+# purge: that is the pinned user-visible output for every runtime's verb
+# (tests assert "<name>: prune failed" / "prune complete."), so it stays.
 run_verb() {
     local name="$1"
     local verb_fn="$2"
@@ -131,8 +131,7 @@ run_verb() {
 # user as a side effect (confirm()), so this cannot be wrapped in a command
 # substitution without swallowing the prompts.
 #
-# Election order *is* the behaviour, not style (Decision 7,
-# from the reclaim-effectiveness work). Under --yes, a purge election
+# Election order *is* the behaviour, not style. Under --yes, a purge election
 # supersedes the safe verb for a dual-verb runtime and the safe verb never
 # runs -- its work is a strict subset, so running both would waste time and
 # muddy the freed-bytes accounting. Interactively each elected verb runs,
@@ -140,7 +139,7 @@ run_verb() {
 # prompts explicitly asked for both.
 #
 # A failed verb is recorded, not returned early: it must still be measured
-# (edge case 4), so the lifecycle layer probes after this returns and only
+# (it may have freed bytes before failing), so the lifecycle layer probes after this returns and only
 # then propagates the failure. A failed safe verb still short-circuits the
 # purge election that would otherwise follow it -- the `RUNTIME_VERB_FAILED
 # == false` guard on the second interactive `if`.

@@ -148,8 +148,7 @@ docker_system_df_bytes() {
 # buildx du`'s trailing labelled lines second as a fallback, unavailable if
 # both fail -- never a partial pair. The order tracks correspondence with
 # the verb rt_docker_prune actually runs, not parse stability: measured live
-# against an unfiltered prune (premise (a),
-# during the reclaim-effectiveness work), system df's Build Cache
+# against an unfiltered prune, system df's Build Cache
 # RECLAIMABLE predicted the freed bytes exactly, while buildx du's
 # Reclaimable overstated by the Shared slice it additionally counts. The
 # two sources still measure different things and *will* disagree on the
@@ -185,11 +184,10 @@ rt_docker_size() {
 DOCKER_UNTIL=""
 
 # Never `docker image prune`, never `docker system prune` -- only the
-# build-cache prune. Unfiltered by default: the `until=168h` age filter
-# this used to carry blocked most of what docker itself calls reclaimable,
-# because the build-cache DAG retains an old parent record whenever it has
-# a recent child, regardless of the parent's own age. Measured live
-# during the reclaim-effectiveness work: an unfiltered
+# build-cache prune. Unfiltered by default: an age filter (e.g. until=168h)
+# would block most of what docker itself calls reclaimable, because the
+# build-cache DAG retains an old parent record whenever it has a recent
+# child, regardless of the parent's own age. Measured live: an unfiltered
 # prune freed the reported Private slice exactly and touched nothing
 # docker considers ACTIVE. That guarantee -- a prune never removes an
 # ACTIVE record -- is the safety basis for the unfiltered default, not the
