@@ -165,6 +165,17 @@ mkdir -p "$CACHE_PRUNE_REPO_ROOT"
 export CACHE_PRUNE_CODEX_HOME_ROOT="$SANDBOX/empty-codex-home-root"
 mkdir -p "$CACHE_PRUNE_CODEX_HOME_ROOT"
 
+# The docker residue capture runs docker from a perl subprocess, which cannot
+# see the docker() function doubles below -- it would reach the host's real
+# docker. So a stub `docker` that answers like the double's default (every
+# verb succeeds with no output, except `system df -v`, which fails) leads
+# PATH for the whole run; the docker-residue suite puts its own
+# fixture-serving shim in front of it for the captures it drives.
+mkdir -p "$SANDBOX/stub-bin"
+printf '#!/bin/sh\ncase "$*" in "system df -v"*) exit 1 ;; esac\nexit 0\n' > "$SANDBOX/stub-bin/docker"
+chmod +x "$SANDBOX/stub-bin/docker"
+export PATH="$SANDBOX/stub-bin:$PATH"
+
 # The trash runtime, for a stronger reason still: its verb is `gio trash
 # --empty`, and the gvfsd-trash daemon ignores XDG_DATA_HOME -- the real gio
 # empties the user's REAL trash whatever the sandbox env says. So the gio

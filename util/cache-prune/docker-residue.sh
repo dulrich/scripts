@@ -12,14 +12,14 @@
 # removals. Never -f, never any prune; named volumes are never removed
 # (decided in the docker image-residue and anonymous-volume work).
 #
-# Three layers, so the classifier stays a pure function of captured JSON:
+# Two layers, so the classifier stays a pure function of captured JSON:
 #
-#   docker_residue_dockerfile_bases <dockerfile> [<build-args-json>]
-#       FROM refs of one Dockerfile, ARG defaults substituted (compose build
-#       args override them), earlier `AS` stage names and `scratch` skipped.
-#       Exit 1 if unreadable or a ref is left with an unresolved variable.
 #   docker_residue_capture
-#       Probes the daemon + compose files, prints ONE JSON document:
+#       Probes the daemon + compose files (all in docker-residue.pl's
+#       `capture` mode, including the Dockerfile FROM parser: ARG defaults
+#       substituted, compose build args overriding them, earlier `AS` stage
+#       names and `scratch` skipped, an unreadable file or unresolved variable
+#       failing closed), prints ONE JSON document:
 #         { images:     [{id, tags:[ref], created, size}],
 #           containers: [{name, id, image_id, image_ref, state, created,
 #                         project, service, size_rw}],   size_rw: bytes|null
@@ -50,91 +50,6 @@
 # CC0: This work has been marked as dedicated to the public domain.
 # https://creativecommons.org/publicdomain/zero/1.0/
 
-### Dockerfile base refs #######################################################
-
-docker_residue_dockerfile_bases() {
-    local dockerfile="$1"
-    local args_json="${2:-null}"
-    local line keyword rest name value ref stage
-    local -A vars=()
-    local -a stages=()
-
-    [[ -r "$dockerfile" ]] || return 1
-
-    while IFS= read -r line || [[ -n "$line" ]]; do
-        line="${line#"${line%%[![:space:]]*}"}"
-        keyword="${line%%[[:space:]]*}"
-        rest="${line#"$keyword"}"
-        rest="${rest#"${rest%%[![:space:]]*}"}"
-        case "${keyword^^}" in
-            ARG)
-                name="${rest%%=*}"
-                name="${name%%[[:space:]]*}"
-                [[ -n "$name" ]] || continue
-                if [[ "$rest" == *=* ]]; then
-                    value="${rest#*=}"
-                    value="${value%%[[:space:]]*}"
-                    value="${value#\"}"; value="${value%\"}"
-                    # An ARG re-declared without a default inside a stage
-                    # keeps the global value; only a default sets it.
-                    # shellcheck disable=SC2034  # read via nameref in subst_args
-                    vars[$name]="$value"
-                fi
-                ;;
-            FROM)
-                # Drop flags such as --platform=...
-                while [[ "$rest" == --* ]]; do
-                    rest="${rest#*[[:space:]]}"
-                    rest="${rest#"${rest%%[![:space:]]*}"}"
-                done
-                ref="${rest%%[[:space:]]*}"
-                stage=""
-                if [[ "$rest" =~ [[:space:]][Aa][Ss][[:space:]]+([^[:space:]]+) ]]; then
-                    stage="${BASH_REMATCH[1]}"
-                fi
-                ref=$(docker_residue_subst_args "$ref" "$args_json" vars) || return 1
-                if [[ "$ref" != scratch ]] && ! docker_residue_in_list "$ref" "${stages[@]}"; then
-                    printf '%s\n' "$ref"
-                fi
-                if [[ -n "$stage" ]]; then
-                    stages+=("$stage")
-                fi
-                ;;
-        esac
-    done < "$dockerfile"
-    return 0
-}
-
-docker_residue_in_list() {
-    local needle="$1" item
-    shift
-    for item in "$@"; do
-        [[ "$item" == "$needle" ]] && return 0
-    done
-    return 1
-}
-
-# docker_residue_subst_args: expand ${X}, ${X:-d} and $X in one FROM ref.
-# Compose build args win over the Dockerfile's ARG default. Exit 1 if any
-# variable is left unresolved -- an unknown base never becomes a guess.
-docker_residue_subst_args() {
-    local ref="$1" args_json="$2"
-    local -n defaults="$3"
-    local var fallback value
-
-    while [[ "$ref" =~ \$\{([A-Za-z_][A-Za-z0-9_]*)(:-([^}]*))?\}|\$([A-Za-z_][A-Za-z0-9_]*) ]]; do
-        var="${BASH_REMATCH[1]:-${BASH_REMATCH[4]}}"
-        fallback="${BASH_REMATCH[3]}"
-        value=$(perl "$DOCKER_RESIDUE_PL" argval "$var" <<< "$args_json" 2>/dev/null)
-        if [[ -z "$value" ]]; then
-            value="${defaults[$var]:-$fallback}"
-        fi
-        [[ -n "$value" ]] || return 1
-        ref="${ref/"${BASH_REMATCH[0]}"/$value}"
-    done
-    printf '%s\n' "$ref"
-}
-
 ### capture ####################################################################
 
 docker_residue_repo_root() {
@@ -155,10 +70,11 @@ docker_residue_perl_reason() {
     fi
 }
 
+# The docker/compose subprocesses, the Dockerfile FROM parser and the document
+# shaping all run inside one perl process (mode `capture`): only the repo root
+# crosses argv, never JSON, so the document size has no argv limit.
 docker_residue_capture() {
-    local image_error="" volume_error=""
-    local images='[]' containers='[]' compose='[]' bases='' volumes='[]'
-    local ids out sizes file cfg dockerfile refs root reason
+    local reason
 
     reason=$(docker_residue_perl_reason)
     if [[ -n "$reason" ]]; then
@@ -166,75 +82,7 @@ docker_residue_capture() {
         return 0
     fi
 
-    # Volumes first: they report even when the image classes fail closed.
-    if out=$(docker system df -v --format json 2>/dev/null) && [[ -n "$out" ]] \
-        && volumes=$(perl "$DOCKER_RESIDUE_PL" volumes <<< "$out" 2>/dev/null); then
-        :
-    else
-        volumes='[]'
-        volume_error="docker system df -v failed"
-    fi
-
-    if ! docker compose version >/dev/null 2>&1; then
-        image_error="docker compose not available"
-    fi
-
-    if [[ -z "$image_error" ]]; then
-        ids=$(docker images -q --no-trunc 2>/dev/null | sort -u) || image_error="docker images failed"
-        if [[ -z "$image_error" && -n "$ids" ]]; then
-            # shellcheck disable=SC2086  # word-split the ID list on purpose
-            out=$(docker image inspect $ids 2>/dev/null) \
-                && images=$(perl "$DOCKER_RESIDUE_PL" images <<< "$out" 2>/dev/null) \
-                || image_error="docker image inspect failed"
-        fi
-    fi
-
-    if [[ -z "$image_error" ]]; then
-        ids=$(docker ps -aq --no-trunc 2>/dev/null) || image_error="docker ps failed"
-        if [[ -z "$image_error" && -n "$ids" ]]; then
-            sizes=$(docker ps -a --size --no-trunc --format '{"id":{{json .ID}},"size":{{json .Size}}}' 2>/dev/null \
-                | perl "$DOCKER_RESIDUE_PL" sizes 2>/dev/null) || sizes='{}'
-            [[ -n "$sizes" ]] || sizes='{}'
-            # shellcheck disable=SC2086
-            out=$(docker container inspect $ids 2>/dev/null) \
-                && containers=$(perl "$DOCKER_RESIDUE_PL" containers "$sizes" <<< "$out" 2>/dev/null) \
-                || image_error="docker container inspect failed"
-        fi
-    fi
-
-    if [[ -z "$image_error" ]]; then
-        root=$(docker_residue_repo_root)
-        local -a files=()
-        if [[ -d "$root" ]]; then
-            mapfile -t files < <(find "$root" -maxdepth 3 \( -name 'compose*.yml' -o -name 'compose*.yaml' \) -type f 2>/dev/null | sort)
-        fi
-        if ((${#files[@]} == 0)); then
-            image_error="no compose files found under $root"
-        fi
-        for file in "${files[@]}"; do
-            if ! cfg=$(docker compose -f "$file" --profile '*' config --format json 2>/dev/null) \
-                || ! perl "$DOCKER_RESIDUE_PL" cfgok <<< "$cfg" >/dev/null 2>&1; then
-                image_error="compose config failed: $file"
-                break
-            fi
-            compose=$(perl "$DOCKER_RESIDUE_PL" compose-append "$cfg" <<< "$compose")
-            while IFS=$'\t' read -r dockerfile args; do
-                [[ -n "$dockerfile" ]] || continue
-                if ! refs=$(docker_residue_dockerfile_bases "$dockerfile" "$args"); then
-                    image_error="Dockerfile unreadable or unresolved FROM: $dockerfile"
-                    break 2
-                fi
-                bases+="$refs"$'\n'
-            done < <(perl "$DOCKER_RESIDUE_PL" builds <<< "$cfg")
-        done
-    fi
-
-    if [[ -n "$image_error" ]]; then
-        images='[]' containers='[]' compose='[]' bases=''
-    fi
-
-    perl "$DOCKER_RESIDUE_PL" assemble "$images" "$containers" "$compose" "$volumes" \
-        "$image_error" "$volume_error" <<< "$bases"
+    perl "$DOCKER_RESIDUE_PL" capture "$(docker_residue_repo_root)"
 }
 
 ### classifier #################################################################
