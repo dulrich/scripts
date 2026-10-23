@@ -260,6 +260,7 @@ ls() {
 git_mode=outside
 gh_mode=none
 git() {
+	[[ -n "${git_log:-}" ]] && printf '%s\n' "$*" >> "$git_log"
 	case "$1 ${2:-}" in
 		'rev-parse --is-inside-work-tree')
 			[[ "$git_mode" != outside ]]
@@ -283,7 +284,7 @@ git() {
 			# github ranges: the projection is already published; the private
 			# HEAD never descends from it.
 			case "${3:-}" in
-				github/master..public) printf '0\n'; return ;;
+				github/master..public) printf '%s\n' "${gh_ahead:-0}"; return ;;
 				github/master..HEAD) printf '1\n'; return ;;
 			esac
 			case "$git_mode" in
@@ -333,6 +334,7 @@ publish_mjs="$cl_top/publish.mjs"
 : > "$publish_mjs"
 bun_rc=0
 bun() {
+	[[ -n "${bun_log:-}" ]] && printf 'bun %s\n' "$*" >> "$bun_log"
 	printf 'PROJECTED'
 	printf ' %q' "$@"
 	printf '\n'
@@ -353,6 +355,27 @@ output=$(cl 2>&1)
 assert_contains "$output" '(projection failed; not pushing to github)' 'cl reports a failed projection'
 assert_not_contains "$output" 'nothing to push to github' 'cl skips the github count after a failed projection'
 assert_contains "$output" 'STATUS' 'cl still prints short status after a failed projection'
+
+git_log="$cl_top/git.log"
+: > "$git_log"
+gh_ahead=3
+cl > /dev/null 2>&1
+assert_not_contains "$(cat "$git_log")" 'push github' 'cl runs no github push after a failed projection'
+unset git_log gh_ahead
+_cl_github_push > /dev/null 2>&1
+assert_eq 1 "$?" '_cl_github_push returns status 1 on projection failure'
+
+bun_rc=0
+bun_log="$cl_top/bun.log"
+: > "$bun_log"
+publish_mjs=
+output=$(cl 2>&1)
+assert_contains "$output" '(publish_mjs unset or missing; pushing the existing projection)' 'cl falls back to the existing projection when publish_mjs is unset'
+publish_mjs="$cl_top/missing.mjs"
+output=$(cl 2>&1)
+assert_contains "$output" '(publish_mjs unset or missing; pushing the existing projection)' 'cl falls back to the existing projection when publish_mjs is missing'
+assert_eq '' "$(cat "$bun_log")" 'cl makes no bun call when publish_mjs is unset or missing'
+unset bun_log
 
 rm -rf "$cl_top"
 unset -f bun
