@@ -85,9 +85,51 @@ done
 unset _cd_name
 
 
+# Mirror to the `github` remote: derive the source/dest refs, rebuild the
+# projection when a publication manifest exists, then count what is unpushed.
+# Prints the user-visible messages; returns 0 = push needed, 1 = projection
+# failed (do not push), 2 = nothing to push.
+_cl_github_push () {
+	local ghspec ghsrc ghdst ghpush top pub
+
+	if ghspec=$(git config --get remote.github.push 2> /dev/null); then
+		ghspec=${ghspec#+}
+		ghsrc=${ghspec%%:*}
+		ghdst=${ghspec#*:}
+		ghsrc=${ghsrc#refs/heads/}
+		ghdst=${ghdst#refs/heads/}
+		# A publication manifest means the projection must be rebuilt
+		# (and scanned) from the current private master first; a failed
+		# projection/scan stops the github push. Set publish_mjs in config.sh.
+		top=$(git rev-parse --show-toplevel 2> /dev/null)
+		if [ -n "$top" ] && [ -f "$top/.publication.json" ]; then
+			pub=$publish_mjs
+			if [ -n "$pub" ] && [ -f "$pub" ]; then
+				echo "(projecting $ghsrc)"
+				if ! bun "$pub" project --repo "$top"; then
+					echo "(projection failed; not pushing to github)"
+					return 1
+				fi
+			else
+				echo "(publish_mjs unset or missing; pushing the existing projection)"
+			fi
+		fi
+	else
+		ghsrc=HEAD
+		ghdst=$(git rev-parse --abbrev-ref HEAD)
+	fi
+	ghpush=$(git rev-list --count "github/$ghdst..$ghsrc" 2> /dev/null)
+	if [ -z "$ghpush" ] || [ "$ghpush" -gt 0 ]; then
+		echo "(pushing ${ghpush:-all} refs to github)"
+		return 0
+	fi
+	echo "(nothing to push to github)"
+	return 2
+}
+
 unalias cl 2> /dev/null
 cl () {
-	local unpushed ghspec ghsrc ghdst ghpush top pub
+	local unpushed gh_rc
 
 	clear
 	if git rev-parse --is-inside-work-tree > /dev/null 2>&1; then
@@ -105,41 +147,16 @@ cl () {
 		# (e.g. public:master); count that source, never the private HEAD,
 		# whose history the projection rewrote.
 		if git remote get-url github > /dev/null 2>&1; then
-			if ghspec=$(git config --get remote.github.push 2> /dev/null); then
-				ghspec=${ghspec#+}
-				ghsrc=${ghspec%%:*}
-				ghdst=${ghspec#*:}
-				ghsrc=${ghsrc#refs/heads/}
-				ghdst=${ghdst#refs/heads/}
-				# A publication manifest means the projection must be rebuilt
-				# (and scanned) from the current private master first; a failed
-				# projection/scan stops the github push. Set publish_mjs in config.sh.
-				top=$(git rev-parse --show-toplevel 2> /dev/null)
-				if [ -n "$top" ] && [ -f "$top/.publication.json" ]; then
-					pub=$publish_mjs
-					if [ -n "$pub" ] && [ -f "$pub" ]; then
-						echo "(projecting $ghsrc)"
-						if ! bun "$pub" project --repo "$top"; then
-							echo "(projection failed; not pushing to github)"
-							git status -bs
-							return 1
-						fi
-					else
-						echo "(publish_mjs unset or missing; pushing the existing projection)"
-					fi
-				fi
-			else
-				ghsrc=HEAD
-				ghdst=$(git rev-parse --abbrev-ref HEAD)
-			fi
-			ghpush=$(git rev-list --count "github/$ghdst..$ghsrc" 2> /dev/null)
-			if [ -z "$ghpush" ] || [ "$ghpush" -gt 0 ]; then
-				echo "(pushing ${ghpush:-all} refs to github)"
+			_cl_github_push
+			gh_rc=$?
+			if [ "$gh_rc" -eq 1 ]; then
+				git status -bs
+				return 1
+			elif [ "$gh_rc" -eq 0 ]; then
 				git push github
-			else
-				echo "(nothing to push to github)"
 			fi
 		fi
+
 		git status -bs
 	else
 		echo "(not a git repository)"
