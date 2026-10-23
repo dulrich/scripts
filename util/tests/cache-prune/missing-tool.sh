@@ -64,8 +64,8 @@ echo "[missing tool] a runtime with no tool to blame keeps the generic reason"
 mt_out=$(mt_process codex "$ORIGINAL_RT_CODEX_DETECT" 2>&1)
 assert_contains "$mt_out" "skip: codex: not detected" "codex has no executable to name"
 
-echo "[missing tool] docker residue: a missing jq is named in the report and the election"
-mt_out=$(mt_hide jq rt_docker_detail 2>&1)
-assert_eq "docker image/container/volume residue: unavailable (no jq on host)" "$mt_out" "the residue detail line names the missing jq"
-mt_out=$(mt_hide jq docker_residue_capture 2>&1)
-assert_contains "$mt_out" '"image_error":"no jq on host"' "the capture's fail-closed error names the missing jq"
+echo "[missing tool] docker residue: a missing perl is named in the report and the election"
+mt_out=$(mt_hide perl rt_docker_detail 2>&1)
+assert_eq "docker image/container/volume residue: unavailable (no perl on host)" "$mt_out" "the residue detail line names the missing perl"
+mt_out=$(mt_hide perl docker_residue_capture 2>&1)
+assert_contains "$mt_out" '"image_error":"no perl on host"' "the capture's fail-closed error names the missing perl"

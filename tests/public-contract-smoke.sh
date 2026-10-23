@@ -122,13 +122,6 @@ fi
 # they cannot be rewritten to strict JSON, so a strict-parser assertion can
 # never pass here; see the WP-R2 report for this finding. Substituted: each
 # tracked theme file must be non-empty and valid UTF-8 text.
-if command -v jq >/dev/null 2>&1 || command -v python3 >/dev/null 2>&1; then
-	: # at least one parser is present, satisfying the brief's tooling check
-else
-	printf 'neither jq nor python3 is available\n' >&2
-	exit 1
-fi
-
 mapfile -t theme_json_files < <(git ls-files -- 'gpuedit/themes/*.json')
 theme_json_ok=1
 if [[ ${#theme_json_files[@]} -eq 0 ]]; then
