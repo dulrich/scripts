@@ -324,11 +324,10 @@ case "$(json_field "$REPORT_JSON" rebootRequired)" in
     true|false) ok "rebootRequired is a JSON boolean" ;;
     *) bad "rebootRequired is a JSON boolean (got <$REPORT_JSON>)" ;;
 esac
-if command -v python3 >/dev/null 2>&1; then
-    assert_success "report output parses as a 6-key JSON object" python3 -c \
-        'import json,sys; d = json.loads(sys.argv[1]); sys.exit(0 if isinstance(d, dict) and len(d) == 6 else 1)' \
-        "$REPORT_JSON"
-fi
+# shellcheck disable=SC2016  # perl program, not shell expansion
+assert_success "report output parses as a 6-key JSON object" perl -MJSON::PP -e \
+    'my $d = eval { decode_json($ARGV[0]) }; exit((ref($d) eq "HASH" && keys(%$d) == 6) ? 0 : 1)' \
+    "$REPORT_JSON"
 rm -rf "$REPORT_STUB_DIR"
 
 make_report_stubs 'printf "Listing...\n"' 'printf "Reading package lists...\n"'
