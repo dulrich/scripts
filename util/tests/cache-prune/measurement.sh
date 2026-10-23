@@ -10,17 +10,17 @@
 # shellcheck disable=SC1091,SC2317,SC2034
 
 echo "[probe record] the transport carries provenance or is not a record"
-assert_eq "available 1000 900 system-df" "$(probe_available 1000 900 system-df)" \
+assert_eq "available 1000 900 system-df" "$(probe_of probe_available 1000 900 system-df)" \
     "probe_available emits <status> <total> <reclaimable> <source> in that fixed order"
-assert_eq "unavailable 0 0 -" "$(probe_unavailable)" \
+assert_eq "unavailable 0 0 -" "$(probe_of probe_unavailable)" \
     "probe_unavailable emits the canonical unavailable record"
 # Fail-closed: this is the F9 defect expressed at the constructor. A probe
 # that cannot name its source must not be able to produce an available
 # record at all, because an available record is the only thing a delta can
 # be computed from.
-assert_eq "unavailable 0 0 -" "$(probe_available 1000 900 "")" \
+assert_eq "unavailable 0 0 -" "$(probe_of probe_available 1000 900 "")" \
     "an empty source identity yields an unavailable record, never an anonymous available one"
-assert_eq "unavailable 0 0 -" "$(probe_available 1000 900 "two words")" \
+assert_eq "unavailable 0 0 -" "$(probe_of probe_available 1000 900 "two words")" \
     "a source identity containing whitespace is rejected the same way -- the record is one line, four fields"
 
 echo "[probe record] validation rejects every non-record, including the retired bare pair"
@@ -151,7 +151,7 @@ TOTAL_BYTES=0
 SAFE_RECLAIMABLE_BYTES=0
 PURGE_RECLAIMABLE_BYTES=0
 ORIGINAL_RT_SIZE_UV="${RT_SIZE[uv]}"
-rt_malformed_size_single() { printf '12345\n'; }
+rt_malformed_size_single() { PROBE_RECORD='12345'; }
 RT_SIZE[uv]=rt_malformed_size_single
 GUARD_WARN_FILE="$SANDBOX/guard-warnings.log"
 : > "$GUARD_WARN_FILE"
@@ -169,11 +169,25 @@ FAILED=0
 TOTAL_BYTES=0
 SAFE_RECLAIMABLE_BYTES=0
 PURGE_RECLAIMABLE_BYTES=0
-rt_malformed_size_junk() { printf 'abc def\n'; }
+rt_malformed_size_junk() { PROBE_RECORD='abc def'; }
 RT_SIZE[uv]=rt_malformed_size_junk
 process_runtime uv >/dev/null 2>&1 || true
 assert_eq "1" "$FAILED" "a non-numeric probe pair is also treated as a probe failure"
 assert_eq "0" "$PURGE_RECLAIMABLE_BYTES" "non-numeric junk never silently contributes to the purge-tier reclaimable total"
+RT_SIZE[uv]="$ORIGINAL_RT_SIZE_UV"
+
+echo "[measure_runtime] a stale PROBE_RECORD is never reused by an adapter that sets nothing"
+rt_size_sets_nothing() { :; }
+RT_SIZE[uv]=rt_size_sets_nothing
+PROBE_RECORD="available 777 7 census"
+stale_status=0
+RUNTIME_CACHE_DIR="$SANDBOX" measure_runtime uv || stale_status=$?
+assert_eq "2" "$stale_status" "an adapter that leaves no record lands on the malformed (status 2) path"
+assert_eq "" "$PROBE_RECORD" "the previous call's record is cleared, not handed back"
+reset_logs
+FAILED=0
+process_runtime uv >/dev/null 2>&1 || true
+assert_eq "1" "$FAILED" "process_runtime fails closed on an adapter that sets nothing"
 RT_SIZE[uv]="$ORIGINAL_RT_SIZE_UV"
 
 
@@ -192,7 +206,7 @@ PROCESS_RUNTIME_OUTPUT_FILE="$SANDBOX/process-runtime-output.log"
 # live venv). Proves the footprint total moves without the reclaimable
 # total moving. uv is dual-verb, so its reclaimable bytes are a purge-tier
 # estimate, never a safe-tier one (decision 4).
-rt_size_all_shared() { printf 'available 500 0 census\n'; }
+rt_size_all_shared() { PROBE_RECORD='available 500 0 census'; }
 RT_SIZE["uv"]=rt_size_all_shared
 
 : > "$PROCESS_RUNTIME_OUTPUT_FILE"
@@ -239,7 +253,7 @@ rm -rf "$CARGO_HOME"
 mkdir -p "$CARGO_HOME/registry/src/i/a" "$CARGO_HOME/registry/cache/i"
 head -c 3000 /dev/zero > "$CARGO_HOME/registry/src/i/a/f"
 head -c 5000 /dev/zero > "$CARGO_HOME/registry/cache/i/c.crate"
-assert_eq "available 8000 3000 census" "$(rt_cargo_size "$CARGO_HOME/registry")" "cargo size: total is whole registry/, reclaimable is registry/src bytes"
+assert_eq "available 8000 3000 census" "$(probe_of rt_cargo_size "$CARGO_HOME/registry")" "cargo size: total is whole registry/, reclaimable is registry/src bytes"
 CARGO_OUTPUT_FILE="$SANDBOX/cargo-output.log"
 : > "$CARGO_OUTPUT_FILE"
 process_runtime cargo >"$CARGO_OUTPUT_FILE" 2>&1 || true
@@ -442,11 +456,11 @@ ORIGINAL_RT_SIZE_NPM="${RT_SIZE[npm]}"
 ORIGINAL_RT_SIZE_PIP="${RT_SIZE[pip]}"
 ORIGINAL_RT_SIZE_BUN="${RT_SIZE[bun]}"
 ORIGINAL_RT_SIZE_CARGO_FOR_TOTALS="${RT_SIZE[cargo]}"
-rt_size_totals_uv() { printf 'available 10000 1000 census\n'; }
-rt_size_totals_npm() { printf 'available 20000 2000 census\n'; }
-rt_size_totals_pip() { printf 'available 5000 5000 census\n'; }
-rt_size_totals_bun() { printf 'available 6000 6000 census\n'; }
-rt_size_totals_cargo() { printf 'available 7000 7000 census\n'; }
+rt_size_totals_uv() { PROBE_RECORD='available 10000 1000 census'; }
+rt_size_totals_npm() { PROBE_RECORD='available 20000 2000 census'; }
+rt_size_totals_pip() { PROBE_RECORD='available 5000 5000 census'; }
+rt_size_totals_bun() { PROBE_RECORD='available 6000 6000 census'; }
+rt_size_totals_cargo() { PROBE_RECORD='available 7000 7000 census'; }
 RT_SIZE[uv]=rt_size_totals_uv
 RT_SIZE[npm]=rt_size_totals_npm
 RT_SIZE[pip]=rt_size_totals_pip
