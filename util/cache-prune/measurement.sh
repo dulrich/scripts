@@ -4,7 +4,7 @@
 # size adapter, plus the one helper that decides whether two of them may be
 # subtracted. Sourced by ../cache-prune.sh; not a util subcommand.
 #
-# THE PROBE RECORD -- one transport, one line on stdout, four whitespace-
+# THE PROBE RECORD -- one transport, the global PROBE_RECORD, four whitespace-
 # separated fields in this fixed order:
 #
 #     <status> <total_bytes> <reclaimable_bytes> <source>
@@ -15,8 +15,12 @@
 #   source            provenance token, no whitespace, always non-empty;
 #                     literally "-" when unavailable
 #
-# Everything an adapter learned about a cache travels together, through the
-# adapter's stdout, and nowhere else. That is the whole point: the previous
+# Everything an adapter learned about a cache travels together, through
+# PROBE_RECORD, and nowhere else. Adapters run in the current shell (no
+# command substitution), so the scan globals they fill survive for the
+# detail and purge-prompt readers; measure_runtime empties PROBE_RECORD
+# before every adapter call, so an adapter that sets nothing can never
+# inherit a previous record. That is the whole point: the previous
 # design returned the two byte counts on stdout and smuggled the source
 # identity out through a module-level scratch-file path, because an adapter
 # runs inside the subshell a command substitution forks and a plain variable
@@ -46,14 +50,17 @@ probe_available() {
         return 0
     fi
 
-    printf 'available %d %d %s\n' "$total" "$reclaimable" "$source_id"
+    printf -v PROBE_RECORD 'available %d %d %s' "$total" "$reclaimable" "$source_id"
 }
+
+PROBE_RECORD=""
 
 # probe_unavailable: the canonical unavailable record. The byte fields are
 # zeroed and the source is "-" so that every record has the same shape and
 # one regex validates both states.
 probe_unavailable() {
-    printf 'unavailable 0 0 -\n'
+    # shellcheck disable=SC2034 # read by measure_runtime and every caller
+    PROBE_RECORD='unavailable 0 0 -'
 }
 
 # probe_is_valid: the seam contract. Anything that is not exactly one of the

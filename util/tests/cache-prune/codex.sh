@@ -59,10 +59,10 @@ reset_logs
 CACHE_PRUNE_CODEX_HOME_ROOT="$SANDBOX/codex-only-bare"
 mkdir -p "$CACHE_PRUNE_CODEX_HOME_ROOT/.codex"
 assert_failure "a Codex home without .staging is not detected" rt_codex_detect
-assert_eq "unavailable 0 0 -" "$(rt_codex_size "")" "no .staging probes unavailable"
+assert_eq "unavailable 0 0 -" "$(probe_of rt_codex_size "")" "no .staging probes unavailable"
 mkdir -p "$CACHE_PRUNE_CODEX_HOME_ROOT/.codex/.tmp/marketplaces/.staging"
 assert_success "an empty .staging is detected" rt_codex_detect
-assert_eq "available 0 0 codex" "$(rt_codex_size "")" "an empty .staging probes available 0 total 0 reclaimable"
+assert_eq "available 0 0 codex" "$(probe_of rt_codex_size "")" "an empty .staging probes available 0 total 0 reclaimable"
 
 
 echo "[codex size] old vs young: all entries count to total, only old ones reclaim"
@@ -70,9 +70,9 @@ codex_build_fixture
 CACHE_PRUNE_CODEX_HOME_ROOT="$CODEX_ROOT"
 codex_expect_old=$(fixture_du_sum "$CODEX_OLD")
 codex_expect_total=$(fixture_du_sum "$CODEX_OLD" "$CODEX_YOUNG" "$CODEX_LINK" "$CODEX_ANC_OLD")
-assert_eq "available $codex_expect_total $codex_expect_old codex" "$(rt_codex_size "")" \
+assert_eq "available $codex_expect_total $codex_expect_old codex" "$(probe_of rt_codex_size "")" \
     "total covers every marketplace-upgrade-* entry; reclaimable only entries over 24h with no symlink in their path"
-codex_detail="$(rt_codex_detail)"
+codex_detail="$(with_probe rt_codex_size rt_codex_detail)"
 assert_contains "$codex_detail" "codex .codex-alpha staging: 3 entries" "detail prints a per-profile entry count"
 assert_contains "$codex_detail" "2 not reclaimable (under 24h old or a symlink)" "detail counts the too-young (and symlinked) entries"
 

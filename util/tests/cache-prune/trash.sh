@@ -56,7 +56,7 @@ CACHE_PRUNE_TRASH_DIR="$TRASH_FIXTURE"
 
 echo "[trash --report] files/ + info/ sized, nothing emptied"
 trash_reset
-assert_eq "available $trash_expect $trash_expect trash" "$(rt_trash_size "")" "size counts files/ + info/, all reclaimable"
+assert_eq "available $trash_expect $trash_expect trash" "$(probe_of rt_trash_size "")" "size counts files/ + info/, all reclaimable"
 trash_run report false
 trash_output="$(cat "$TRASH_OUT")"
 assert_contains "$trash_output" "trash: 2 items in files/" "detail counts the items in files/"

@@ -306,7 +306,7 @@ SEQ_FILE="$SANDBOX/probe-sequence.log"
 : > "$SEQ_FILE"
 
 # queue_probe_sequence: load one probe record per probe call, in call order
-# -- "<status> <total> <reclaimable> <source>", the transport documented in
+# -- "<status> <total> <reclaimable> <source>", the PROBE_RECORD transport in
 # ../cache-prune/measurement.sh. Pair with
 # `RT_SIZE[<name>]=rt_size_from_queue`. Queueing a source identity here is
 # what lets a test drive a before/after pair whose provenance differs
@@ -319,7 +319,33 @@ rt_size_from_queue() {
     local line
     line=$(head -n1 "$SEQ_FILE" 2>/dev/null)
     sed -i '1d' "$SEQ_FILE" 2>/dev/null || true
-    printf '%s\n' "$line"
+    PROBE_RECORD="$line"
+}
+
+# probe_of: run a record producer (an RT_SIZE adapter or a probe_* helper)
+# the way measure_runtime does -- in a shell whose PROBE_RECORD starts empty
+# -- and print the record it left. Anything the producer itself wrote to
+# stdout is printed too, so a leaking adapter fails its exact-match assert.
+# Exit status is the producer's.
+probe_of() {
+    (
+        PROBE_RECORD=""
+        "$@" || exit $?
+        printf '%s\n' "$PROBE_RECORD"
+    )
+}
+
+# with_probe SIZE_FN CMD...: run a size adapter and then CMD in one subshell,
+# the order process_runtime uses -- RT_DETAIL and RT_PURGE_PROMPT read the
+# scan globals the probe just filled rather than re-scanning.
+with_probe() {
+    local size_fn="$1"
+    shift
+    (
+        PROBE_RECORD=""
+        "$size_fn" "" || exit $?
+        "$@"
+    )
 }
 
 # DOCKER_SYSTEM_DF_CALL_FILE / DOCKER_SYSTEM_DF_FAIL_AFTER: the same

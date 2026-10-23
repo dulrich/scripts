@@ -380,8 +380,8 @@ docker_residue_footprint() {
     perl "$DOCKER_RESIDUE_PL" footprint <<< "$out" 2>/dev/null
 }
 
-# docker_residue_probe: docker_residue_footprint as a probe record
-# (measurement.sh), so the residue delta goes through probe_compare like
+# docker_residue_probe: docker_residue_footprint as a probe record, left in
+# PROBE_RECORD (measurement.sh), so the residue delta goes through probe_compare like
 # every other delta -- before minus after, freed bytes positive.
 docker_residue_probe() {
     local bytes
@@ -486,9 +486,11 @@ rt_docker_residue() {
     fi
 
     local before after i ok_n fail_n summary="" cmp delta
-    before=$(probe_unavailable)
+    probe_unavailable
+    before="$PROBE_RECORD"
     if [[ "$do_sup" == true || "$do_stale" == true || "$do_vol" == true || ( "$MODE" == interactive && "$INCLUDE_PURGE" == true && ${#unref_refs[@]} -gt 0 ) ]]; then
-        before=$(docker_residue_probe)
+        docker_residue_probe
+        before="$PROBE_RECORD"
     fi
 
     ok_n=0 fail_n=0
@@ -550,9 +552,11 @@ rt_docker_residue() {
     # shellcheck disable=SC2034  # lifecycle state, read by process_runtime
     RUNTIME_ACTED=true
     printf 'docker residue: %s\n' "$summary"
-    after=$(probe_unavailable)
+    probe_unavailable
+    after="$PROBE_RECORD"
     if probe_is_available "$before"; then
-        after=$(docker_residue_probe)
+        docker_residue_probe
+        after="$PROBE_RECORD"
     fi
     cmp=$(probe_compare docker-residue "$before" "$after")
     if [[ "$cmp" == available\ * ]]; then
