@@ -380,6 +380,18 @@ docker_residue_footprint() {
     perl "$DOCKER_RESIDUE_PL" footprint <<< "$out" 2>/dev/null
 }
 
+# docker_residue_probe: docker_residue_footprint as a probe record
+# (measurement.sh), so the residue delta goes through probe_compare like
+# every other delta -- before minus after, freed bytes positive.
+docker_residue_probe() {
+    local bytes
+    if bytes=$(docker_residue_footprint) && [[ "$bytes" =~ ^[0-9]+$ ]]; then
+        probe_available "$bytes" 0 docker-system-df
+    else
+        probe_unavailable
+    fi
+}
+
 # docker_residue_remove: one item, never forced. A failure (an rmi conflict
 # with a container, a vanished daemon) is a per-item warning; the caller
 # counts it and carries on with the next item.
@@ -413,9 +425,10 @@ docker_residue_remove() {
 # the capture above (before any removal) AND still are in a fresh capture
 # taken after the stale-container step -- a volume orphaned by this run's
 # `docker rm` waits for the next run. Per-item failures are warnings.
-# Sets RUNTIME_RESIDUE_ACTED when any removal was attempted.
+# Elections go through tier_elected (actions.sh). Sets RUNTIME_ACTED when
+# any removal was attempted.
 rt_docker_residue() {
-    RUNTIME_RESIDUE_ACTED=false
+    local acted=false
     local capture rows class a b c _rest reason
     reason=$(docker_residue_perl_reason)
     if [[ -n "$reason" ]]; then
@@ -459,39 +472,28 @@ rt_docker_residue() {
     done <<< "$rows"
 
     local do_sup=false do_stale=false do_vol=false
-    if ((${#sup_refs[@]} > 0)); then
-        case "$MODE" in
-            yes) do_sup=true ;;
-            interactive)
-                confirm "Remove ${#sup_refs[@]} superseded docker image tags ($(human_bytes "$sup_bytes"))?" && do_sup=true
-                ;;
-        esac
+    if ((${#sup_refs[@]} > 0)) \
+        && tier_elected safe "Remove ${#sup_refs[@]} superseded docker image tags ($(human_bytes "$sup_bytes"))?"; then
+        do_sup=true
     fi
-    if ((${#stale_names[@]} > 0)) && [[ "$INCLUDE_PURGE" == true ]]; then
-        case "$MODE" in
-            yes) do_stale=true ;;
-            interactive)
-                confirm "Remove ${#stale_names[@]} stale docker containers (${stale_names[*]})? (purge tier)" && do_stale=true
-                ;;
-        esac
+    if ((${#stale_names[@]} > 0)) \
+        && tier_elected purge "Remove ${#stale_names[@]} stale docker containers (${stale_names[*]})? (purge tier)"; then
+        do_stale=true
     fi
-    if ((${#anon_before[@]} > 0)) && [[ "$INCLUDE_PURGE" == true ]]; then
-        case "$MODE" in
-            yes) do_vol=true ;;
-            interactive)
-                confirm "Remove ${#anon_before[@]} anonymous dangling docker volumes ($(human_bytes "$anon_bytes"))? (purge tier)" && do_vol=true
-                ;;
-        esac
+    if ((${#anon_before[@]} > 0)) \
+        && tier_elected purge "Remove ${#anon_before[@]} anonymous dangling docker volumes ($(human_bytes "$anon_bytes"))? (purge tier)"; then
+        do_vol=true
     fi
 
-    local before="" after i ok_n fail_n summary=""
+    local before after i ok_n fail_n summary="" cmp delta
+    before=$(probe_unavailable)
     if [[ "$do_sup" == true || "$do_stale" == true || "$do_vol" == true || ( "$MODE" == interactive && "$INCLUDE_PURGE" == true && ${#unref_refs[@]} -gt 0 ) ]]; then
-        before=$(docker_residue_footprint) || before=""
+        before=$(docker_residue_probe)
     fi
 
     ok_n=0 fail_n=0
     if [[ "$do_stale" == true ]]; then
-        RUNTIME_RESIDUE_ACTED=true
+        acted=true
         for i in "${stale_names[@]}"; do
             if docker_residue_remove container "$i"; then ok_n=$((ok_n + 1)); else fail_n=$((fail_n + 1)); fi
         done
@@ -512,7 +514,7 @@ rt_docker_residue() {
             printf 'docker anonymous volumes: nothing elected (fresh volume capture unavailable)\n'
         fi
         for i in "${vol_names[@]}"; do
-            RUNTIME_RESIDUE_ACTED=true
+            acted=true
             if docker_residue_remove volume "$i"; then ok_n=$((ok_n + 1)); else fail_n=$((fail_n + 1)); fi
         done
     fi
@@ -520,7 +522,7 @@ rt_docker_residue() {
 
     ok_n=0 fail_n=0
     if [[ "$do_sup" == true ]]; then
-        RUNTIME_RESIDUE_ACTED=true
+        acted=true
         for i in "${sup_refs[@]}"; do
             if docker_residue_remove image "$i"; then ok_n=$((ok_n + 1)); else fail_n=$((fail_n + 1)); fi
         done
@@ -531,24 +533,32 @@ rt_docker_residue() {
     if ((${#unref_refs[@]} > 0)); then
         if [[ "$MODE" == yes ]]; then
             printf 'skipped: %d unreferenced images need a per-image interactive confirm\n' "${#unref_refs[@]}"
-        elif [[ "$MODE" == interactive && "$INCLUDE_PURGE" == true ]]; then
+        else
             for i in "${!unref_refs[@]}"; do
-                confirm "Remove unreferenced docker image ${unref_refs[$i]} (${unref_sizes[$i]})? (purge tier)" || continue
-                RUNTIME_RESIDUE_ACTED=true
+                tier_elected item "Remove unreferenced docker image ${unref_refs[$i]} (${unref_sizes[$i]})? (purge tier)" || continue
+                acted=true
                 if docker_residue_remove image "${unref_targets[$i]}"; then ok_n=$((ok_n + 1)); else fail_n=$((fail_n + 1)); fi
             done
         fi
     fi
     summary+="unreferenced images removed $ok_n, failed $fail_n"
 
-    if [[ "$RUNTIME_RESIDUE_ACTED" == false ]]; then
+    if [[ "$acted" == false ]]; then
         printf 'docker residue: nothing removed\n'
         return 0
     fi
+    # shellcheck disable=SC2034  # lifecycle state, read by process_runtime
+    RUNTIME_ACTED=true
     printf 'docker residue: %s\n' "$summary"
-    if [[ -n "$before" ]] && after=$(docker_residue_footprint); then
+    after=$(probe_unavailable)
+    if probe_is_available "$before"; then
+        after=$(docker_residue_probe)
+    fi
+    cmp=$(probe_compare docker-residue "$before" "$after")
+    if [[ "$cmp" == available\ * ]]; then
+        delta="${cmp#available }"
         printf 'docker images/containers/volumes: observed footprint change %s (%d bytes)\n' \
-            "$(human_bytes_signed "$((after - before))")" "$((after - before))"
+            "$(human_bytes_signed "$delta")" "$delta"
     else
         printf 'docker images/containers/volumes: observed footprint change unavailable (docker system df --format json reading failed)\n'
     fi

@@ -293,6 +293,45 @@ assert_eq "" "$dr_banned" "no prune/forced verb in MUTATE_LOG across every mode"
 dr_bad_vol=$(grep -o 'volume rm [^|]*' <<< "$dr_banned_log" | grep -vxE 'volume rm (anon-a|anon-b)' || true)
 assert_eq "" "$dr_bad_vol" "every volume rm names an elected anonymous volume"
 
+# The residue delta goes through probe_compare: before minus after, so a
+# freed footprint prints positive (F1, 2026-10-23 review -- it printed
+# after minus before). Footprints are scripted per call; each run is a
+# subshell so the stubs never leak.
+dr_delta_run() {
+    (
+        DR_FP_SEQ="$1"
+        DR_FP_FILE="$SANDBOX/dr-fp-calls"
+        : > "$DR_FP_FILE"
+        docker_residue_perl_reason() { :; }
+        docker_residue_capture() { echo '{}'; }
+        docker_residue_classify() { printf 'stale\tgone-x-1\n'; }
+        docker_residue_footprint() {
+            local n v
+            n=$(wc -l < "$DR_FP_FILE"); echo x >> "$DR_FP_FILE"
+            read -r -a v <<< "$DR_FP_SEQ"
+            [[ "${v[$n]}" == fail ]] && return 1
+            printf '%s\n' "${v[$n]}"
+        }
+        docker() { :; }
+        MODE=yes INCLUDE_PURGE=true RUNTIME_ACTED=false
+        rt_docker_residue
+        printf 'ACTED=%s\n' "$RUNTIME_ACTED"
+    ) 2>&1
+}
+
+echo "[docker-residue] a freed footprint prints a positive delta"
+dr_d=$(dr_delta_run "1000 400")
+assert_contains "$dr_d" "docker images/containers/volumes: observed footprint change 600.0B (600 bytes)" "1000 -> 400 reports 600 bytes freed, positive"
+assert_contains "$dr_d" "ACTED=true" "an acting residue step records it in RUNTIME_ACTED"
+
+echo "[docker-residue] pre-probe failure: delta unavailable"
+dr_d=$(dr_delta_run "fail 400")
+assert_contains "$dr_d" "docker images/containers/volumes: observed footprint change unavailable (docker system df --format json reading failed)" "a failed pre-probe prints the unavailable line"
+
+echo "[docker-residue] post-probe failure: delta unavailable"
+dr_d=$(dr_delta_run "1000 fail")
+assert_contains "$dr_d" "docker images/containers/volumes: observed footprint change unavailable (docker system df --format json reading failed)" "a failed post-probe prints the unavailable line"
+
 eval "$DR_ORIGINAL_CONFIRM"
 
 eval "$DR_ORIGINAL_DOCKER"

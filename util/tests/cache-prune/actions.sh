@@ -348,3 +348,24 @@ total_line="$( {
 } 2>/dev/null | grep 'Total cache footprint' )"
 assert_contains "$total_line" "Total cache footprint seen:" "grand total is still printed after a partial failure"
 UV_PRUNE_RESULT=0
+
+# tier_elected: the one election helper. Each cell prints E (elected) or -
+# plus every prompt shown, across report / yes / yes+purge / interactive /
+# interactive+purge, with every confirm answered yes.
+tier_matrix() {
+    (
+        exec 3>&1
+        confirm() { printf '?' >&3; return 0; }
+        local m p
+        for m in report:false yes:false yes:true interactive:false interactive:true; do
+            MODE="${m%%:*}" INCLUDE_PURGE="${m#*:}"
+            if tier_elected "$1" prompt "${2:-}" >/dev/null; then p=E; else p=-; fi
+            printf '%s ' "$p"
+        done
+    )
+}
+echo "[tier_elected] safe / purge / interactive-only / per-item"
+assert_eq "- E E ?E ?E " "$(tier_matrix safe)" "safe: --yes always, interactive confirms"
+assert_eq "- - E - ?E " "$(tier_matrix purge)" "purge: --yes needs --include-purge, interactive confirms only with it"
+assert_eq "- - - ?E ?E " "$(tier_matrix optin "interactive only")" "interactive-only: never under --yes, interactive confirms"
+assert_eq "- - - - ?E " "$(tier_matrix item)" "per-item: never under --yes, interactive confirms only with --include-purge"
