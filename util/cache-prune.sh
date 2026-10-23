@@ -396,7 +396,8 @@ declare -A RT_DETAIL=(
 # only when the size probe was available). docker's image/container residue
 # lives here rather than in RT_PURGE because a purge election replaces the
 # safe verb under --yes, which would stop `docker builder prune` running.
-# The step sets RUNTIME_RESIDUE_ACTED and prints its own measured delta.
+# The step sets RUNTIME_ACTED when it removes anything (after the build-cache
+# delta has already been reported) and prints its own measured delta.
 declare -A RT_RESIDUE=(
     [docker]=rt_docker_residue
 )
@@ -691,12 +692,11 @@ process_runtime() {
 
     # The residue step runs after the build-cache verb and its delta line,
     # bracketed by its own measurement -- never folded into either.
-    RUNTIME_RESIDUE_ACTED=false
     if [[ -n "${RT_RESIDUE[$name]:-}" ]]; then
         "${RT_RESIDUE[$name]}"
     fi
 
-    if [[ "$RUNTIME_ACTED" == false && "$RUNTIME_RESIDUE_ACTED" == false ]]; then
+    if [[ "$RUNTIME_ACTED" == false ]]; then
         printf '%s: skipped.\n' "$name"
     fi
 

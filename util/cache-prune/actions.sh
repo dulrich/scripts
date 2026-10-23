@@ -219,17 +219,43 @@ codex_purge_path() {
 #                  plain interactive run would start prompting to blow away
 #                  caches nobody asked to touch. This asymmetry is
 #                  deliberate; do not unify the two interactive branches.
-safe_elected() {
-    local name="$1"
-
-    [[ -n "${RT_PRUNE[$name]:-}" ]] || return 1
+#
+# Both delegate the mode x tier decision to tier_elected below, which the
+# docker residue step uses too -- one election, one place.
+#
+# tier_elected <kind> <prompt> [<interactive_only_note>]
+#   kind safe:  --report -> never; --yes -> always; interactive -> confirm
+#   kind purge: --report -> never; --yes -> only with --include-purge;
+#               interactive -> confirm only with --include-purge
+#   kind optin: as purge, but interactive confirms unconditionally
+#   kind item:  per-item confirm -- never under --report or --yes;
+#               interactive -> confirm only with --include-purge
+# A non-empty interactive_only_note (RT_INTERACTIVE_ONLY) marks
+# interactive-only data: under --yes the note is printed and nothing is
+# elected, whatever --include-purge says; the skip is a note, not a failure.
+tier_elected() {
+    local kind="$1"
+    local prompt="$2"
+    local only_note="${3:-}"
 
     case "$MODE" in
         yes)
-            return 0
+            if [[ -n "$only_note" ]]; then
+                printf '%s\n' "$only_note"
+                return 1
+            fi
+            case "$kind" in
+                safe) return 0 ;;
+                purge|optin) [[ "$INCLUDE_PURGE" == true ]] ;;
+                *) return 1 ;;
+            esac
             ;;
         interactive)
-            confirm "Prune $name cache?"
+            case "$kind" in
+                safe|optin) confirm "$prompt" ;;
+                purge|item) [[ "$INCLUDE_PURGE" == true ]] && confirm "$prompt" ;;
+                *) return 1 ;;
+            esac
             ;;
         *)
             return 1
@@ -237,12 +263,20 @@ safe_elected() {
     esac
 }
 
+safe_elected() {
+    local name="$1"
+
+    [[ -n "${RT_PRUNE[$name]:-}" ]] || return 1
+    tier_elected safe "Prune $name cache?"
+}
+
 purge_elected() {
     local name="$1"
-    local class="${RT_CLASS[$name]}"
+    local kind=optin
     local prompt="Purge $name cache? (opt-in, destructive)"
 
     [[ -n "${RT_PURGE[$name]:-}" ]] || return 1
+    [[ "${RT_CLASS[$name]}" == safe ]] && kind=purge
 
     # The custom prompt is only built when it can be shown -- trash's probes
     # the trash dir, which --yes never needs.
@@ -250,30 +284,7 @@ purge_elected() {
         prompt=$("${RT_PURGE_PROMPT[$name]}")
     fi
 
-    case "$MODE" in
-        yes)
-            # An interactive-only runtime (RT_INTERACTIVE_ONLY) is never
-            # elected here; the skip is a note, not a failure.
-            if [[ -n "${RT_INTERACTIVE_ONLY[$name]:-}" ]]; then
-                printf '%s\n' "${RT_INTERACTIVE_ONLY[$name]}"
-                return 1
-            fi
-            [[ "$INCLUDE_PURGE" == true ]]
-            ;;
-        interactive)
-            case "$class" in
-                safe)
-                    [[ "$INCLUDE_PURGE" == true ]] && confirm "$prompt"
-                    ;;
-                *)
-                    confirm "$prompt"
-                    ;;
-            esac
-            ;;
-        *)
-            return 1
-            ;;
-    esac
+    tier_elected "$kind" "$prompt" "${RT_INTERACTIVE_ONLY[$name]:-}"
 }
 
 ### execution #################################################################
