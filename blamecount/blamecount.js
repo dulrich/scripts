@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 // blamecount: count lines by each contributor
 // 2016  David Ulrich
 //
@@ -47,7 +47,7 @@ const MINIFIED_RE = /.+\.min\.(js|css)$/i;
 
 const HELP_TEXT = `blamecount: count tracked lines by author and language via "git blame"
 
-Usage: node blamecount.js [--config <path>] [-h|--help]
+Usage: bun blamecount.js [--config <path>] [-h|--help]
 
   --config <path>  Path to the JSON config (default: config.json beside
                     this script). Config fields:

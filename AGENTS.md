@@ -51,7 +51,7 @@ It optionally loads (not in repo, gitignored):
 ### Subdirectories
 
 - `util/` — utility subcommands dispatched by the `util` router (see above). A subcommand's own helper modules live in a subdirectory named after it (e.g. `util/cache-prune/`), which the router's `util/*.sh` glob deliberately cannot reach.
-- `blamecount/` — Node.js (built-ins only; Node ≥ 18) tool summarizing `git blame` stats per author/language via the `git` CLI, with bounded blame concurrency. Configure via `config.json` (see `config.example.json`, which also sets `concurrency`); accepts `--config <path>`. Missing/invalid config, a non-repo `basepath`, or any failed `git` invocation exits nonzero naming the offending path. Has its own tests (`blamecount/tests/smoke.sh`).
+- `blamecount/` — bun-run (Node built-ins only) tool summarizing `git blame` stats per author/language via the `git` CLI, with bounded blame concurrency. Configure via `config.json` (see `config.example.json`, which also sets `concurrency`); accepts `--config <path>`. Missing/invalid config, a non-repo `basepath`, or any failed `git` invocation exits nonzero naming the offending path. Has its own tests (`blamecount/tests/smoke.sh`).
 - `pkg-ioc/` — Supply-chain-attack IOC scanner for npm/PyPI. Has its own tests (`tests/smoke.sh`).
 - `gpuedit/` — Config files (themes, keybindings, highlighters) for gpuedit.
 - `i3/` — i3 window manager config.

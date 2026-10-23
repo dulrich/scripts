@@ -4,14 +4,11 @@ set -euo pipefail
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 SCRIPT="$ROOT/blamecount.js"
 
-# blamecount targets Node (built-ins only); the smoke prefers node and falls back to bun, which this
-# fleet's hosts guarantee and which runs the same built-ins-only script.
-if command -v node >/dev/null 2>&1; then
-	JS=node
-elif command -v bun >/dev/null 2>&1; then
+# blamecount is a built-ins-only script run under bun, which this fleet's hosts guarantee.
+if command -v bun >/dev/null 2>&1; then
 	JS=bun
 else
-	printf 'blamecount smoke: neither node nor bun found on PATH\n' >&2
+	printf 'blamecount smoke: bun not found on PATH\n' >&2
 	exit 1
 fi
 command -v git >/dev/null 2>&1 || { printf 'blamecount smoke: git not found on PATH\n' >&2; exit 1; }
