@@ -16,13 +16,13 @@
 # safe_elected / purge_elected: decide, per runtime, whether this run acts
 # through the safe verb (RT_PRUNE) and/or the purge verb (RT_PURGE). Split
 # in two -- rather than one should_act -- because a runtime may carry both
-# verbs (uv, npm) and the two elections are independently gated: see
+# verbs (uv, npm, docker) and the two elections are independently gated: see
 # run_elected_verbs below for how the two combine per mode.
 #
 # Each returns false outright when the runtime has no entry in its own
 # registry array, regardless of mode -- a runtime with no RT_PRUNE entry
-# (pip, bun) can never be safe_elected, and one with no RT_PURGE entry
-# (docker) can never be purge_elected.
+# (pip, bun, cargo) can never be safe_elected, and one with no RT_PURGE entry
+# (e.g. a safe-only runtime) can never be purge_elected.
 #
 #   safe_elected:  --report -> never; --yes -> always; interactive ->
 #                  confirm "Prune $name cache?"
@@ -31,7 +31,7 @@
 #                  confirm unconditionally -- suppressing this would make
 #                  interactive mode silently do nothing for them, since the
 #                  purge verb is their *only* verb;
-#                  interactive, class safe (uv/npm, dual-verb) -> confirm
+#                  interactive, class safe (uv/npm/docker, dual-verb) -> confirm
 #                  only when --include-purge was also passed -- otherwise a
 #                  plain interactive run would start prompting to blow away
 #                  caches nobody asked to touch. This asymmetry is
@@ -93,7 +93,7 @@ purge_elected() {
     local prompt="Purge $name cache? (opt-in, destructive)"
 
     [[ -n "${RT_PURGE[$name]:-}" ]] || return 1
-    # A runtime with a safe verb too (uv, npm) gates its purge behind
+    # A runtime with a safe verb too (uv, npm, docker) gates its purge behind
     # --include-purge even interactively; a purge-only one does not.
     [[ -n "${RT_PRUNE[$name]:-}" ]] && kind=purge
 

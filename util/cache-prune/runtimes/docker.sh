@@ -1,6 +1,6 @@
 # shellcheck shell=bash
 # shellcheck disable=SC2034  # RT_* entries and help arrays are read by util/cache-prune.sh
-# cache-prune/runtimes/docker.sh: the `docker` runtime -- docker's build cache (safe verb only), plus its image/container residue.
+# cache-prune/runtimes/docker.sh: the `docker` runtime -- docker's build cache (a safe verb and a purge verb), plus its image/container residue.
 # A core runtime module: sourced by ../../cache-prune.sh, in its fixed order,
 # after the registry arrays are declared and before any fleet module. It
 # registers itself (its RUNTIME_ORDER slot, its RT_* entries, its help text)
@@ -19,8 +19,12 @@ RT_ABSENT[docker]=rt_docker_absent
 # account can resolve or `du`.
 RT_SIZE[docker]=rt_docker_size
 RT_PRUNE[docker]=rt_docker_prune
-# No RT_PURGE entry: docker has no destructive verb at all (its safe prune is
-# the only action).
+# docker is dual-verb like uv/npm: RT_PRUNE is the safe `builder prune`, and
+# RT_PURGE the whole-cache `builder prune -a` (purge tier, --include-purge).
+RT_PURGE[docker]=rt_docker_purge
+# The size probe predicts the safe verb only; the report prints this note
+# instead of presenting that figure as a purge figure.
+RT_PURGE_UNPREDICTED_NOTE[docker]='docker purge verb (docker builder prune -a) clears the whole unused build cache, up to the total above, not just the safe-verb figure -- requires --include-purge'
 # rt_docker_detail and rt_docker_residue live in ../docker-residue.sh.
 RT_DETAIL[docker]=rt_docker_detail
 RT_RESIDUE[docker]=rt_docker_residue
@@ -200,4 +204,14 @@ rt_docker_prune() {
     else
         docker builder prune --force
     fi
+}
+
+# The purge tier: `docker builder prune -a` clears the whole unused build
+# cache, which is the only way to reach the Shared slice the safe verb leaves
+# behind under the containerd snapshotter. Never carries --filter, whatever
+# DOCKER_UNTIL holds: an until= filter reclaims nothing there (measured
+# 2026-10-19), and --docker-until is documented as narrowing the safe verb
+# only. Still never `docker system prune` / `docker image prune`.
+rt_docker_purge() {
+    docker builder prune -a --force
 }

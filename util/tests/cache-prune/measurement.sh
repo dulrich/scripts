@@ -470,8 +470,13 @@ for rt in "${RUNTIME_ORDER[@]}"; do
     process_runtime "$rt" >/dev/null 2>&1 || true
 done
 assert_eq "10000048000" "$TOTAL_BYTES" "footprint total sums every runtime's total, including cargo's and docker's"
-assert_eq "6000000000" "$SAFE_RECLAIMABLE_BYTES" "safe-tier total is docker's reclaimable alone"
-assert_eq "21000" "$PURGE_RECLAIMABLE_BYTES" "purge-tier total sums uv+npm+pip+bun+cargo's reclaimable, excluding docker (safe-only)"
+assert_eq "6000000000" "$SAFE_RECLAIMABLE_BYTES" "safe-tier total is docker's reclaimable alone (its probe predicts the safe verb)"
+assert_eq "21000" "$PURGE_RECLAIMABLE_BYTES" "purge-tier total sums uv+npm+pip+bun+cargo's reclaimable, excluding docker's safe-verb prediction"
+docker_report="$(process_runtime docker 2>&1)"
+assert_contains "$docker_report" "docker reclaimable via the safe verb (" "docker's figure is reported on the safe line"
+assert_contains "$docker_report" "docker builder prune -a) clears the whole unused build cache" "docker gets a purge-scope line"
+assert_contains "$docker_report" "requires --include-purge" "docker's purge line names its gate"
+assert_not_contains "$docker_report" "via the purge verb" "docker's safe prediction is never labelled a purge figure"
 RT_SIZE[uv]="$ORIGINAL_RT_SIZE_UV"
 RT_SIZE[npm]="$ORIGINAL_RT_SIZE_NPM"
 RT_SIZE[pip]="$ORIGINAL_RT_SIZE_PIP"

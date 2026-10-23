@@ -96,6 +96,35 @@ assert_contains "$MUTATE_LOG" "npm cache clean" "npm is purged under --yes --inc
 assert_not_contains "$MUTATE_LOG" "npm cache verify" "npm's purge supersedes its safe verb -- the safe verb never runs too"
 
 
+echo "[docker] election: --yes safe only; --yes --include-purge purge only, never filtered"
+all_present
+reset_logs
+FAILED=0
+DOCKER_INFO_RESULT=0
+MODE="yes"
+INCLUDE_PURGE=false
+DOCKER_UNTIL=""
+process_runtime docker >/dev/null 2>&1 || true
+assert_eq "docker builder prune --force|" "$MUTATE_LOG" "--yes alone runs only the safe docker verb"
+reset_logs
+INCLUDE_PURGE=true
+process_runtime docker >/dev/null 2>&1 || true
+assert_eq "docker builder prune -a --force|" "$MUTATE_LOG" "--yes --include-purge runs only the docker purge verb"
+reset_logs
+DOCKER_UNTIL="24h"
+process_runtime docker >/dev/null 2>&1 || true
+assert_eq "docker builder prune -a --force|" "$MUTATE_LOG" "DOCKER_UNTIL never adds a --filter to the purge call"
+DOCKER_UNTIL=""
+reset_logs
+CONFIRM_RESULT=0
+MODE="interactive"
+INCLUDE_PURGE=false
+process_runtime docker >/dev/null 2>&1 || true
+assert_eq "Prune docker cache?|" "$CONFIRM_LOG" "interactive docker without --include-purge offers no purge confirm"
+assert_eq "docker builder prune --force|" "$MUTATE_LOG" "interactive docker without --include-purge runs only the safe verb"
+INCLUDE_PURGE=false
+
+
 echo "[interactive] purge prompts default to No; a declined prompt executes nothing"
 all_present
 reset_logs
@@ -281,7 +310,7 @@ echo "[registry] RT_PRUNE/RT_PURGE membership matches the safe/purge split"
 assert_eq "" "${RT_PRUNE[pip]+set}" "pip has no RT_PRUNE entry -- it migrated to RT_PURGE entirely"
 assert_eq "" "${RT_PRUNE[bun]+set}" "bun has no RT_PRUNE entry -- it migrated to RT_PURGE entirely"
 assert_eq "set" "${RT_PURGE[cargo]+set}" "cargo has an RT_PURGE entry (purge-only, registry/src)"
-assert_eq "" "${RT_PURGE[docker]+set}" "docker has no RT_PURGE entry (safe-only, no destructive verb)"
+assert_eq "set" "${RT_PURGE[docker]+set}" "docker has an RT_PURGE entry (purge-tier build-cache verb, dual-verb like uv/npm)"
 assert_eq "set" "${RT_PRUNE[uv]+set}" "uv keeps its RT_PRUNE (safe) entry"
 assert_eq "set" "${RT_PURGE[uv]+set}" "uv also gained an RT_PURGE entry"
 assert_eq "set" "${RT_PRUNE[npm]+set}" "npm keeps its RT_PRUNE (safe) entry"
