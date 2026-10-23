@@ -345,5 +345,30 @@ case "$USAGE_STDERR" in
 esac
 rm -rf "$REPORT_STUB_DIR"
 
+echo "[self-elevation] non-root interactive run re-execs under sudo"
+
+# `util debian-maintenance` reaches this script through an alias, so a non-root
+# run must re-exec itself by absolute path under sudo rather than only telling
+# the user to. A stub `sudo` on PATH records its argv instead of elevating; a
+# PATH without any sudo must still fail with the manual hint.
+if ((EUID == 0)); then
+    ok "self-elevation (skipped: suite running as root)"
+else
+    SUDO_STUB_DIR="$(mktemp -d)"
+    printf '#!/usr/bin/env bash\nprintf "SUDO %%s\\n" "$*"\n' > "$SUDO_STUB_DIR/sudo"
+    chmod +x "$SUDO_STUB_DIR/sudo"
+    SCRIPT_ABS="$(realpath "$HERE/../debian-maintenance.sh")"
+    SUDO_OUT="$(PATH="$SUDO_STUB_DIR:$PATH" bash "$HERE/../debian-maintenance.sh" </dev/null 2>&1)"
+    assert_eq "SUDO -- $SCRIPT_ABS" "$SUDO_OUT" "a non-root run re-execs the absolute script path under sudo"
+
+    EMPTY_PATH_DIR="$(mktemp -d)"
+    NOSUDO_ERR="$(PATH="$EMPTY_PATH_DIR" "$BASH" "$HERE/../debian-maintenance.sh" </dev/null 2>&1 || true)"
+    case "$NOSUDO_ERR" in
+        *"Run as root, e.g.: sudo "*) ok "without sudo on PATH a non-root run fails with the manual hint" ;;
+        *) bad "without sudo on PATH a non-root run fails with the manual hint (got <$NOSUDO_ERR>)" ;;
+    esac
+    rm -rf "$SUDO_STUB_DIR" "$EMPTY_PATH_DIR"
+fi
+
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
 ((FAIL == 0))
