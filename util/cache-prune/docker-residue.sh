@@ -259,8 +259,9 @@ docker_residue_remove() {
 # rt_docker_residue: the docker-only residue step, run by process_runtime
 # after the build-cache verb and its delta line (never in --report, never
 # when the size probe was unavailable). It is deliberately NOT an RT_PURGE
-# entry: under --yes a purge election replaces the safe verb, which would
-# stop `docker builder prune` from running.
+# entry: under --yes a purge election replaces the safe verb, so the residue
+# step is registered separately and runs after whichever build-cache verb
+# (safe or purge) was elected.
 #
 # Classifies a FRESH capture taken now; images unavailable or a classifier
 # error elects nothing. Elections: superseded -- --yes, or one interactive

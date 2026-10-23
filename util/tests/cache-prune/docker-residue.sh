@@ -227,7 +227,7 @@ assert_contains "$dr_out" "docker images/containers/volumes: observed footprint 
 
 echo "[docker-residue] --yes --include-purge: stale containers first"
 dr_run yes true
-assert_contains "$dr_mut" "docker builder prune --force|docker rm gone-x-1|docker rmi webapp-overlay:v0.11.1|docker rmi webapp-overlay:v0.11.3|" "builder prune, then stale rm, then superseded rmi"
+assert_contains "$dr_mut" "docker builder prune -a --force|docker rm gone-x-1|docker rmi webapp-overlay:v0.11.1|docker rmi webapp-overlay:v0.11.3|" "builder prune, then stale rm, then superseded rmi"
 assert_not_contains "$dr_mut" "orphan-" "--yes --include-purge still removes no unreferenced image"
 
 echo "[docker-residue] interactive --include-purge: one confirm per unreferenced image"
@@ -258,7 +258,7 @@ DOCKER_RM_FAIL_TARGET=""
 echo "[docker-residue] an images-unavailable capture elects nothing"
 DR_COMPOSE_RESULT=1
 dr_run yes true
-assert_eq "docker builder prune --force|" "$dr_mut" "only the build-cache prune runs when images are unavailable"
+assert_eq "docker builder prune -a --force|" "$dr_mut" "only the build-cache purge verb runs when images are unavailable"
 assert_contains "$dr_out" "docker residue: nothing elected (images unavailable: compose config failed" "says why nothing was elected"
 DR_COMPOSE_RESULT=0
 
