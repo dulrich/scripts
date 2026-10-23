@@ -68,7 +68,10 @@ docker_window_seconds() {
 
 # docker_size_to_bytes: normalize one docker-rendered size token (e.g.
 # "68.26GB", "500MB", "100B") to an integer byte count. Docker's own
-# human-size rendering is decimal (1000-based).
+# human-size rendering is decimal (1000-based). Kept in bash so the build-cache
+# probe needs no perl; the residue step's perl twin is `hbytes` in
+# ../docker-residue.pl. They are one contract: the shared vector table in
+# util/tests/cache-prune/adapters.sh asserts both.
 docker_size_to_bytes() {
     local size="$1"
 

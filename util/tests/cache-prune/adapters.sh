@@ -85,6 +85,22 @@ assert_eq "4000000000" "$(docker_size_to_bytes "4GB")" "GB converts at 1000^3"
 assert_eq "3000000000000" "$(docker_size_to_bytes "3TB")" "TB converts at 1000^4"
 
 
+# One vector table, two implementations: docker_size_to_bytes (bash/awk,
+# runtimes/docker.sh, so the build-cache probe needs no perl) and hbytes
+# (perl, docker-residue.pl). The perl side is reached through the existing
+# `footprint` mode: a lone Images row of the vector plus two 0B rows sums to
+# hbytes(vector).
+echo "[docker parse] shared size vectors: bash docker_size_to_bytes and perl hbytes agree"
+for size_vector in "500B 500" "512kB 512000" "2.5MB 2500000" "4GB 4000000000" "3TB 3000000000000" "1.5kB 1500" "0B 0"; do
+    size_token="${size_vector% *}"
+    size_expected="${size_vector#* }"
+    assert_eq "$size_expected" "$(docker_size_to_bytes "$size_token")" "bash: $size_token is $size_expected bytes"
+    size_perl=$(printf '{"Type":"Images","Size":"%s"}\n{"Type":"Containers","Size":"0B"}\n{"Type":"Local Volumes","Size":"0B"}\n' "$size_token" \
+        | perl "$DOCKER_RESIDUE_PL" footprint 2>&1)
+    assert_eq "$size_expected" "$size_perl" "perl: $size_token is $size_expected bytes"
+done
+
+
 echo "[docker parse] buildx du: trailing labelled lines parse correctly"
 pair="$(docker_buildx_du_bytes "$DOCKER_BUILDX_DU_FIXTURE_OK")"
 assert_eq "$DOCKER_BUILDX_DU_EXPECTED_BYTES" "$pair" "Total:/Reclaimable: labels parse despite a preceding '*' shared-marker row"

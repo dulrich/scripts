@@ -5,18 +5,15 @@
 # never lists. Invoked as `perl docker-residue.pl <mode> [args]`; reads stdin.
 #
 # Modes:
-#   argval <key>            stdin: build-args JSON; prints .[key] if a string
-#   volumes                 stdin: `system df -v` JSON -> volumes array
-#   images                  stdin: `image inspect` JSON -> images array
-#   sizes                   stdin: concatenated {id,size} docs -> {id: bytes}
-#   containers <sizes>      stdin: `container inspect` JSON -> containers array
-#   cfgok                   stdin: compose config; exit 0 iff .name and object .services
-#   compose-append <cfg>    stdin: compose array; prints it with <cfg>'s entry appended
-#   builds                  stdin: compose config; TSV "<dockerfile>\t<args-json>" lines
-#   assemble <images> <containers> <compose> <volumes> <image_error> <volume_error>
-#                           stdin: base refs, one per line -> the capture document
+#   capture <repo-root>     runs the docker / compose subprocesses itself and prints
+#                           the capture document (see docker-residue.sh); no JSON
+#                           passes through argv or the shell
 #   classify                stdin: capture JSON -> TSV rows (see docker-residue.sh)
 #   footprint               stdin: `system df` JSON lines -> bytes, exit 1 if incomplete
+#
+# hbytes (below) and docker_size_to_bytes (runtimes/docker.sh, bash, so the
+# docker build-cache probe needs no perl) are one contract: the shared vector
+# table in util/tests/cache-prune/adapters.sh asserts both.
 #
 # CC0: This work has been marked as dedicated to the public domain.
 # https://creativecommons.org/publicdomain/zero/1.0/
@@ -192,38 +189,59 @@ sub values_of {
     return @out;
 }
 
-my $T = JSON::PP::true;
-my $F = JSON::PP::false;
+### capture ####################################################################
 
-if ($mode eq 'argval') {
-    my $key = shift @ARGV;
-    my $v = eval { JSON::PP->new->utf8->allow_nonref->decode(slurp()) };
-    if (isobj($v) && defined $v->{$key} && !ref $v->{$key} && !isnum($v->{$key})) {
-        binmode STDOUT, ':utf8';
-        print $v->{$key}, "\n";
+# run_cmd: run one command (argv list, no shell) with stdin and stderr on
+# /dev/null; returns (success, stdout bytes with trailing newlines stripped,
+# as `$(...)` did). A command that cannot be started fails like a nonzero exit.
+sub run_cmd {
+    my @cmd = @_;
+    my $pid = open(my $fh, '-|');
+    die "fork: $!\n" unless defined $pid;
+    if (!$pid) {
+        open(STDIN, '<', '/dev/null');
+        open(STDERR, '>', '/dev/null');
+        { exec { $cmd[0] } @cmd; }
+        exit 127;
     }
-} elsif ($mode eq 'volumes') {
-    my $doc = dec(slurp());
+    local $/;
+    my $out = <$fh>;
+    $out = '' unless defined $out;
+    close $fh;
+    $out =~ s/\n+\z//;
+    return ($? == 0, $out);
+}
+
+# cap_volumes: `docker system df -v --format json` -> volumes array.
+sub cap_volumes {
+    my $doc = dec(shift);
     my $src = isobj($doc) ? $doc->{Volumes} : undef;
-    my @out = map {
+    return [ map {
         my $links = tonum(alt($_->{Links}, '0'));
         my $labels = tostr(alt($_->{Labels}, ''));
         my $anon = grep { ((split /=/, $_, 2)[0] // '') eq 'com.docker.volume.anonymous' } split /,/, $labels;
         { name => $_->{Name}, size => (hbytes($_->{Size}) // 0), links => (defined $links ? $links : 0),
-          anonymous => ($anon ? $T : $F) }
-    } arr($src);
-    print enc(\@out), "\n";
-} elsif ($mode eq 'images') {
-    my @out = map { { id => $_->{Id}, tags => alt($_->{RepoTags}, []), created => $_->{Created}, size => $_->{Size} } }
-        arr(dec(slurp()));
-    print enc(\@out), "\n";
-} elsif ($mode eq 'sizes') {
+          anonymous => ($anon ? JSON::PP::true : JSON::PP::false) }
+    } arr($src) ];
+}
+
+# cap_images: `docker image inspect` -> images array.
+sub cap_images {
+    return [ map { { id => $_->{Id}, tags => alt($_->{RepoTags}, []), created => $_->{Created}, size => $_->{Size} } }
+        arr(dec(shift)) ];
+}
+
+# cap_sizes: `docker ps -a --size` {id,size} lines -> {id: bytes}.
+sub cap_sizes {
     my %out;
-    $out{tostr($_->{id})} = hbytes($_->{size}) for values_of(slurp());
-    print enc(\%out), "\n";
-} elsif ($mode eq 'containers') {
-    my $sizes = dec(shift @ARGV);
-    my @out = map {
+    $out{tostr($_->{id})} = hbytes($_->{size}) for values_of(shift);
+    return \%out;
+}
+
+# cap_containers: `docker container inspect` -> containers array.
+sub cap_containers {
+    my ($text, $sizes) = @_;
+    return [ map {
         my $name = tostr($_->{Name}); $name =~ s{^/}{};
         my $lab = isobj($_->{Config}) && isobj($_->{Config}{Labels}) ? $_->{Config}{Labels} : {};
         { name => $name, id => $_->{Id}, image_id => $_->{Image},
@@ -232,42 +250,215 @@ if ($mode eq 'argval') {
           project => alt($lab->{'com.docker.compose.project'}, undef),
           service => alt($lab->{'com.docker.compose.service'}, undef),
           size_rw => alt($sizes->{tostr($_->{Id})}, undef) }
-    } arr(dec(slurp()));
-    print enc(\@out), "\n";
-} elsif ($mode eq 'cfgok') {
-    my $c = eval { dec(slurp()) };
-    exit((isobj($c) && truthy($c->{name}) && isobj($c->{services})) ? 0 : 1);
-} elsif ($mode eq 'compose-append') {
-    my $cfg = dec(shift @ARGV);
-    my $list = dec(slurp());
+    } arr(dec($text)) ];
+}
+
+# compose_files: compose*.yml / compose*.yaml regular files up to three levels
+# under $root, bytewise sorted (find -maxdepth 3 -type f, never following
+# symlinks, as before).
+sub compose_files {
+    my $root = shift;
+    return () unless -d $root && !-l $root;
+    my @out;
+    my $walk;
+    $walk = sub {
+        my ($dir, $depth) = @_;
+        return if $depth >= 3;
+        opendir(my $dh, $dir) or return;
+        my @names = readdir $dh;
+        closedir $dh;
+        for my $n (@names) {
+            next if $n eq '.' || $n eq '..';
+            my $p = ($dir =~ m{/\z} ? $dir : "$dir/") . $n;
+            next if -l $p;
+            if (-d _) { $walk->($p, $depth + 1); }
+            elsif (-f _ && $n =~ /^compose.*\.ya?ml\z/s) { push @out, $p; }
+        }
+    };
+    $walk->($root, 0);
+    return sort @out;
+}
+
+# compose_entry: one resolved compose config -> {project, services}, plus the
+# Dockerfiles its services build: [{path, args}] in service-name order.
+sub compose_entry {
+    my $cfg = shift;
     my $svc = $cfg->{services};
-    push @$list, { project => $cfg->{name}, services => [ map {
-        { name => $_, image => alt($svc->{$_}{image}, undef), build => (defined $svc->{$_}{build} ? $T : $F) }
+    my $entry = { project => $cfg->{name}, services => [ map {
+        { name => $_, image => alt($svc->{$_}{image}, undef), build => (defined $svc->{$_}{build} ? JSON::PP::true : JSON::PP::false) }
     } sort keys %$svc ] };
-    print enc($list), "\n";
-} elsif ($mode eq 'builds') {
-    my $cfg = dec(slurp());
-    my $svc = $cfg->{services};
-    my $cj = JSON::PP->new->utf8->canonical->allow_nonref;
+    my @builds;
     for my $k (sort keys %$svc) {
         my $b = $svc->{$k}{build};
         next unless defined $b;
         my $df = alt($b->{dockerfile}, 'Dockerfile');
         my $path = substr($df, 0, 1) eq '/' ? $b->{dockerfile} : tostr($b->{context}) . '/' . $df;
-        my @f = (tostr($path), $cj->encode(alt($b->{args}, undef)));
-        for (@f) { s/\\/\\\\/g; s/\t/\\t/g; s/\n/\\n/g; s/\r/\\r/g; }
-        print join("\t", @f), "\n";
+        push @builds, { path => tostr($path), args => alt($b->{args}, undef) };
     }
-} elsif ($mode eq 'assemble') {
-    my ($images, $containers, $compose, $volumes, $ie, $ve) = @ARGV;
-    my %b;
-    my $raw = slurp();
-    utf8::decode($raw);
-    $b{$_} = 1 for grep { length } split /\n/, $raw;
-    print enc({ images => dec($images), containers => dec($containers), compose => dec($compose),
-                base_refs => [ sort keys %b ], volumes => dec($volumes),
-                image_error => (length $ie ? do { utf8::decode($ie); $ie } : undef),
-                volume_error => (length $ve ? do { utf8::decode($ve); $ve } : undef) }), "\n";
+    return ($entry, \@builds);
+}
+
+# arg_value: build-arg $key of the compose `args` object when it is a string
+# (a number, boolean or nested value never counts), else ''.
+sub arg_value {
+    my ($args, $key) = @_;
+    return '' unless isobj($args);
+    my $v = $args->{$key};
+    return '' if !defined $v || ref $v || isnum($v);
+    $v =~ s/\n+\z//;
+    return $v;
+}
+
+# subst_args: expand ${X}, ${X:-d} and $X in one FROM ref. Compose build args
+# win over the Dockerfile's ARG default. undef if any variable is left
+# unresolved -- an unknown base never becomes a guess.
+sub subst_args {
+    my ($ref, $args, $defaults) = @_;
+    my $guard = 0;
+    while ($ref =~ /\$\{([A-Za-z_][A-Za-z0-9_]*)(:-([^}]*))?\}|\$([A-Za-z_][A-Za-z0-9_]*)/) {
+        return undef if ++$guard > 64;
+        my $whole = substr($ref, $-[0], $+[0] - $-[0]);
+        my $var = defined $1 ? $1 : $4;
+        my $fallback = defined $3 ? $3 : '';
+        my $value = arg_value($args, $var);
+        if (!length $value) {
+            $value = (defined $defaults->{$var} && length $defaults->{$var}) ? $defaults->{$var} : $fallback;
+        }
+        return undef unless length $value;
+        substr($ref, index($ref, $whole), length $whole) = $value;
+    }
+    return $ref;
+}
+
+# dockerfile_bases: the FROM refs of one Dockerfile (an array ref), ARG
+# defaults substituted (compose build args override them), earlier `AS` stage
+# names and `scratch` skipped. undef if unreadable or a ref is left with an
+# unresolved variable.
+sub dockerfile_bases {
+    my ($path, $args) = @_;
+    my $file = $path;
+    utf8::encode($file);
+    return undef unless -r $file && open(my $fh, '<:raw', $file);
+    my (%vars, @stages, @out);
+    while (defined(my $line = <$fh>)) {
+        chomp $line;
+        utf8::decode($line);
+        $line =~ s/^[[:space:]]+//;
+        my ($keyword) = $line =~ /^([^[:space:]]*)/;
+        my $rest = substr($line, length $keyword);
+        $rest =~ s/^[[:space:]]+//;
+        my $kw = uc $keyword;
+        if ($kw eq 'ARG') {
+            my $name = $rest;
+            $name =~ s/=.*//s;
+            $name =~ s/[[:space:]].*//s;
+            next unless length $name;
+            if (index($rest, '=') >= 0) {
+                my $value = substr($rest, index($rest, '=') + 1);
+                $value =~ s/[[:space:]].*//s;
+                $value =~ s/^"//;
+                $value =~ s/"\z//;
+                # An ARG re-declared without a default inside a stage keeps
+                # the global value; only a default sets it.
+                $vars{$name} = $value;
+            }
+        } elsif ($kw eq 'FROM') {
+            # Drop flags such as --platform=...
+            while ($rest =~ /^--/) {
+                last unless $rest =~ s/^.*?[[:space:]]//s;
+                $rest =~ s/^[[:space:]]+//;
+            }
+            my ($ref) = $rest =~ /^([^[:space:]]*)/;
+            my $stage = $rest =~ /[[:space:]][Aa][Ss][[:space:]]+([^[:space:]]+)/ ? $1 : '';
+            $ref = subst_args($ref, $args, \%vars);
+            return undef unless defined $ref;
+            push @out, $ref if $ref ne 'scratch' && !grep { $_ eq $ref } @stages;
+            push @stages, $stage if length $stage;
+        }
+    }
+    return \@out;
+}
+
+# capture: probe the daemon + compose files and print ONE JSON document (shape
+# in docker-residue.sh). Fail closed: any compose/Dockerfile/inspect failure
+# sets image_error and empties the image classes; volumes report regardless.
+sub capture {
+    my $root = shift // '';
+    my ($image_error, $volume_error) = ('', '');
+    my ($images, $containers, $compose, $volumes) = ([], [], [], []);
+    my %bases;
+    my ($ok, $out);
+
+    # Volumes first: they report even when the image classes fail closed.
+    ($ok, $out) = run_cmd(qw(docker system df -v --format json));
+    my $vols = $ok && length $out ? eval { cap_volumes($out) } : undef;
+    if (defined $vols) { $volumes = $vols; }
+    else { $volume_error = 'docker system df -v failed'; }
+
+    ($ok) = run_cmd(qw(docker compose version));
+    $image_error = 'docker compose not available' unless $ok;
+
+    if (!length $image_error) {
+        # A failing `docker images` leaves the list empty, as the old pipeline did.
+        (undef, $out) = run_cmd(qw(docker images -q --no-trunc));
+        my %seen;
+        my @ids = sort grep { length && !$seen{$_}++ } split /\s+/, $out;
+        if (@ids) {
+            ($ok, $out) = run_cmd(qw(docker image inspect), @ids);
+            my $imgs = $ok ? eval { cap_images($out) } : undef;
+            if (defined $imgs) { $images = $imgs; } else { $image_error = 'docker image inspect failed'; }
+        }
+    }
+
+    if (!length $image_error) {
+        ($ok, $out) = run_cmd(qw(docker ps -aq --no-trunc));
+        if (!$ok) { $image_error = 'docker ps failed'; }
+        else {
+            my @ids = grep { length } split /\s+/, $out;
+            if (@ids) {
+                (undef, $out) = run_cmd(qw(docker ps -a --size --no-trunc --format), '{"id":{{json .ID}},"size":{{json .Size}}}');
+                my $sizes = eval { cap_sizes($out) } || {};
+                ($ok, $out) = run_cmd(qw(docker container inspect), @ids);
+                my $cs = $ok ? eval { cap_containers($out, $sizes) } : undef;
+                if (defined $cs) { $containers = $cs; } else { $image_error = 'docker container inspect failed'; }
+            }
+        }
+    }
+
+    if (!length $image_error) {
+        my @files = compose_files($root);
+        if (!@files) {
+            my $r = $root;
+            utf8::decode($r);
+            $image_error = "no compose files found under $r";
+        }
+        FILE: for my $file (@files) {
+            my $name = $file;
+            utf8::decode($name);
+            ($ok, $out) = run_cmd(qw(docker compose -f), $file, '--profile', '*', qw(config --format json));
+            my $cfg = $ok ? eval { dec($out) } : undef;
+            my ($entry, $builds) = isobj($cfg) && truthy($cfg->{name}) && isobj($cfg->{services}) ? eval { compose_entry($cfg) } : ();
+            if (!defined $entry) { $image_error = "compose config failed: $name"; last FILE; }
+            push @$compose, $entry;
+            for my $b (@$builds) {
+                my $refs = dockerfile_bases($b->{path}, $b->{args});
+                if (!defined $refs) { $image_error = "Dockerfile unreadable or unresolved FROM: $b->{path}"; last FILE; }
+                $bases{$_} = 1 for grep { length } @$refs;
+            }
+        }
+    }
+
+    if (length $image_error) {
+        ($images, $containers, $compose, %bases) = ([], [], []);
+    }
+    print enc({ images => $images, containers => $containers, compose => $compose,
+                base_refs => [ sort keys %bases ], volumes => $volumes,
+                image_error => (length $image_error ? $image_error : undef),
+                volume_error => (length $volume_error ? $volume_error : undef) }), "\n";
+}
+
+if ($mode eq 'capture') {
+    capture(shift @ARGV);
 } elsif ($mode eq 'classify') {
     my @rows = classify(dec(slurp()));
     binmode STDOUT, ':utf8';
@@ -280,8 +471,8 @@ if ($mode eq 'argval') {
     my $sum = 0; $sum += $_ for @s;
     print "$sum\n";
 } elsif ($mode eq "--help" || $mode eq "-h") {
-    print "usage: perl docker-residue.pl <mode> [args]  (modes: see the file header)\n";
+    print "usage: perl docker-residue.pl <mode> [args]  (modes: capture, classify, footprint)\n";
 } else {
-    print STDERR "usage: perl docker-residue.pl <mode> [args]  (modes: see header)\n";
+    print STDERR "usage: perl docker-residue.pl <mode> [args]  (modes: capture, classify, footprint)\n";
     exit 2;
 }

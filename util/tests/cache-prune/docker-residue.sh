@@ -31,13 +31,69 @@ assert_contains "$dr_rows" $'stale\tlegacy_project-old-1\tsha256:prerename0000\t
 assert_contains "$dr_rows" $'unreferenced\tlegacy_project-legacy-project:latest\tsha256:prerename0000\t384300000\t2026-07-09T00:00:00Z\tlegacy_project-old-1' "an image held only by a stale container is a candidate naming its blocker"
 assert_contains "$dr_rows" $'volume\thomelab_radar-data\t4300000000\t0\tdangling' "a zero-link volume is flagged dangling"
 
-echo "[docker-residue] Dockerfile base-ref resolution"
-assert_eq "ghcr.io/example/webapp:v0.11.4-slim" "$(docker_residue_dockerfile_bases "$DR_FIX/Dockerfile.overlay")" "ARG default feeds FROM \${ARG}"
-assert_eq "example/upstream:9" "$(docker_residue_dockerfile_bases "$DR_FIX/Dockerfile.overlay" '{"UPSTREAM":"example/upstream:9"}')" "a compose build arg overrides the ARG default"
-assert_eq $'golang:1.26.7-trixie\nalpine:latest' "$(docker_residue_dockerfile_bases "$DR_FIX/Dockerfile.multistage")" "stage names and scratch are never image refs; --platform is skipped"
-assert_failure "an unresolvable FROM variable fails closed" docker_residue_dockerfile_bases "$DR_FIX/Dockerfile.unresolved"
-
-# --- capture path, against a fixture-serving docker double -----------------
+# --- capture path, against a fixture-serving docker PATH shim ---------------
+#
+# The capture runs inside a perl subprocess, which cannot see a bash docker()
+# function. So the capture is served by an executable `docker` shim in a
+# sandbox bin dir (generated here, no tracked file) that answers from
+# file-backed fixtures keyed on its argv and appends each call to the same
+# ALL_LOG_FILE the function double uses. dr_sync writes the DR_* variables
+# below to those files; the capture wrapper further down calls it, then runs
+# the real docker_residue_capture with the shim first on PATH. Removal verbs,
+# `builder prune` and the footprint `system df` stay on the function double.
+DR_BIN="$SANDBOX/dr-bin"
+DR_FIXD="$SANDBOX/dr-fixtures"
+mkdir -p "$DR_BIN" "$DR_FIXD"
+cat > "$DR_BIN/docker" <<'DR_SHIM'
+#!/usr/bin/env bash
+fix=@FIXD@
+log=@LOG@
+printf 'docker %s|' "$*" >> "$log"
+ids() { perl -MJSON::PP -e 'print "$_->{Id}\n" for @{decode_json(join "", <STDIN>)}' < "$1"; }
+case "$*" in
+    "system df -v --format json")
+        [[ ! -e "$fix/volumes-fail" ]] || exit 1
+        # Once a `docker rm` has run since the last reset, serve the
+        # post-stale-removal volume list the election re-reads.
+        if [[ -s "$fix/volumes-after-rm.json" ]] && grep -q 'docker rm ' "$log"; then
+            printf '{"Volumes":%s}\n' "$(cat "$fix/volumes-after-rm.json")"
+        else
+            printf '{"Volumes":%s}\n' "$(cat "$fix/volumes.json")"
+        fi
+        ;;
+    "compose version") ;;
+    compose\ -f\ *)
+        [[ ! -e "$fix/compose-fail" ]] || exit 1
+        cat "$fix/compose.json"
+        ;;
+    "images -q --no-trunc") ids "$fix/images.json" ;;
+    image\ inspect*) cat "$fix/images.json" ;;
+    "ps -aq --no-trunc") ids "$fix/containers.json" ;;
+    ps\ -a\ --size*)
+        perl -MJSON::PP -e 'print JSON::PP->new->canonical->encode({id => $_->{Id}, size => "1kB"}), "\n" for @{decode_json(join "", <STDIN>)}' < "$fix/containers.json"
+        ;;
+    container\ inspect*) cat "$fix/containers.json" ;;
+    *) exit 1 ;;
+esac
+DR_SHIM
+sed -i "s|@FIXD@|$DR_FIXD|; s|@LOG@|$ALL_LOG_FILE|" "$DR_BIN/docker"
+chmod +x "$DR_BIN/docker"
+dr_sync() {
+    printf '%s\n' "$DR_IMAGES_JSON" > "$DR_FIXD/images.json"
+    printf '%s\n' "$DR_CONTAINERS_JSON" > "$DR_FIXD/containers.json"
+    printf '%s' "$DR_VOLUMES_JSON" > "$DR_FIXD/volumes.json"
+    printf '%s' "$DR_VOLUMES_AFTER_RM_JSON" > "$DR_FIXD/volumes-after-rm.json"
+    printf '%s\n' "$DR_COMPOSE_JSON" > "$DR_FIXD/compose.json"
+    rm -f "$DR_FIXD/volumes-fail" "$DR_FIXD/compose-fail"
+    if ((DR_VOLUMES_FAIL != 0)); then : > "$DR_FIXD/volumes-fail"; fi
+    if ((DR_COMPOSE_RESULT != 0)); then : > "$DR_FIXD/compose-fail"; fi
+}
+DR_ORIGINAL_CAPTURE="$(declare -f docker_residue_capture)"
+eval "dr_prod_$DR_ORIGINAL_CAPTURE"
+docker_residue_capture() {
+    dr_sync
+    PATH="$DR_BIN:$PATH" dr_prod_docker_residue_capture
+}
 
 DR_ROOT="$SANDBOX/docker-residue-root"
 mkdir -p "$DR_ROOT/homelab"
@@ -56,15 +112,6 @@ DR_ORIGINAL_DOCKER="$(declare -f docker)"
 eval "dr_harness_$(declare -f docker)"
 docker() {
     case "$*" in
-        "system df -v --format json")
-            printf 'docker %s|' "$*" >> "$ALL_LOG_FILE"
-            ((DR_VOLUMES_FAIL == 0)) || return 1
-            if [[ -n "$DR_VOLUMES_AFTER_RM_JSON" && "$MUTATE_LOG" == *"docker rm "* ]]; then
-                printf '{"Volumes":%s}\n' "$DR_VOLUMES_AFTER_RM_JSON"
-            else
-                printf '{"Volumes":%s}\n' "$DR_VOLUMES_JSON"
-            fi
-            ;;
         volume\ rm\ *)
             printf 'docker %s|' "$*" >> "$ALL_LOG_FILE"
             MUTATE_LOG+="docker $*|"
@@ -72,34 +119,6 @@ docker() {
                 printf 'Error response from daemon: remove %s: volume is in use\n' "$DOCKER_RM_FAIL_TARGET" >&2
                 return 1
             fi
-            ;;
-        "compose version")
-            printf 'docker %s|' "$*" >> "$ALL_LOG_FILE"
-            ;;
-        compose\ -f\ *)
-            printf 'docker %s|' "$*" >> "$ALL_LOG_FILE"
-            ((DR_COMPOSE_RESULT == 0)) || return 1
-            printf '%s\n' "$DR_COMPOSE_JSON"
-            ;;
-        "images -q --no-trunc")
-            printf 'docker %s|' "$*" >> "$ALL_LOG_FILE"
-            perl -MJSON::PP -e 'print "$_->{Id}\n" for @{decode_json(join "", <STDIN>)}' <<< "$DR_IMAGES_JSON"
-            ;;
-        image\ inspect*)
-            printf 'docker %s|' "$*" >> "$ALL_LOG_FILE"
-            printf '%s\n' "$DR_IMAGES_JSON"
-            ;;
-        "ps -aq --no-trunc")
-            printf 'docker %s|' "$*" >> "$ALL_LOG_FILE"
-            perl -MJSON::PP -e 'print "$_->{Id}\n" for @{decode_json(join "", <STDIN>)}' <<< "$DR_CONTAINERS_JSON"
-            ;;
-        ps\ -a\ --size*)
-            printf 'docker %s|' "$*" >> "$ALL_LOG_FILE"
-            perl -MJSON::PP -e 'print JSON::PP->new->canonical->encode({id => $_->{Id}, size => "1kB"}), "\n" for @{decode_json(join "", <STDIN>)}' <<< "$DR_CONTAINERS_JSON"
-            ;;
-        container\ inspect*)
-            printf 'docker %s|' "$*" >> "$ALL_LOG_FILE"
-            printf '%s\n' "$DR_CONTAINERS_JSON"
             ;;
         "system df --format json")
             printf 'docker %s|' "$*" >> "$ALL_LOG_FILE"
@@ -111,6 +130,30 @@ docker() {
             ;;
     esac
 }
+
+echo "[docker-residue] Dockerfile base-ref resolution (the perl FROM parser, through capture)"
+# One compose service building <dockerfile> with build args <args-json>; no
+# images or containers, so the document's base_refs/image_error are the parse.
+dr_capture_build() {
+    (
+        CACHE_PRUNE_REPO_ROOT="$DR_ROOT"
+        DR_IMAGES_JSON='[]'
+        DR_CONTAINERS_JSON='[]'
+        DR_COMPOSE_RESULT=0
+        DR_COMPOSE_JSON=$(printf '{"name":"p","services":{"s":{"build":{"context":"%s","dockerfile":"%s","args":%s}}}}' "$DR_FIX" "$1" "${2:-null}")
+        docker_residue_capture
+    )
+}
+dr_capture_field() {
+    perl -MJSON::PP -e '$d = decode_json(join "", <STDIN>); $v = $d->{$ARGV[0]}; print ref $v ? join("\n", @$v) : defined $v ? $v : "null", "\n"' "$1"
+}
+# base_refs come back sorted and de-duplicated (the capture document's shape),
+# so the multistage expectation is in that order.
+assert_eq "ghcr.io/example/webapp:v0.11.4-slim" "$(dr_capture_build Dockerfile.overlay | dr_capture_field base_refs)" "ARG default feeds FROM \${ARG}"
+assert_eq "example/upstream:9" "$(dr_capture_build Dockerfile.overlay '{"UPSTREAM":"example/upstream:9"}' | dr_capture_field base_refs)" "a compose build arg overrides the ARG default"
+assert_eq $'alpine:latest\ngolang:1.26.7-trixie' "$(dr_capture_build Dockerfile.multistage | dr_capture_field base_refs)" "stage names and scratch are never image refs; --platform is skipped"
+assert_eq "Dockerfile unreadable or unresolved FROM: $DR_FIX/Dockerfile.unresolved" "$(dr_capture_build Dockerfile.unresolved | dr_capture_field image_error)" "an unresolvable FROM variable fails closed"
+assert_eq "Dockerfile unreadable or unresolved FROM: $DR_FIX/Dockerfile.absent" "$(dr_capture_build Dockerfile.absent | dr_capture_field image_error)" "an unreadable Dockerfile fails closed"
 
 echo "[docker-residue] capture: compose resolved with every profile, fail closed on error"
 CACHE_PRUNE_REPO_ROOT="$DR_ROOT"
@@ -332,10 +375,20 @@ echo "[docker-residue] post-probe failure: delta unavailable"
 dr_d=$(dr_delta_run "1000 fail")
 assert_contains "$dr_d" "docker images/containers/volumes: observed footprint change unavailable (docker system df --format json reading failed)" "a failed post-probe prints the unavailable line"
 
+echo "[docker-residue] a large image list (> 128 KiB of JSON) captures: no argv limit"
+DR_IMAGES_JSON=$(perl -MJSON::PP -e 'print encode_json([map { {Id => sprintf("sha256:%064x", $_), RepoTags => ["bulk/image-$_:v1"], Created => "2026-01-01T00:00:00Z", Size => $_} } 1 .. 2500])')
+DR_CONTAINERS_JSON='[]'
+DR_COMPOSE_RESULT=0
+dr_big=$(docker_residue_capture)
+assert_eq "true" "$([[ ${#DR_IMAGES_JSON} -gt 131072 ]] && echo true || echo false)" "the fixture image list exceeds 128 KiB"
+assert_eq "2500" "$(perl -MJSON::PP -e 'print scalar @{decode_json(join "", <STDIN>)->{images}}' <<< "$dr_big")" "every image of an oversized list is captured"
+assert_eq "null" "$(dr_capture_field image_error <<< "$dr_big")" "an oversized list is no image_error"
+
 eval "$DR_ORIGINAL_CONFIRM"
 
 eval "$DR_ORIGINAL_DOCKER"
-unset -f dr_harness_docker
+eval "$DR_ORIGINAL_CAPTURE"
+unset -f dr_harness_docker dr_prod_docker_residue_capture dr_sync dr_capture_build dr_capture_field
 export CACHE_PRUNE_REPO_ROOT="$SANDBOX/empty-fleet-root"
 DR_COMPOSE_RESULT=0
 reset_logs
