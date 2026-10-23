@@ -231,7 +231,7 @@ cargo_run() {
     cargo_warn="$(cat "$SANDBOX/cargo-warn.log")"
 }
 assert_eq "set" "${RT_PURGE[cargo]+set}" "cargo has an RT_PURGE entry"
-assert_eq "optin" "${RT_CLASS[cargo]}" "cargo is a purge-only opt-in runtime"
+assert_eq "" "${RT_PRUNE[cargo]+set}" "cargo is a purge-only opt-in runtime (no RT_PRUNE entry, so not safe tier)"
 assert_eq "" "${RT_PRUNE[cargo]+set}" "cargo intentionally has no prune-registry entry"
 
 cargo_fixture
