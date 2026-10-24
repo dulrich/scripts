@@ -280,13 +280,17 @@ sub compose_files {
 }
 
 # compose_project_dir: the `--project-directory` argv for one compose file.
-# Only the fleet compose file is pinned (its path is set privately
-# -> its project dir), mirroring the fleet compose wrapper;
-# every other file keeps compose's default project directory.
+# CACHE_PRUNE_COMPOSE_PROJECT_DIRS pins chosen files: newline-separated
+# `<file>=<dir>` pairs, both relative to the root (an optional overlay module
+# supplies the deployment default). Every other file keeps compose's default
+# project directory.
 sub compose_project_dir {
     my ($root, $file) = @_;
     my $base = $root =~ m{/\z} ? $root : "$root/";
-    return ();  # fleet pin: not part of the public projection
+    for my $pair (split /\n/, $ENV{CACHE_PRUNE_COMPOSE_PROJECT_DIRS} // '') {
+        my ($f, $d) = $pair =~ /\A([^=]+)=(.+)\z/s or next;
+        return ('--project-directory', "$base$d") if $file eq "$base$f";
+    }
     return ();
 }
 

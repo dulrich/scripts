@@ -163,17 +163,22 @@ assert_contains "$(all_log)" "--profile * config --no-interpolate --format json"
 assert_eq "0" "$(grep -c -e "--project-directory" <<< "$(all_log)")" "an ordinary compose file gets no --project-directory"
 assert_eq $'superseded\twebapp-overlay:v0.11.3\tsha256:old\t5\t2026-01-01T00:00:00Z\t-' "$(grep -v '^volume' <<< "$dr_rows")" "captured compose + Dockerfiles classify end to end"
 
-echo "[docker-residue] capture: fleet project-directory pin and the unresolved-variable guard"
-DR_FLEET_ROOT="$SANDBOX/docker-residue-fleet-root"
-mkdir -p "$DR_FLEET_ROOT/context-control/fleet"
-: > "$DR_FLEET_ROOT/context-control/fleet/compose.home.yml"
+echo "[docker-residue] capture: CACHE_PRUNE_COMPOSE_PROJECT_DIRS pins and the unresolved-variable guard"
+DR_PIN_ROOT="$SANDBOX/docker-residue-pin-root"
+mkdir -p "$DR_PIN_ROOT/stack/deploy"
+: > "$DR_PIN_ROOT/stack/deploy/compose.main.yml"
 (
-    CACHE_PRUNE_REPO_ROOT="$DR_FLEET_ROOT"
+    CACHE_PRUNE_REPO_ROOT="$DR_PIN_ROOT"
+    export CACHE_PRUNE_COMPOSE_PROJECT_DIRS=$'malformed-line\nstack/deploy/compose.main.yml=stack'
     DR_IMAGES_JSON='[]'
     DR_CONTAINERS_JSON='[]'
     reset_logs
     docker_residue_capture > /dev/null
-    assert_contains "$(all_log)" "compose -f $DR_FLEET_ROOT/context-control/fleet/compose.home.yml --project-directory $DR_FLEET_ROOT/context-control --profile * config --no-interpolate --format json" "the fleet compose file alone is pinned with --project-directory <root>/context-control"
+    assert_contains "$(all_log)" "compose -f $DR_PIN_ROOT/stack/deploy/compose.main.yml --project-directory $DR_PIN_ROOT/stack --profile * config --no-interpolate --format json" "a listed compose file is pinned with --project-directory <root>/<dir>"
+    export CACHE_PRUNE_COMPOSE_PROJECT_DIRS=''
+    reset_logs
+    docker_residue_capture > /dev/null
+    assert_eq "0" "$(grep -c -e "--project-directory" <<< "$(all_log)")" "an empty pin list pins nothing"
 )
 
 dr_capture_json() (
