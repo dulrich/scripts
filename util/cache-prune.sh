@@ -239,6 +239,10 @@ EOF
   CACHE_PRUNE_REPO_ROOT
                 overrides the root docker residue classification searches
                 for compose files (default /home/_shared_code)
+  CACHE_PRUNE_COMPOSE_PROJECT_DIRS
+                newline-separated <file>=<dir> pairs, both relative to that
+                root: each listed compose file is resolved with
+                --project-directory <root>/<dir> (default: none pinned)
 EOF
     print_help_fragments "${CACHE_PRUNE_HELP_ENV[@]}"
     print_help_fragments "${CACHE_PRUNE_HELP_CORE_ENV[@]}"
