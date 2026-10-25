@@ -57,3 +57,6 @@ background-opacity = 0.8
 
 command = zellij -l welcome
 
+# Per-host overrides (optional; ignored when absent): ~/.config/ghostty/local, e.g. `command =` to reset to the login shell (du-t450s runs CDE, not zellij).
+config-file = ?local
+
