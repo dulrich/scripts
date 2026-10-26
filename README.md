@@ -51,6 +51,7 @@ util                       # list available commands
 util youtube-id @handle    # -> util/youtube-id.sh
 util vault-snapshot ./dir  # -> util/vault-snapshot.sh
 util debian-maintenance    # -> util/debian-maintenance.sh
+util battery [--brief]     # -> util/battery.sh (charge, health, time to full/empty)
 ```
 
 Adding a command is just dropping a new `util/<name>.sh` file — no central
