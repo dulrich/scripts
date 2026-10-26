@@ -32,6 +32,9 @@ bash util/tests/util-router.sh
 section 'cache-prune smoke'
 bash util/tests/cache-prune.sh
 
+section 'battery smoke'
+bash util/tests/battery.sh
+
 section 'alias-chain smoke'
 bash tests/aliases-smoke.sh
 
