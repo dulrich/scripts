@@ -3,6 +3,9 @@ for _a in "$@"; do case "$_a" in --help|-h)
 	printf 'usage: %s %s\n' "${0##*/}" ''
 	printf '%s\n' 'Lock the screen with i3lock in the house colors.'
 	exit 0;; esac; done
+# sh script: the helper is bash, so hand the flags to bash.
+for _a in "$@"; do case "$_a" in --build|--version)
+	exec bash -c '. "$1"; build_id "$2"' _ "$(dirname "$(readlink -f "$0")")/../util/lib/build-id.sh" "$0";; esac; done
 
 BLANK='#00000000'
 CLEAR='#ffffff22'

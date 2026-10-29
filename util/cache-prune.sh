@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# shellcheck source=util/lib/build-id.sh
+case " $* " in *" --help "*|*" -h "*) ;; *) . "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/lib/build-id.sh"; build_flags "${BASH_SOURCE[0]}" "$@" ;; esac
 set -euo pipefail
 
 # cache-prune.sh: report and (optionally) prune rebuildable language-runtime

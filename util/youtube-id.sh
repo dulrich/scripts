@@ -3,6 +3,8 @@ for _a in "$@"; do case "$_a" in --help|-h)
 	printf 'usage: %s %s\n' "${0##*/}" '<youtube-channel-url-or-handle>'
 	printf '%s\n' 'Print the channel id (UC...) found at the given channel URL or @handle.'
 	exit 0;; esac; done
+# shellcheck source=util/lib/build-id.sh
+. "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/lib/build-id.sh"; build_flags "${BASH_SOURCE[0]}" "$@"
 set -euo pipefail
 
 url="${1:-}"

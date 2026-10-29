@@ -3,6 +3,8 @@ for _a in "$@"; do case "$_a" in --help|-h)
 	printf 'usage: %s %s\n' "${0##*/}" ''
 	printf '%s\n' 'Check the public runtime surface contract of this repo (read-only); takes no arguments.'
 	exit 0;; esac; done
+# shellcheck source=util/lib/build-id.sh
+. "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../util/lib/build-id.sh"; build_flags "${BASH_SOURCE[0]}" "$@"
 set -euo pipefail
 
 # Guards the repo's advertised public runtime surface: every alias that points
