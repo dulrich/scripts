@@ -1,4 +1,5 @@
 {
+  "build-flags": "enforce",
   "entrypoints": [
     { "path": "dotfiles.sh", "subcommands": ["add", "backup", "list", "migrate", "project", "restore", "snapshot", "status"] },
     { "path": "util/dispatch.sh", "subcommands": ["battery", "cache-prune", "debian-maintenance", "youtube-id"] }

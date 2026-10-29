@@ -3,6 +3,11 @@ case "${1:-}" in --help|-h)
 	printf 'usage: %s %s\n' "${0##*/}" '<command> [args...]'
 	printf '%s\n' 'Route to util/<command>[.sh]; run with no arguments to list commands.'
 	exit 0;; esac
+# Router flags: only a leading --build/--version is the router's own (--help still wins).
+case "${1:-}" in --build|--version)
+	case " $* " in *" --help "*|*" -h "*) exec "$0" --help ;; esac
+	# shellcheck source=util/lib/build-id.sh
+	. "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/lib/build-id.sh"; build_flags "${BASH_SOURCE[0]}" "$@";; esac
 
 # dispatch.sh: filesystem-router for util/ subcommands.
 # `util <name> [args...]` execs util/<name>[.sh]. Adding a command is just
