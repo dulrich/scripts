@@ -1,4 +1,8 @@
 #!/bin/bash
+# Generated copies carry no build-id helper; answer the flags only where it exists.
+_bid="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../util/lib/build-id.sh"
+# shellcheck source=util/lib/build-id.sh
+case " $* " in *" --help "*|*" -h "*) ;; *) [ -r "$_bid" ] && { . "$_bid"; build_flags "${BASH_SOURCE[0]}" "$@"; } ;; esac
 set -euo pipefail
 
 here=$(dirname "$(realpath "${BASH_SOURCE[0]}")")

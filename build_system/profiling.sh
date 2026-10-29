@@ -3,6 +3,10 @@ for _a in "$@"; do case "$_a" in --help)
 	printf 'usage: %s %s\n' "${0##*/}" '[program args]'
 	printf '%s\n' 'Compile _build.c, build with profiling, run under gdb, then gprof into prof.out.'
 	exit 0;; esac; done
+# Generated copies carry no build-id helper; answer the flags only where it exists.
+_bid="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../util/lib/build-id.sh"
+# shellcheck source=util/lib/build-id.sh
+[ -r "$_bid" ] && { . "$_bid"; build_flags "${BASH_SOURCE[0]}" "$@"; }
 set -euo pipefail
 
 declare -a gcc_flags

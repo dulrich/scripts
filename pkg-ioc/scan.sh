@@ -20,6 +20,9 @@ set -uo pipefail
 # Exit:   0 = clean, 2 = one or more indicators found
 # ============================================================================
 
+# shellcheck source=util/lib/build-id.sh
+case " $* " in *" --help "*|*" -h "*) ;; *) . "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../util/lib/build-id.sh"; build_flags "${BASH_SOURCE[0]}" "$@" ;; esac
+
 ECOSYSTEM="all"
 ROOT=""
 while [ $# -gt 0 ]; do

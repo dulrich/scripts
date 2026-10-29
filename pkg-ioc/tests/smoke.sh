@@ -3,6 +3,8 @@ for _a in "$@"; do case "$_a" in --help|-h)
 	printf 'usage: %s %s\n' "${0##*/}" ''
 	printf '%s\n' 'Smoke tests for pkg-ioc/scan.sh using throwaway fixtures; takes no arguments.'
 	exit 0;; esac; done
+# shellcheck source=util/lib/build-id.sh
+. "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../../util/lib/build-id.sh"; build_flags "${BASH_SOURCE[0]}" "$@"
 # Smoke tests for ../scan.sh
 #
 # Builds throwaway fixture trees, runs the scanner against them, and asserts the

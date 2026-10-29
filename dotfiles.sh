@@ -1,4 +1,6 @@
 #!/bin/bash
+# shellcheck source=util/lib/build-id.sh
+case " $* " in *" --help "*|*" -h "*) ;; *) . "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/util/lib/build-id.sh"; build_flags "${BASH_SOURCE[0]}" "$@" ;; esac
 set -euo pipefail
 
 # The project being managed is the caller's current directory. Its physical

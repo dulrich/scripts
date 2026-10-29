@@ -8,6 +8,8 @@
 # CC0: This work has been marked as dedicated to the public domain.
 # https://creativecommons.org/publicdomain/zero/1.0/
 
+# shellcheck source=util/lib/build-id.sh
+case " $* " in *" --help "*|*" -h "*) ;; *) . "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/lib/build-id.sh"; build_flags "${BASH_SOURCE[0]}" "$@" ;; esac
 usage() {
 	printf 'usage: %s %s\n' "${0##*/}" '[--brief]'
 	printf '%s\n' 'Print charge %, status, energy now/full, health (full vs design), power draw and'

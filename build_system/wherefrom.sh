@@ -3,6 +3,10 @@ for _a in "$@"; do case "$_a" in --help|-h)
 	printf 'usage: %s\n' "${0##*/}"
 	printf '%s\n' 'Print how this script path resolves (dirname, symlink target, BASH_SOURCE examples); takes no arguments.'
 	exit 0;; esac; done
+# Generated copies carry no build-id helper; answer the flags only where it exists.
+_bid="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../util/lib/build-id.sh"
+# shellcheck source=util/lib/build-id.sh
+[ -r "$_bid" ] && { . "$_bid"; build_flags "${BASH_SOURCE[0]}" "$@"; }
 
 DIR="$( dirname -- "${BASH_SOURCE[0]}"; )";   # Get the directory name
 DIR="$( realpath -e -- "$DIR"; )";    # Resolve its full path if need be

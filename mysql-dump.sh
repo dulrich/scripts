@@ -3,6 +3,8 @@ for _a in "$@"; do case "$_a" in --help)
 	printf 'usage: %s %s\n' "${0##*/}" '-h SSH_HOST -s SSH_USER -[bgr] [-[iI]] CLIENT | -[bgr] [-[iI]] -L URL CLIENT'
 	printf '%s\n' 'mysqldump wrapper with optional compressed transfer; -h is the ssh host, so only --help prints this.'
 	exit 0;; esac; done
+# shellcheck source=util/lib/build-id.sh
+. "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/util/lib/build-id.sh"; build_flags "${BASH_SOURCE[0]}" "$@"
 set -euo pipefail
 
 # mysql-dump.sh: mysqldump wrapper, with optional compressed network transfer
