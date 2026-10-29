@@ -12,12 +12,12 @@ font -misc-fixed-medium-r-normal--13-120-75-75-C-70-iso10646-1
 floating_modifier $mod
 
 # start a terminal
-bindsym $mod+Shift+Return exec urxvt
+bindsym $mod+Shift+Return exec ghostty
 
 # kill focused window
 bindsym $mod+Shift+c kill
 bindsym $mod+Shift+l exec i3lock
-# bindsym $mod+Shift+l exec /home/$USER/.config/i3/lock
+#bindsym $mod+Shift+l exec /home/$USER/.config/i3/lock
 
 # launching programs
 #bindsym $mod+d exec dmenu_run
@@ -103,12 +103,10 @@ bindsym $mod+Ctrl+Shift+Down resize grow height 10 px or 4 ppt
 bindsym $mod+Ctrl+Shift+Up resize shrink height 10 px or 4 ppt
 bindsym $mod+Ctrl+Shift+Right resize grow width 10 px or 4 ppt
 
-# keypad arrows for thirds
 bindsym $mod+Mod2+Shift+KP_Left resize shrink width 40 px or 16 ppt
 bindsym $mod+Mod2+Shift+KP_Right resize grow width 40 px or 16 ppt
 bindsym $mod+Mod2+Shift+KP_Up resize shrink width 40 px or 16 ppt
 bindsym $mod+Mod2+Shift+KP_Down resize grow width 40 px or 16 ppt
-
 
 # Start i3bar to display a workspace bar (plus the system information i3status
 # finds out, if available)
@@ -130,5 +128,9 @@ bindsym $mod+s exec setxkbmap es
 bindsym $mod+comma exec setxkbmap ru
 
 
-exec_always picom -f
+exec_always picom --fade-in-step=1 --fade-out-step=1 --fade-delta=0
+
+# Num Lock on at login (needs the numlockx package; xset cannot set it — the keymap's
+# "Num Lock" indicator is !allowExplicit)
+exec --no-startup-id numlockx on
 
