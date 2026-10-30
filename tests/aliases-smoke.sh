@@ -61,12 +61,13 @@ assert_not_contains() {
 
 fixture_repo="$fixture_root/scripts fixture"
 fixture_home="$fixture_root/home fixture"
-mkdir -p "$fixture_repo/util" "$fixture_repo/private" \
+mkdir -p "$fixture_repo/util/lib" "$fixture_repo/private" \
 	"$fixture_home/custom code/project" "$fixture_home/custom downloads"
 cp "$repo_dir/aliases.sh" "$repo_dir/git-aliases.sh" \
 	"$repo_dir/debian-aliases.sh" "$repo_dir/gentoo-aliases.sh" "$fixture_repo/"
 cp "$repo_dir/util/dispatch.sh" "$repo_dir/util/lib.sh" \
 	"$repo_dir/util/completions.sh" "$fixture_repo/util/"
+cp "$repo_dir/util/lib/push.sh" "$fixture_repo/util/lib/"
 
 # Keep machine-local fixture data literal until aliases.sh sources it.
 # shellcheck disable=SC2016
