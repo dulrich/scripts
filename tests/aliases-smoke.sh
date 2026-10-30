@@ -363,6 +363,12 @@ git_log="$cl_top/git.log"
 gh_ahead=3
 cl > /dev/null 2>&1
 assert_not_contains "$(cat "$git_log")" 'push github' 'cl runs no github push after a failed projection'
+: > "$git_log"
+git_mode=unpushed
+output=$(cl 2>&1)
+assert_eq '' "$(grep -x 'push' "$git_log")" 'cl runs no origin push after a failed projection'
+assert_contains "$output" '(not pushing to origin either; amend the flagged commits locally)' 'cl says origin was held back too'
+git_mode=nothing
 unset git_log gh_ahead
 _cl_github_push > /dev/null 2>&1
 assert_eq 1 "$?" '_cl_github_push returns status 1 on projection failure'
