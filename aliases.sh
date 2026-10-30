@@ -91,26 +91,31 @@ source "$here/util/lib/push.sh"
 
 unalias cl 2> /dev/null
 cl () {
-	local gh_rc
+	local gh_rc=2
 
 	clear
 	if git rev-parse --is-inside-work-tree > /dev/null 2>&1; then
-		_cl_origin_push
 		# Public repos also carry a `github` remote; mirror there too.
 		# Only the existence check is silenced (private repos lack it) —
 		# github's own push output is shown, never swallowed.
 		# Hybrid repos map a scanned projection via remote.github.push
 		# (e.g. public:master); count that source, never the private HEAD,
 		# whose history the projection rewrote.
+		# The projection (and its scan) runs before anything is pushed: a
+		# failed scan pushes nowhere, so the flagged commits are still local
+		# and can be amended without a force push.
 		if git remote get-url github > /dev/null 2>&1; then
 			_cl_github_push
 			gh_rc=$?
 			if [ "$gh_rc" -eq 1 ]; then
+				echo "(not pushing to origin either; amend the flagged commits locally)"
 				git status -bs
 				return 1
-			elif [ "$gh_rc" -eq 0 ]; then
-				git push github
 			fi
+		fi
+		_cl_origin_push
+		if [ "$gh_rc" -eq 0 ]; then
+			git push github
 		fi
 
 		git status -bs

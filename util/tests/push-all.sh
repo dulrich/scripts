@@ -52,6 +52,7 @@ case $cmd in
 		printf '{\n  "manifest": {\n    "lagCommits": 99\n  },\n  "sourceTip": "%s",\n  "projectedSource": %s,\n  "publicTip": %s,\n  "publishedTip": %s,\n  "lagCommits": %s\n}\n' \
 			"$src" "$projj" "$(q "$pt")" "$(q "$pu")" "$lag" ;;
 	project)
+		[ -n "${STUB_FAIL:-}" ] && { echo "scan: FAIL"; exit 1; }
 		echo "$r" >> "$STUB_CALLS"
 		git -C "$r" rev-parse master > "$state"
 		git -C "$r" branch -f public master ;;
@@ -145,7 +146,14 @@ run --push
 check 'rejected repo is FAILED, sweep continues, exit non-zero' \
 	"$([ "$PUSH_RC" -eq 1 ] && [[ $PUSH_OUT == *'alpha: FAILED'* ]] && [ "$(git -C "$root/code/legacy" rev-parse master)" = "$(git -C "$root/origins/legacy.git" rev-parse master)" ]; echo $?)"
 
-# 8 pure helper
+# 8 a failed projection scan pushes nowhere (origin included)
+commit "$root/code/pub" flagged
+origin_before=$(git -C "$root/origins/pub.git" rev-parse master)
+STUB_FAIL=1 run --push
+check 'failed projection leaves origin untouched and marks the repo FAILED' \
+	"$([ "$PUSH_RC" -eq 1 ] && [[ $PUSH_OUT == *'pub: FAILED'* ]] && [ "$(git -C "$root/origins/pub.git" rev-parse master)" = "$origin_before" ]; echo $?)"
+
+# 9 pure helper
 # shellcheck source=util/lib/push.sh
 . "$helper"
 j() { printf '{\n  "manifest": {"lagCommits": 9},\n  "projectedSource": %s,\n  "lagCommits": %s\n}\n' "$1" "$2"; }

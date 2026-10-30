@@ -95,14 +95,20 @@ _pa_repo () {
 		return 0
 	fi
 	tmp=$(mktemp) || return 1
+	# Project (and scan) before pushing anything: a failed scan pushes
+	# nowhere, so the flagged commits stay local and can be amended.
+	g=2
 	{
-		_cl_origin_push master || rc=1
 		if git remote get-url github > /dev/null 2>&1; then
 			_cl_github_push conditional master
 			g=$?
-			if [ "$g" -eq 1 ]; then
-				rc=1
-			elif [ "$g" -eq 0 ]; then
+		fi
+		if [ "$g" -eq 1 ]; then
+			rc=1
+			echo "(not pushing to origin either; amend the flagged commits locally)"
+		else
+			_cl_origin_push master || rc=1
+			if [ "$g" -eq 0 ]; then
 				if git config --get remote.github.push > /dev/null 2>&1; then
 					git push github || rc=1
 				else
