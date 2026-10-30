@@ -108,8 +108,10 @@ check 'status exits 0 with final count' "$([ "$PUSH_RC" -eq 0 ] && [[ $PUSH_OUT 
 # 2 repo set
 check 'non-initiative repo is skipped; legacy DEVELOPMENT.md counts' \
 	"$([[ $PUSH_OUT != *plain:* && $PUSH_OUT == *legacy:\ origin\ +1* ]]; echo $?)"
-# 3 no upstream
-check 'repo without upstream is reported and skipped' "$([[ $PUSH_OUT == *'noup: skipped (master has no upstream)'* ]]; echo $?)"
+# 3 no upstream: counted always, listed only with --verbose
+check 'bare status hides the skipped repo but counts it' "$([[ $PUSH_OUT != *noup:* && $PUSH_OUT == *'1 skipped'* ]]; echo $?)"
+run --verbose
+check '--verbose lists the repo without upstream as skipped' "$([[ $PUSH_OUT == *'noup: skipped (master has no upstream)'* ]]; echo $?)"
 check 'status reports projection lag without projecting' "$([[ $PUSH_OUT == *'pub: origin +1; projection lag null'* ]]; echo $?)"
 
 # 4 refusal in an agent session
@@ -132,6 +134,11 @@ check 'projection ran once for the lagging repo and was mirrored' \
 	"$([ "$(wc -l < "$calls")" -eq 1 ] && [ "$(git -C "$root/code/pub" rev-parse public)" = "$(git -C "$root/gh/pub.git" rev-parse master)" ]; echo $?)"
 run --push
 check 'second sweep does not re-project when current' "$([ "$(wc -l < "$calls")" -eq 1 ] && [ "$PUSH_RC" -eq 0 ]; echo $?)"
+check 'in-sync repos are not listed without --verbose' "$([[ $PUSH_OUT != *alpha:* && $PUSH_OUT == *'5 repos:'* ]]; echo $?)"
+run
+check 'bare status after a full push lists no repo, only the summary' "$([ "$(printf '%s\n' "$PUSH_OUT" | wc -l)" -eq 1 ] && [[ $PUSH_OUT == *'4 in sync'* ]]; echo $?)"
+run --verbose
+check '--verbose lists in-sync repos' "$([[ $PUSH_OUT == *'alpha: origin +0'* ]]; echo $?)"
 commit "$root/code/pub" more
 run --push
 check 'new master commit makes the projection rebuild again' "$([ "$(wc -l < "$calls")" -eq 2 ]; echo $?)"
