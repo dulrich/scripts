@@ -10,12 +10,13 @@
 # shellcheck source=util/lib/build-id.sh
 case " $* " in *" --help "*|*" -h "*) ;; *) . "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/lib/build-id.sh"; build_flags "${BASH_SOURCE[0]}" "$@" ;; esac
 usage() {
-	printf 'usage: %s %s\n' "${0##*/}" '[--push] [--root <dir>] [--publish-mjs <file>]'
+	printf 'usage: %s %s\n' "${0##*/}" '[--push] [--verbose] [--root <dir>] [--publish-mjs <file>]'
 	printf '%s\n' 'Report (default, read-only) or push (--push) master of every git repo directly'
 	printf '%s\n' 'under the code root that has a root INITIATIVE.md (or legacy DEVELOPMENT.md).'
 	printf '%s\n' '  --push               push master to its upstream; mirror the github remote,'
 	printf '%s\n' '                       rebuilding the projection only when it lags. Refused'
 	printf '%s\n' '                       (exit 2, nothing pushed) when CLAUDECODE or CODEX_* is set'
+	printf '%s\n' '  --verbose            also list in-sync and skipped repos (default: pending only)'
 	printf '%s\n' '  --root <dir>         code root (default: code_path from config.sh, else ~/code)'
 	printf '%s\n' '  --publish-mjs <file> publish.mjs path (default: publish_mjs from config.sh)'
 	printf '%s\n' 'No fetch: counts use local tracking refs. A repo without a master upstream is'
@@ -33,11 +34,13 @@ publish_mjs=""
 . "$here/lib/push.sh"
 
 push=0
+verbose=0
 root=
 while [ $# -gt 0 ]; do
 	case $1 in
 		--help|-h) usage; exit 0 ;;
 		--push) push=1 ;;
+		--verbose|-v) verbose=1 ;;
 		--root) [ $# -ge 2 ] || { usage >&2; exit 2; }; root=$2; shift ;;
 		--publish-mjs) [ $# -ge 2 ] || { usage >&2; exit 2; }; publish_mjs=$2; shift ;;
 		*) usage >&2; exit 2 ;;
@@ -58,17 +61,17 @@ _pa_repo () {
 	local do_push=$1 name=$2 remote merge ahead=0 proj="" pending=0 top st lag ptip btip unp=no
 	local rc=0 g tmp
 	if ! git rev-parse --verify -q refs/heads/master > /dev/null; then
-		echo "$name: skipped (no master branch)"
+		[ "$verbose" -eq 1 ] && echo "$name: skipped (no master branch)"
 		return 2
 	fi
 	remote=$(git config --get branch.master.remote)
 	merge=$(git config --get branch.master.merge)
 	if [ -z "$remote" ] || [ -z "$merge" ]; then
-		echo "$name: skipped (master has no upstream)"
+		[ "$verbose" -eq 1 ] && echo "$name: skipped (master has no upstream)"
 		return 2
 	fi
 	if ! ahead=$(git rev-list --count 'master@{upstream}..master' 2> /dev/null); then
-		echo "$name: skipped (upstream ref for master missing locally)"
+		[ "$verbose" -eq 1 ] && echo "$name: skipped (upstream ref for master missing locally)"
 		return 2
 	fi
 	[ "$ahead" -gt 0 ] && pending=1
@@ -90,7 +93,7 @@ _pa_repo () {
 		fi
 	fi
 	if [ "$do_push" -eq 0 ]; then
-		echo "$name: origin +$ahead$proj"
+		{ [ "$pending" -eq 1 ] || [ "$verbose" -eq 1 ]; } && echo "$name: origin +$ahead$proj"
 		[ "$pending" -eq 1 ] && return 3
 		return 0
 	fi
@@ -117,8 +120,13 @@ _pa_repo () {
 			fi
 		fi
 	} < /dev/null > "$tmp" 2>&1
-	if [ "$rc" -eq 0 ]; then echo "$name: pushed (origin +$ahead$proj)"; else echo "$name: FAILED (origin +$ahead$proj)"; fi
-	sed 's/^/    /' "$tmp"
+	if [ "$rc" -ne 0 ]; then
+		echo "$name: FAILED (origin +$ahead$proj)"
+		sed 's/^/    /' "$tmp"
+	elif [ "$pending" -eq 1 ] || [ "$verbose" -eq 1 ]; then
+		echo "$name: pushed (origin +$ahead$proj)"
+		sed 's/^/    /' "$tmp"
+	fi
 	rm -f "$tmp"
 	return "$rc"
 }
