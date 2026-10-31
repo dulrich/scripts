@@ -57,6 +57,12 @@ background-opacity = 0.8
 
 command = zellij -l welcome
 
+
+# Keybinds
+
+# Ctrl+, would open this file in the default text editor (Xed); keep it free.
+keybind = ctrl+,=unbind
+
 # Per-host overrides (optional; ignored when absent): ~/.config/ghostty/local, e.g. `command =` to reset to the login shell (du-t450s runs CDE, not zellij).
 config-file = ?local
 
