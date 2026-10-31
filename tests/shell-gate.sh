@@ -35,6 +35,9 @@ bash util/tests/cache-prune.sh
 section 'battery smoke'
 bash util/tests/battery.sh
 
+section 'ip smoke'
+bash util/tests/ip.sh
+
 section 'push-all smoke'
 bash util/tests/push-all.sh
 
