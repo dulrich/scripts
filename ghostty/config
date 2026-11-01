@@ -94,7 +94,8 @@ keybind = shift+arrow_up=adjust_selection:up
 keybind = shift+arrow_down=adjust_selection:down
 keybind = ctrl+shift+a=select_all
 keybind = ctrl+shift+f=start_search
-keybind = escape=end_search
+# performable: only consumes Escape while a search is open (else Escape never reaches TUIs/the CDE picker)
+keybind = performable:escape=end_search
 
 # Config
 keybind = ctrl+shift+,=reload_config
