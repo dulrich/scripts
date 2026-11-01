@@ -60,8 +60,51 @@ command = zellij -l welcome
 
 # Keybinds
 
-# Ctrl+, would open this file in the default text editor (Xed); keep it free.
-keybind = ctrl+,=unbind
+# CDE owns windows, panes and stacks, so ghostty's tab/split/window defaults are cleared
+# (they also stole Alt+1..9, Ctrl+Tab, Ctrl+Enter etc. from TUIs). Only this whitelist is bound;
+# Ctrl+, (open config in Xed) stays unbound. List the defaults: ghostty +list-keybinds --default
+keybind = clear
+
+# Clipboard
+keybind = copy=copy_to_clipboard:mixed
+keybind = paste=paste_from_clipboard
+keybind = ctrl+insert=copy_to_clipboard:mixed
+keybind = shift+insert=paste_from_selection
+keybind = ctrl+shift+c=copy_to_clipboard:mixed
+keybind = ctrl+shift+v=paste_from_clipboard
+
+# Font size
+keybind = ctrl+==increase_font_size:1
+keybind = ctrl++=increase_font_size:1
+keybind = ctrl+-=decrease_font_size:1
+keybind = ctrl+0=reset_font_size
+
+# Scrollback and prompts
+keybind = shift+page_up=scroll_page_up
+keybind = shift+page_down=scroll_page_down
+keybind = shift+home=scroll_to_top
+keybind = shift+end=scroll_to_bottom
+keybind = ctrl+shift+page_up=jump_to_prompt:-1
+keybind = ctrl+shift+page_down=jump_to_prompt:1
+
+# Selection and search
+keybind = shift+arrow_left=adjust_selection:left
+keybind = shift+arrow_right=adjust_selection:right
+keybind = shift+arrow_up=adjust_selection:up
+keybind = shift+arrow_down=adjust_selection:down
+keybind = ctrl+shift+a=select_all
+keybind = ctrl+shift+f=start_search
+keybind = escape=end_search
+
+# Config
+keybind = ctrl+shift+,=reload_config
+
+# Optional: command palette, inspector, screen-to-file
+keybind = ctrl+shift+p=toggle_command_palette
+keybind = ctrl+shift+i=inspector:toggle
+keybind = super+ctrl+shift+j=write_screen_file:copy,plain
+keybind = ctrl+shift+j=write_screen_file:paste,plain
+keybind = ctrl+alt+shift+j=write_screen_file:open,plain
 
 # Per-host overrides (optional; ignored when absent): ~/.config/ghostty/local, e.g. `command =` to reset to the login shell (du-t450s runs CDE, not zellij).
 config-file = ?local
