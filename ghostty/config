@@ -55,8 +55,6 @@ scrollback-limit = 10240
 #
 background-opacity = 0.8
 
-command = zellij -l welcome
-
 
 # Keybinds
 
@@ -107,6 +105,6 @@ keybind = super+ctrl+shift+j=write_screen_file:copy,plain
 keybind = ctrl+shift+j=write_screen_file:paste,plain
 keybind = ctrl+alt+shift+j=write_screen_file:open,plain
 
-# Per-host overrides (optional; ignored when absent): ~/.config/ghostty/local, e.g. `command =` to reset to the login shell (du-t450s runs CDE, not zellij).
+# Per-host overrides (optional; ignored when absent): ~/.config/ghostty/local, e.g. a per-host `command =`.
 config-file = ?local
 
