@@ -8,7 +8,7 @@ set -euo pipefail
 
 for _a in "$@"; do case "$_a" in --help|-h)
 	printf 'usage: %s\n' "${0##*/}"
-	printf '%s\n' 'Symlink the standard dotfiles (aliases, Xresources, ghostty, foot, zellij config) into the home directory; takes no arguments.'
+	printf '%s\n' 'Symlink the standard dotfiles (aliases, Xresources, ghostty, foot) into the home directory; takes no arguments.'
 	exit 0;; esac; done
 
 here=$(dirname "$(realpath "${BASH_SOURCE[0]}")")
@@ -28,7 +28,3 @@ ln -sfn "$here/ghostty/config" "$HOME/.config/ghostty/config"
 # foot terminal config (CDE's default terminal; ghostty stays as the rollback)
 mkdir -p "$HOME/.config/foot"
 ln -sfn "$here/foot/foot.ini" "$HOME/.config/foot/foot.ini"
-
-# zellij multiplexer config
-mkdir -p "$HOME/.config/zellij"
-ln -sfn "$here/zellij/config.kdl" "$HOME/.config/zellij/config.kdl"
