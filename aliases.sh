@@ -9,7 +9,13 @@
 # along with this program.  If not, see <https://creativecommons.org/publicdomain/zero/1.0/>.
 
 
-export PS1='\[\033]0;\u@\h \d \t\a\]\[\033[00;36m\]\t \w \$ \[\033[00m\]'
+# Over ssh the visible prompt leads with the short hostname (e.g. `du-t450s ~ $`) so a
+# remote terminal is obvious at a glance; local prompts keep the clock.
+if [ -n "${SSH_CONNECTION:-}" ]; then
+    export PS1='\[\033]0;\u@\h \d \t\a\]\[\033[00;36m\]\h \w \$ \[\033[00m\]'
+else
+    export PS1='\[\033]0;\u@\h \d \t\a\]\[\033[00;36m\]\t \w \$ \[\033[00m\]'
+fi
 
 # A client TERM this host has no terminfo for (e.g. xterm-ghostty over a raw
 # ssh) breaks clear/tput; fall back to a universally known entry.
