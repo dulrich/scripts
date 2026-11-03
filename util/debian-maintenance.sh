@@ -316,6 +316,64 @@ run_kernel_cleanup() {
     fi
 }
 
+# Kernels removed without purging (unattended-upgrades' old-kernel removal does
+# this) stay in dpkg's `rc` state: config files and maintainer-script residue
+# only, nothing installed. run_kernel_cleanup sees only `ii` images and
+# autoremove purges only what it removes in that run, so these are swept here.
+# Only exact `rc` status is listed; the boot-critical removal guard does not
+# apply because no installed package is touched.
+query_rc_kernel_packages() {
+    dpkg-query -W -f='${binary:Package}\t${db:Status-Abbrev}\n' 'linux-image-*' 'linux-modules-*' 2>/dev/null \
+        | awk -F '\t' '
+            substr($2, 1, 2) == "rc" && $1 ~ /^linux-(image|modules)-/ { sub(/:.*/, "", $1); print $1 }
+        ' || true
+}
+
+rc_kernel_release_for_package() {
+    case "$1" in
+        linux-image-unsigned-*) printf '%s\n' "${1#linux-image-unsigned-}" ;;
+        linux-image-extra-*) printf '%s\n' "${1#linux-image-extra-}" ;;
+        linux-modules-extra-*) printf '%s\n' "${1#linux-modules-extra-}" ;;
+        linux-modules-*) printf '%s\n' "${1#linux-modules-}" ;;
+        linux-image-*) printf '%s\n' "${1#linux-image-}" ;;
+        *) return 1 ;;
+    esac
+}
+
+declare -a rc_kernel_packages=()
+
+load_rc_kernel_packages() {
+    local running_kernel="$1"
+    local package
+
+    rc_kernel_packages=()
+    while IFS= read -r package; do
+        [[ -n "$package" ]] || continue
+        # Defensive: never touch anything named for the running kernel.
+        [[ "$(rc_kernel_release_for_package "$package")" == "$running_kernel" ]] && continue
+        rc_kernel_packages+=("$package")
+    done < <(query_rc_kernel_packages)
+}
+
+run_rc_kernel_cleanup() {
+    section "Removed-but-not-purged kernel packages (rc)"
+
+    load_rc_kernel_packages "$(uname -r)"
+    if ((${#rc_kernel_packages[@]} == 0)); then
+        echo "No rc-state kernel packages found."
+        return 0
+    fi
+
+    echo "Kernel packages already removed, config files left behind (${#rc_kernel_packages[@]}):"
+    printf '  %s\n' "${rc_kernel_packages[@]}"
+
+    if confirm "Purge the listed rc-state kernel packages?"; then
+        dpkg --purge "${rc_kernel_packages[@]}"
+    else
+        echo "Skipping rc-state kernel purge."
+    fi
+}
+
 run_autoremove() {
     local simulation
     local -a removals=()
@@ -446,6 +504,7 @@ run_report() {
     local upgradable=0
     local security=0
     local autoremovable=0
+    local rc_kernels=0
     local reboot_required=false
     local simulation
     local -a removals=()
@@ -464,11 +523,12 @@ run_report() {
     simulation="$(apt-get -s autoremove 2>/dev/null || true)"
     mapfile -t removals < <(extract_removals "$simulation")
     autoremovable="${#removals[@]}"
+    rc_kernels="$(query_rc_kernel_packages | grep -c "" || true)"
 
     [[ -e /var/run/reboot-required ]] && reboot_required=true
 
-    printf '{"host":"%s","indexAgeSeconds":%s,"upgradable":%s,"securityUpgradable":%s,"autoremovable":%s,"rebootRequired":%s}\n' \
-        "$host" "$age" "$upgradable" "$security" "$autoremovable" "$reboot_required"
+    printf '{"host":"%s","indexAgeSeconds":%s,"upgradable":%s,"securityUpgradable":%s,"autoremovable":%s,"rcKernels":%s,"rebootRequired":%s}\n' \
+        "$host" "$age" "$upgradable" "$security" "$autoremovable" "$rc_kernels" "$reboot_required"
 }
 
 main() {
@@ -509,6 +569,7 @@ main() {
     apt-get check
     run_kernel_cleanup
     run_autoremove
+    run_rc_kernel_cleanup
     run_apt_cache_cleanup
     run_journal_cleanup
 

@@ -10,7 +10,7 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$HERE/../debian-maintenance.sh"
 
 # These arrays are populated by the sourced maintenance functions.
-declare -a protected_kernel_packages removable_kernel_packages kernel_purge_packages
+declare -a protected_kernel_packages removable_kernel_packages kernel_purge_packages rc_kernel_packages
 
 PASS=0
 FAIL=0
@@ -180,6 +180,34 @@ APT_LOG=""
 run_autoremove >/dev/null 2>&1
 assert_eq "-y autoremove --purge|" "$APT_LOG" "approved benign autoremove runs once"
 
+echo "[rc kernels] removed-but-not-purged sweep"
+RC_FIXTURE=$'linux-image-6.1.0-1-amd64\trc \nlinux-image-6.1.0-3-amd64\tii \nlinux-modules-6.1.0-1-amd64\trc \nlinux-modules-extra-6.1.0-0-amd64\trc \nlinux-image-unsigned-6.1.0-9-amd64:amd64\trc \nlinux-image-6.1.0-4-amd64\tiU \nlinux-image-6.1.0-5-amd64\trc \nlinux-image-amd64\tii '
+dpkg-query() { printf '%s\n' "$RC_FIXTURE"; }
+assert_eq $'linux-image-6.1.0-1-amd64\nlinux-modules-6.1.0-1-amd64\nlinux-modules-extra-6.1.0-0-amd64\nlinux-image-unsigned-6.1.0-9-amd64\nlinux-image-6.1.0-5-amd64' \
+    "$(query_rc_kernel_packages)" "only exact rc-state image/modules packages are listed, arch suffix stripped"
+assert_eq "6.1.0-0-amd64" "$(rc_kernel_release_for_package linux-modules-extra-6.1.0-0-amd64)" "modules-extra release is parsed"
+assert_eq "6.1.0-9-amd64" "$(rc_kernel_release_for_package linux-image-unsigned-6.1.0-9-amd64)" "unsigned image release is parsed"
+load_rc_kernel_packages "6.1.0-5-amd64"
+assert_failure "an rc package named for the running kernel is never listed" array_contains "linux-image-6.1.0-5-amd64" "${rc_kernel_packages[@]}"
+assert_eq "4" "${#rc_kernel_packages[@]}" "the other rc packages are listed"
+
+DPKG_LOG=""
+dpkg() { DPKG_LOG+="$*|"; }
+uname() { printf '6.1.0-3-amd64\n'; }
+CONFIRM_RESULT=0
+run_rc_kernel_cleanup >/dev/null 2>&1
+assert_eq "--purge linux-image-6.1.0-1-amd64 linux-modules-6.1.0-1-amd64 linux-modules-extra-6.1.0-0-amd64 linux-image-unsigned-6.1.0-9-amd64 linux-image-6.1.0-5-amd64|" "$DPKG_LOG" "confirmed rc sweep purges every rc kernel package once, not blocked as boot-critical"
+DPKG_LOG=""
+CONFIRM_RESULT=1
+run_rc_kernel_cleanup >/dev/null 2>&1
+assert_eq "" "$DPKG_LOG" "declined rc sweep executes nothing"
+RC_FIXTURE=$'linux-image-6.1.0-3-amd64\tii '
+DPKG_LOG=""
+CONFIRM_RESULT=0
+run_rc_kernel_cleanup >/dev/null 2>&1
+assert_eq "" "$DPKG_LOG" "no rc packages: nothing executes even when confirm would accept"
+unset -f dpkg-query dpkg uname
+
 echo "[archive cleanup] Del-format parser (the autoclean trap)"
 assert_success "Del-format preview is recognised as archive work" \
     archive_transaction_has_changes $'Del chatgpt 26.818.61809 [389 MB]'
@@ -280,7 +308,8 @@ make_report_stubs() {
     REPORT_STUB_DIR="$(mktemp -d)"
     printf '#!/usr/bin/env bash\n%s\n' "$1" > "$REPORT_STUB_DIR/apt"
     printf '#!/usr/bin/env bash\n%s\n' "$2" > "$REPORT_STUB_DIR/apt-get"
-    chmod +x "$REPORT_STUB_DIR/apt" "$REPORT_STUB_DIR/apt-get"
+    printf '#!/usr/bin/env bash\n%s\n' "${3:-true}" > "$REPORT_STUB_DIR/dpkg-query"
+    chmod +x "$REPORT_STUB_DIR/apt" "$REPORT_STUB_DIR/apt-get" "$REPORT_STUB_DIR/dpkg-query"
 }
 
 json_field() {
@@ -306,12 +335,14 @@ printf "libbar/stable-security 2.0 amd64 [upgradable from: 1.9]\n"
 printf "libbaz/stable 3.0 amd64 [upgradable from: 2.9]\n"' \
     'printf "Reading package lists...\n"
 printf "Remv orphan-one [1.0]\n"
-printf "Remv orphan-two [2.0]\n"'
+printf "Remv orphan-two [2.0]\n"' \
+    'printf "linux-image-6.1.0-1-amd64\trc \nlinux-modules-6.1.0-1-amd64\trc \nlinux-image-6.1.0-3-amd64\tii \n"'
 
 REPORT_JSON="$(PATH="$REPORT_STUB_DIR:$PATH" bash "$HERE/../debian-maintenance.sh" --report </dev/null 2>/dev/null)"
 assert_eq "3" "$(json_field "$REPORT_JSON" upgradable)" "upgradable counts package lines, not the Listing banner"
 assert_eq "1" "$(json_field "$REPORT_JSON" securityUpgradable)" "securityUpgradable counts only -security suites"
 assert_eq "2" "$(json_field "$REPORT_JSON" autoremovable)" "autoremovable counts simulated Remv lines"
+assert_eq "2" "$(json_field "$REPORT_JSON" rcKernels)" "rcKernels counts rc-state kernel packages only"
 case "$REPORT_JSON" in
     '{"host":"'*'","indexAgeSeconds":'*',"upgradable":'*'}') ok "stdout is exactly one JSON object, host first" ;;
     *) bad "stdout is exactly one JSON object, host first (got <$REPORT_JSON>)" ;;
@@ -325,8 +356,8 @@ case "$(json_field "$REPORT_JSON" rebootRequired)" in
     *) bad "rebootRequired is a JSON boolean (got <$REPORT_JSON>)" ;;
 esac
 # shellcheck disable=SC2016  # perl program, not shell expansion
-assert_success "report output parses as a 6-key JSON object" perl -MJSON::PP -e \
-    'my $d = eval { decode_json($ARGV[0]) }; exit((ref($d) eq "HASH" && keys(%$d) == 6) ? 0 : 1)' \
+assert_success "report output parses as a 7-key JSON object" perl -MJSON::PP -e \
+    'my $d = eval { decode_json($ARGV[0]) }; exit((ref($d) eq "HASH" && keys(%$d) == 7) ? 0 : 1)' \
     "$REPORT_JSON"
 rm -rf "$REPORT_STUB_DIR"
 
@@ -336,6 +367,7 @@ assert_success "a clean host still exits 0" run_maintenance_quiet --report
 assert_eq "0" "$(json_field "$REPORT_JSON" upgradable)" "header-only apt output reports zero upgradable"
 assert_eq "0" "$(json_field "$REPORT_JSON" securityUpgradable)" "header-only apt output reports zero security upgradable"
 assert_eq "0" "$(json_field "$REPORT_JSON" autoremovable)" "no Remv lines reports zero autoremovable"
+assert_eq "0" "$(json_field "$REPORT_JSON" rcKernels)" "no rc kernels reports zero rcKernels"
 
 assert_failure "an unknown flag is a usage error" run_maintenance_quiet --bogus
 USAGE_STDERR="$(PATH="$REPORT_STUB_DIR:$PATH" bash "$HERE/../debian-maintenance.sh" --bogus </dev/null 2>&1 >/dev/null || true)"
