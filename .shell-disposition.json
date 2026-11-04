@@ -51,7 +51,7 @@
     {"path":"util/cache-prune/runtimes/trash.sh","disposition":"lib-bash","modes":["source"],"strict":"legacy","legacy-findings":0},
     {"path":"util/cache-prune/runtimes/uv.sh","disposition":"lib-bash","modes":["source"],"strict":"legacy","legacy-findings":0},
     {"path":"util/completions.sh","disposition":"lib-bash","modes":["source"],"strict":"legacy","legacy-findings":0,"reason":"bash programmable completion (complete/compgen, COMP_WORDS)"},
-    {"path":"util/debian-maintenance.sh","disposition":"rewrite","modes":["exec","source"],"strict":"legacy","legacy-findings":0,"reason":"assoc arrays, mapfile, apt/dpkg parsing and hand-built JSON --report output","target":"perl","backlog":"INITIATIVE.md#backlog"},
+    {"path":"util/debian-maintenance.sh","disposition":"rewrite","modes":["exec","source","pipe"],"strict":"legacy","legacy-findings":0,"reason":"assoc arrays, mapfile, apt/dpkg parsing and hand-built JSON --report output","target":"perl","backlog":"INITIATIVE.md#backlog"},
     {"path":"util/dispatch.sh","disposition":"sh","modes":["exec"],"strict":"required","legacy-findings":0},
     {"path":"util/ip.sh","disposition":"bash","modes":["exec"],"strict":"legacy","legacy-findings":0,"reason":"bash features: arrays, procsub, BASH_SOURCE, substr/case-mod, herestr"},
     {"path":"util/lib.sh","disposition":"lib-sh","modes":["source"],"legacy-findings":0},
