@@ -31,9 +31,8 @@ if [[ ${#shell_files[@]} -eq 0 ]]; then
 fi
 
 section 'ShellCheck'
-# Warning level: info findings predate the disposition work (SC1091 not-following; SC2086 in the verbatim
-# util/lib/build-id.sh copy). sh-dialect files use `local`/`pipefail`, which dash supports; the disposition
-# gate below lints them with -s dash.
+# Warning level: info findings predate the disposition work (SC1091 not-following).
+# sh-dialect files use `local`/`pipefail`, which dash supports; the disposition gate below lints them with -s dash.
 shellcheck -S warning -e SC3040,SC3043 "${shell_files[@]}"
 
 section 'Bash syntax'
