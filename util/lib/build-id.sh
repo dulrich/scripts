@@ -45,7 +45,7 @@ build_id() {
 }
 
 build_flags() {
-  local path=$1 a
+  local path="$1" a
   shift
   for a in "$@"; do
     case $a in --build|--version) build_id "$path"; exit 0 ;; esac
