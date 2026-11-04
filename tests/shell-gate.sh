@@ -77,7 +77,11 @@ section 'build-system smoke'
 bash build_system/tests/smoke.sh
 
 section 'shell disposition gate'
-if command -v bun >/dev/null 2>&1 && [[ -f "$gate" ]]; then
+gate=
+for _g in "$(dirname "$repo_dir")"/*/scripts/shell-disposition-gate.mjs; do
+	if [[ -f $_g ]]; then gate=$_g; break; fi
+done
+if command -v bun >/dev/null 2>&1 && [[ -n $gate ]]; then
 	bun "$gate" .
 else
 	printf 'SKIPPED: bun or shell-disposition-gate.mjs not available\n'
