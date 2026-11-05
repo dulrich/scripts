@@ -18,7 +18,6 @@
     {"path":"dotfiles.sh","disposition":"bash","modes":["exec"],"strict":"legacy","legacy-findings":0,"reason":"bash features: assoc/array-decl, arrays, mapfile, [[, procsub, BASH_SOURCE, substr/case-mod"},
     {"path":"gentoo-aliases.sh","disposition":"lib-bash","modes":["source"],"strict":"legacy","legacy-findings":0,"reason":"sourced into interactive bash by aliases.sh"},
     {"path":"git-aliases.sh","disposition":"lib-bash","modes":["source"],"strict":"legacy","legacy-findings":0,"reason":"sourced into interactive bash by aliases.sh; [[, arrays"},
-    {"path":"i3/lock","disposition":"sh","modes":["exec"],"strict":"required","legacy-findings":0},
     {"path":"link.sh","disposition":"sh","modes":["exec"],"strict":"required","legacy-findings":0},
     {"path":"mysql-dump.sh","disposition":"bash","modes":["exec"],"strict":"legacy","legacy-findings":0,"reason":"bash features: arrays, BASH_SOURCE"},
     {"path":"pkg-ioc/lib/common.sh","disposition":"lib-bash","modes":["source"],"strict":"legacy","legacy-findings":0},

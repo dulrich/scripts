@@ -88,7 +88,7 @@ fi
 
 # --- no literal personal home paths ---------------------------------------
 # Scope: *.sh at the repo root and everything under util/, plus
-# gpuedit/options.json, config.example.sh, Xresources, and i3/*. Historical
+# gpuedit/options.json, config.example.sh, and Xresources. Historical
 # review prose, plans, runs, markdown docs, gentoo/, and private/ are exempt.
 #
 # Xresources:80 references /home/_shared_code/clones/urxvt-perls, an
@@ -102,7 +102,6 @@ home_path_allowlist='Xresources:URxvt.perl-lib: /home/_shared_code/clones/urxvt-
 mapfile -t scope_files < <(
 	git ls-files -- '*.sh' | grep -vE '/'
 	git ls-files -- 'util/*'
-	git ls-files -- 'i3/*'
 	printf '%s\n' gpuedit/options.json config.example.sh Xresources
 )
 
