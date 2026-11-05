@@ -22,6 +22,7 @@ git clone <this-repo> ~/scripts
 
 - `~/.bash_aliases` → `aliases.sh` (sourced by `~/.bashrc` on most distros)
 - `~/.Xresources` → `Xresources`
+- `~/.vim/plugin/osc52.vim` → `vim/osc52.vim` (OSC 52 yank helper)
 
 Or just add `source ~/scripts/aliases.sh` to your `~/.bashrc`.
 
