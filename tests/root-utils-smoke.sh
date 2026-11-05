@@ -472,6 +472,8 @@ assert_eq "$ROOT/aliases.sh" "$(readlink "$home/.bash_aliases")" \
 	"link installs aliases target in disposable HOME"
 assert_eq "$ROOT/Xresources" "$(readlink "$home/.Xresources")" \
 	"link installs Xresources target in disposable HOME"
+assert_eq "absent" "$([ -e "$home/.config/ghostty" ] && echo present || echo absent)" \
+	"link no longer creates the ghostty config dir in disposable HOME"
 
 database_dir="$state/database output"
 mkdir -p "$database_dir"

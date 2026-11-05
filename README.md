@@ -22,7 +22,6 @@ git clone <this-repo> ~/scripts
 
 - `~/.bash_aliases` → `aliases.sh` (sourced by `~/.bashrc` on most distros)
 - `~/.Xresources` → `Xresources`
-- `~/.config/ghostty/config` → `ghostty/config`
 
 Or just add `source ~/scripts/aliases.sh` to your `~/.bashrc`.
 
@@ -99,7 +98,6 @@ overlays are excluded.
 - `blamecount/` — Node.js (built-ins only; Node ≥ 18) tool summarizing `git blame` stats per author/language via the `git` CLI, no `npm install` required.
 - `pkg-ioc/` — supply-chain-attack IOC scanner for npm/PyPI.
 - `gpuedit/` — config (themes, keybindings, highlighters) for the gpuedit editor.
-- `i3/` — i3 window manager config.
 - `gentoo/` — Portage `make.conf`, `package.use`, and world files.
 
 ## Local overrides
