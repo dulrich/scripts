@@ -99,3 +99,25 @@ assert_contains "$main_report_output" "Estimated safe-tier reclaimable" "the --r
 assert_contains "$main_report_output" "Estimated purge-tier reclaimable" "the --report Total section prints the purge-tier estimate, labelled"
 assert_not_contains "$main_report_output" "Observed footprint change" "the --report Total section prints no delta line at all -- there was no action"
 assert_eq "" "$MUTATE_LOG" "a full --report run via main() still performs no mutating calls"
+
+
+echo "[report seam] split-tier: RT_SAFE_RECLAIMABLE gives a dual-verb runtime both figures; others unchanged"
+assert_not_contains "$main_report_output" "Overlap:" "no split-tier bytes: the Total block carries no overlap line"
+seam_safe_bytes() { printf '2048\n'; }
+seam_noop() { :; }
+RT_PRUNE["seamfake"]=seam_noop
+RT_PURGE["seamfake"]=seam_noop
+seam_before=$(TOTAL_BYTES=0 SAFE_RECLAIMABLE_BYTES=0 PURGE_RECLAIMABLE_BYTES=0; report_measurement seamfake 10240 6144)
+assert_eq "seamfake cache size: $(human_bytes 10240) total (10240 bytes)
+seamfake reclaimable via the purge verb ($(human_bytes 6144), 6144 bytes) -- requires --include-purge
+note: seamfake's safe verb cannot be predicted (no dry run exists) -- it is not represented by any reclaimable figure here." "$seam_before" "a dual-verb runtime without the entry reports exactly as before (purge line + unpredicted-safe note)"
+RT_SAFE_RECLAIMABLE["seamfake"]=seam_safe_bytes
+seam_out=$(SAFE_RECLAIMABLE_BYTES=0 PURGE_RECLAIMABLE_BYTES=0 OVERLAP_RECLAIMABLE_BYTES=0
+    report_measurement seamfake 10240 6144
+    printf 'safe=%d purge=%d overlap=%d\n' "$SAFE_RECLAIMABLE_BYTES" "$PURGE_RECLAIMABLE_BYTES" "$OVERLAP_RECLAIMABLE_BYTES")
+assert_contains "$seam_out" "seamfake reclaimable via the safe verb ($(human_bytes 2048), 2048 bytes)" "the safe line carries the safe-verb bytes"
+assert_contains "$seam_out" "seamfake reclaimable via the purge verb ($(human_bytes 6144), 6144 bytes) -- requires --include-purge; includes the safe-verb $(human_bytes 2048) above (a superset, not additive)" "the purge line carries the superset and names the overlap"
+assert_contains "$seam_out" "safe=2048 purge=6144 overlap=2048" "each tier total gets its own figure; the overlap is counted for the Total block"
+assert_not_contains "$seam_out" "cannot be predicted" "a split-tier runtime prints no unpredicted-safe note"
+unset 'RT_PRUNE[seamfake]' 'RT_PURGE[seamfake]' 'RT_SAFE_RECLAIMABLE[seamfake]'
+unset seam_before seam_out

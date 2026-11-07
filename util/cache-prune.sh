@@ -59,9 +59,13 @@ TOTAL_BYTES=0
 # Reclaimable bytes are kept per tier, never as one figure that would conflate
 # a safe-verb prediction with a purge-verb one: a runtime's census reclaimable
 # bytes are routed into exactly one of these (or neither, for a
-# runtime with no verbs) by report_measurement, never both.
+# runtime with no verbs) by report_measurement, never both -- except a split-tier
+# runtime (RT_SAFE_RECLAIMABLE), whose safe figure is a subset of its purge
+# figure; that overlap is counted in OVERLAP_RECLAIMABLE_BYTES so the Total
+# block can say the two figures are not additive.
 SAFE_RECLAIMABLE_BYTES=0
 PURGE_RECLAIMABLE_BYTES=0
+OVERLAP_RECLAIMABLE_BYTES=0
 # DELTA_BYTES: the grand-total observed footprint change, summed only over
 # runtimes that produced a usable delta (see report_delta). Signed -- a
 # concurrent cache write can make an individual runtime's delta negative.
@@ -314,6 +318,15 @@ declare -A RT_PURGE=()
 # note text.
 declare -A RT_PURGE_UNPREDICTED_NOTE=()
 
+# RT_SAFE_RECLAIMABLE: for a runtime carrying both verbs whose size probe can
+# predict both: the probe's reclaimable is the purge verb's figure (a strict
+# superset of the safe verb's work), and this entry names a function printing
+# the safe verb's bytes, read from the probe's own scan (it is called in the
+# shell that ran the probe, never re-scans). The report prints both lines;
+# the purge line names the overlap, and the safe bytes are also counted in
+# OVERLAP_RECLAIMABLE_BYTES for the Total block.
+declare -A RT_SAFE_RECLAIMABLE=()
+
 # RT_DETAIL: an optional per-runtime breakdown printed immediately after the
 # runtime's own size line. Registry data, like RT_SAFE_ESTIMATE_NOTE below:
 # a runtime whose single reported figure is a sum over materially different
@@ -496,7 +509,9 @@ measure_runtime() {
 # safe verb cannot be predicted (no dry run exists); a runtime with only a
 # safe verb (none today) reports it safe-tier -- as does a dual-verb runtime whose
 # probe predicts the safe verb (docker, RT_PURGE_UNPREDICTED_NOTE), which adds a
-# purge-scope note and never a purge figure; a runtime with neither (none
+# purge-scope note and never a purge figure; a dual-verb runtime with an
+# RT_SAFE_RECLAIMABLE entry (split tier) prints both, the purge line naming
+# the safe bytes it already contains; a runtime with neither (none
 # today) reports neither -- its bytes go into TOTAL_BYTES and stop there.
 report_measurement() {
     local name="$1"
@@ -507,7 +522,19 @@ report_measurement() {
         "$name" "$(human_bytes "$total")" "$total"
     TOTAL_BYTES=$((TOTAL_BYTES + total))
 
-    if [[ -n "${RT_PURGE[$name]:-}" && -z "${RT_PURGE_UNPREDICTED_NOTE[$name]:-}" ]]; then
+    if [[ -n "${RT_PRUNE[$name]:-}" && -n "${RT_PURGE[$name]:-}" && -n "${RT_SAFE_RECLAIMABLE[$name]:-}" ]]; then
+        local safe
+        safe=$("${RT_SAFE_RECLAIMABLE[$name]}")
+        [[ "$safe" =~ ^[0-9]+$ ]] || safe=0
+        ((safe <= reclaimable)) || safe=$reclaimable
+        printf '%s reclaimable via the safe verb (%s, %d bytes)\n' \
+            "$name" "$(human_bytes "$safe")" "$safe"
+        printf '%s reclaimable via the purge verb (%s, %d bytes) -- requires --include-purge; includes the safe-verb %s above (a superset, not additive)\n' \
+            "$name" "$(human_bytes "$reclaimable")" "$reclaimable" "$(human_bytes "$safe")"
+        SAFE_RECLAIMABLE_BYTES=$((SAFE_RECLAIMABLE_BYTES + safe))
+        PURGE_RECLAIMABLE_BYTES=$((PURGE_RECLAIMABLE_BYTES + reclaimable))
+        OVERLAP_RECLAIMABLE_BYTES=$((OVERLAP_RECLAIMABLE_BYTES + safe))
+    elif [[ -n "${RT_PURGE[$name]:-}" && -z "${RT_PURGE_UNPREDICTED_NOTE[$name]:-}" ]]; then
         local gate='requires --include-purge'
         if [[ -n "${RT_INTERACTIVE_ONLY[$name]:-}" ]]; then
             gate='emptied only after an interactive confirm, never under --yes'
@@ -680,6 +707,7 @@ main() {
     TOTAL_BYTES=0
     SAFE_RECLAIMABLE_BYTES=0
     PURGE_RECLAIMABLE_BYTES=0
+    OVERLAP_RECLAIMABLE_BYTES=0
     DELTA_BYTES=0
 
     while (($#)); do
@@ -739,6 +767,10 @@ main() {
     printf 'Total cache footprint seen:                   %s (%d bytes)\n' "$(human_bytes "$TOTAL_BYTES")" "$TOTAL_BYTES"
     printf 'Estimated safe-tier reclaimable (upper bound): %s (%d bytes)\n' "$(human_bytes "$SAFE_RECLAIMABLE_BYTES")" "$SAFE_RECLAIMABLE_BYTES"
     printf 'Estimated purge-tier reclaimable (--include-purge; trash interactive-only): %s (%d bytes)\n' "$(human_bytes "$PURGE_RECLAIMABLE_BYTES")" "$PURGE_RECLAIMABLE_BYTES"
+    if ((OVERLAP_RECLAIMABLE_BYTES > 0)); then
+        printf 'Overlap: %s (%d bytes) of the safe-tier figure is also inside the purge-tier figure (a purge verb that is a superset of its safe verb); the two are not additive.\n' \
+            "$(human_bytes "$OVERLAP_RECLAIMABLE_BYTES")" "$OVERLAP_RECLAIMABLE_BYTES"
+    fi
     if [[ "$MODE" != report ]]; then
         printf 'Observed footprint change (measured, not predicted): %s (%d bytes)\n' \
             "$(human_bytes_signed "$DELTA_BYTES")" "$DELTA_BYTES"
