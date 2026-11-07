@@ -67,7 +67,7 @@ fi
 # Returns 0 = in sync / pushed, 1 = failed, 2 = skipped, 3 = work pending (status).
 _pa_repo () {
 	local do_push=$1 name=$2 remote merge ahead=0 proj="" pending=0 top st lag ptip btip unp=no
-	local rc=0 g tmp
+	local rc=0 tmp have_st=0
 	if ! git rev-parse --verify -q refs/heads/master > /dev/null; then
 		[ "$verbose" -eq 1 ] && echo "$name: skipped (no master branch)"
 		return 2
@@ -86,14 +86,21 @@ _pa_repo () {
 	top=$(git rev-parse --show-toplevel)
 	if git remote get-url github > /dev/null 2>&1 && [ -f "$top/.publication.json" ]; then
 		if [ -n "$publish_mjs" ] && [ -f "$publish_mjs" ]; then
-			if st=$(bun "$publish_mjs" status --repo "$top" 2> /dev/null); then
-				lag=$(_push_json_field "$st" lagCommits)
-				ptip=$(_push_json_field "$st" publicTip)
-				btip=$(_push_json_field "$st" publishedTip)
+			have_st=1
+			# One status call per repo; push_repo reuses it via --status.
+			# Unparsable output is "unavailable" (st='', so --push
+			# projects): never read as current.
+			# A failed call is '!status-failed': push_repo aborts the repo.
+			if ! st=$(bun "$publish_mjs" status --repo "$top" 2> /dev/null); then
+				st='!status-failed'
+				proj="; projection status unavailable"
+			elif st=$(_push_parse_status "$st"); then
+				IFS=$'\t' read -r _ lag ptip btip <<< "$st"
 				[ "$ptip" != "$btip" ] && unp=yes
 				proj="; projection lag ${lag:-?}, unpushed projection: $unp"
 				{ _push_needs_projection "$st" || [ "$unp" = yes ]; } && pending=1
 			else
+				st=''
 				proj="; projection status unavailable"
 			fi
 		else
@@ -108,26 +115,12 @@ _pa_repo () {
 	tmp=$(mktemp) || return 1
 	# Project (and scan) before pushing anything: a failed scan pushes
 	# nowhere, so the flagged commits stay local and can be amended.
-	g=2
-	{
-		if git remote get-url github > /dev/null 2>&1; then
-			_cl_github_push conditional master
-			g=$?
-		fi
-		if [ "$g" -eq 1 ]; then
-			rc=1
-			echo "(not pushing to origin either; amend the flagged commits locally)"
-		else
-			_cl_origin_push master || rc=1
-			if [ "$g" -eq 0 ]; then
-				if git config --get remote.github.push > /dev/null 2>&1; then
-					git push github || rc=1
-				else
-					git push github "$PUSH_GH_SRC:$PUSH_GH_DST" || rc=1
-				fi
-			fi
-		fi
-	} < /dev/null > "$tmp" 2>&1
+	# push_repo runs that order; the status read above is handed in.
+	if [ "$have_st" -eq 1 ]; then
+		push_repo --branch master --when-lagging --status "$st"
+	else
+		push_repo --branch master --when-lagging
+	fi < /dev/null > "$tmp" 2>&1 || rc=1
 	if [ "$rc" -ne 0 ]; then
 		echo "$name: FAILED (origin +$ahead$proj)"
 		sed 's/^/    /' "$tmp"

@@ -312,6 +312,7 @@ git() {
 			;;
 		'push ')
 			printf 'PUSHED\n'
+			return "${origin_push_rc:-0}"
 			;;
 		'status -bs')
 			printf 'STATUS\n'
@@ -385,8 +386,8 @@ assert_eq '' "$(grep -x 'push' "$git_log")" 'cl runs no origin push after a fail
 assert_contains "$output" '(not pushing to origin either; amend the flagged commits locally)' 'cl says origin was held back too'
 git_mode=nothing
 unset git_log gh_ahead
-_cl_github_push > /dev/null 2>&1
-assert_eq 1 "$?" '_cl_github_push returns status 1 on projection failure'
+push_repo > /dev/null 2>&1
+assert_eq 1 "$?" 'push_repo returns status 1 on projection failure'
 
 bun_rc=0
 bun_log="$cl_top/bun.log"
@@ -404,6 +405,20 @@ rm -rf "$cl_top"
 unset -f bun
 unset cl_top publish_mjs bun_rc
 gh_mode=none
+
+git_mode=no-upstream
+gh_mode=plain
+output=$(cl 2>&1)
+assert_eq $'(nothing to push)\n(pushing 1 refs to github)' "$(printf '%s\n' "$output" | grep -E '^\((nothing to push|pushing .* to github)\)$')" \
+	'cl prints (nothing to push) before the github messages when no upstream is countable'
+gh_mode=none
+
+git_mode=unpushed
+origin_push_rc=1
+cl > /dev/null 2>&1
+assert_eq 4 "$?" 'cl returns non-zero (push_repo 4) when the origin push fails'
+git_mode=nothing
+unset origin_push_rc
 
 if declare -F __git_complete >/dev/null; then
 	git_completion=$(complete -p a 2>/dev/null || true)

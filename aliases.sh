@@ -98,14 +98,14 @@ for _cd_name in .. ... down code; do
 done
 unset _cd_name
 
-# Per-repo push logic (_cl_origin_push, _cl_github_push) is shared with
+# Per-repo push logic (push_repo) is shared with
 # `util push-all`.
 # shellcheck source=/dev/null
 source "$here/util/lib/push.sh"
 
 unalias cl 2> /dev/null
 cl () {
-	local gh_rc=2
+	local rc
 
 	clear
 	if git rev-parse --is-inside-work-tree > /dev/null 2>&1; then
@@ -118,21 +118,12 @@ cl () {
 		# The projection (and its scan) runs before anything is pushed: a
 		# failed scan pushes nowhere, so the flagged commits are still local
 		# and can be amended without a force push.
-		if git remote get-url github > /dev/null 2>&1; then
-			_cl_github_push
-			gh_rc=$?
-			if [ "$gh_rc" -eq 1 ]; then
-				echo "(not pushing to origin either; amend the flagged commits locally)"
-				git status -bs
-				return 1
-			fi
-		fi
-		_cl_origin_push
-		if [ "$gh_rc" -eq 0 ]; then
-			git push github
-		fi
-
+		push_repo
+		rc=$?
+		# No countable upstream reads as "nothing to push" (status 0).
+		[ "$rc" -eq 3 ] && rc=0
 		git status -bs
+		return "$rc"
 	else
 		echo "(not a git repository)"
 		ls -alF --color=auto

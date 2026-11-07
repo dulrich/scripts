@@ -53,6 +53,9 @@ cmd=$1 r=$3
 state="$r/.git/stub-projected"
 case $cmd in
 	status)
+		[ -n "${STUB_STATUS_LOG:-}" ] && echo "$r" >> "$STUB_STATUS_LOG"
+		[ -n "${STUB_GARBAGE:-}" ] && { echo 'not json {'; exit 0; }
+		[ -n "${STUB_STATUS_FAIL:-}" ] && exit 1
 		src=$(git -C "$r" rev-parse master)
 		if [ -f "$state" ]; then
 			proj=$(cat "$state")
@@ -179,12 +182,41 @@ check 'failed projection leaves origin untouched and marks the repo FAILED' \
 # shellcheck source=util/lib/push.sh
 . "$helper"
 j() { printf '{\n  "manifest": {"lagCommits": 9},\n  "projectedSource": %s,\n  "lagCommits": %s\n}\n' "$1" "$2"; }
+p() { _push_parse_status "$(j "$1" "$2")"; }
 res=
-_push_needs_projection "$(j '"abc"' 0)" && res+=a
-_push_needs_projection "$(j '"abc"' 2)" && res+=b
-_push_needs_projection "$(j null null)" && res+=c
-_push_needs_projection "$(j '"abc"' null)" && res+=d
-check 'needs-projection only on lag, null lag or no projection' "$(if [ "$res" = bcd ]; then echo 0; else echo 1; fi)"
+_push_needs_projection "$(p '"abc"' 0)" && res+=a
+_push_needs_projection "$(p '"abc"' 2)" && res+=b
+_push_needs_projection "$(p null null)" && res+=c
+_push_needs_projection "$(p '"abc"' null)" && res+=d
+_push_needs_projection "" && res+=e
+check 'needs-projection only on lag, null lag, no projection or unavailable status' "$(if [ "$res" = bcde ]; then echo 0; else echo 1; fi)"
+
+# 10 unparsable status: reported unavailable, never current, so --push projects
+commit "$root/code/pub" garbled
+STUB_GARBAGE=1 run
+check 'unparsable status is reported as status unavailable' "$(if [[ $PUSH_OUT == *'pub: origin +'*'; projection status unavailable'* ]]; then echo 0; else echo 1; fi)"
+before_calls=$(wc -l < "$calls")
+STUB_GARBAGE=1 run --push
+check 'unparsable status under --push projects instead of reading as current' \
+	"$(if [[ $PUSH_OUT != *'pub: FAILED'* ]] && [ "$(wc -l < "$calls")" -eq $((before_calls + 1)) ] && [[ $PUSH_OUT == *'(projecting public)'* ]]; then echo 0; else echo 1; fi)"
+
+# 11 --push reads publish.mjs status once per repo
+commit "$root/code/pub" once
+export STUB_STATUS_LOG="$root/status-calls"
+: > "$STUB_STATUS_LOG"
+run --push
+check '--push runs publish.mjs status exactly once per repo' \
+	"$(if [[ $PUSH_OUT != *'pub: FAILED'* ]] && [ "$(wc -l < "$STUB_STATUS_LOG")" -eq 1 ] && [[ $PUSH_OUT == *'(projecting public)'* ]]; then echo 0; else echo 1; fi)"
+
+# 12 a failed status call aborts the repo: FAILED, nothing pushed, no projection
+commit "$root/code/pub" statusfail
+origin_before=$(git -C "$root/origins/pub.git" rev-parse master)
+before_calls=$(wc -l < "$calls")
+: > "$STUB_STATUS_LOG"
+STUB_STATUS_FAIL=1 run --push
+check 'failed status call aborts the repo once, pushing and projecting nothing' \
+	"$(if [[ $PUSH_OUT == *'pub: FAILED'* && $PUSH_OUT == *'(projection status failed; not pushing to github)'* && $PUSH_OUT == *'(not pushing to origin either'* ]] && [ "$(git -C "$root/origins/pub.git" rev-parse master)" = "$origin_before" ] && [ "$(wc -l < "$calls")" -eq "$before_calls" ] && [ "$(wc -l < "$STUB_STATUS_LOG")" -eq 1 ]; then echo 0; else echo 1; fi)"
+unset STUB_STATUS_LOG
 
 printf '%d passed, %d failed\n' "$pass_count" "$fail_count"
 [ "$fail_count" -eq 0 ]
