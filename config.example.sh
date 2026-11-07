@@ -20,8 +20,8 @@
 # EXTERNAL_OUTPUT="DP-1-3"
 # INTERNAL_OUTPUT="eDP-1-1"
 
-# ALSA device for the volume()/vol helper ("default", or "pulse" on PulseAudio)
-# AUDIO_DEVICE="default"
+# PipeWire sink for the volume()/vol helper (wpctl; a node id or name, default @DEFAULT_AUDIO_SINK@)
+# AUDIO_SINK="@DEFAULT_AUDIO_SINK@"
 
 # dotfiles.sh runs standalone (it does not source config.sh) and reads these
 # two environment variables directly; documented here for discoverability.

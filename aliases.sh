@@ -39,7 +39,7 @@ ssh_cmd="ssh"
 work_user="username"
 EXTERNAL_OUTPUT="DP-1-3"
 INTERNAL_OUTPUT="eDP-1-1"
-AUDIO_DEVICE="default" # pulse on systems using pulseaudio
+AUDIO_SINK="@DEFAULT_AUDIO_SINK@" # wpctl target for volume(): a PipeWire node id or name, or the default sink
 publish_mjs="" # path to publish.mjs; cl projects .publication.json repos before pushing github
 
 # https://github.com/ElectricRCAircraftGuy/eRCaGuy_hello_world/blob/master/bash/get_script_path.sh
@@ -387,10 +387,17 @@ internal () {
 
 
 volume() {
+	# PipeWire + WirePlumber (wpctl): bare prints the sink volume as NN% (" muted" appended when muted); an integer 0-100 sets it.
+	local out pct
 	if [ "${1:-}" == "" ]; then
-		amixer -D "$AUDIO_DEVICE" sget Master | grep -iIoP "\[\d+%\]" | grep -iIoP --color=never "\d+%"
+		out=$(wpctl get-volume "$AUDIO_SINK") || return
+		pct=$(awk '{printf "%d%%", $2 * 100 + 0.5}' <<< "$out")
+		if [[ $out == *MUTED* ]]; then echo "$pct muted"; else echo "$pct"; fi
+	elif [[ $1 =~ ^[0-9]+$ ]] && ((10#$1 <= 100)); then
+		wpctl set-volume -l 1.0 "$AUDIO_SINK" "$((10#$1))%"
 	else
-		amixer -q -D "$AUDIO_DEVICE" sset Master "$1%"
+		echo "usage: vol [0-100]" >&2
+		return 2
 	fi
 }
 alias vol="volume"
