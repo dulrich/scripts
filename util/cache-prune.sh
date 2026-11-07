@@ -252,7 +252,8 @@ EOF
   CACHE_PRUNE_COMPOSE_PROJECT_DIRS
                 newline-separated <file>=<dir> pairs, both relative to that
                 root: each listed compose file is resolved with
-                --project-directory <root>/<dir> (default: none pinned)
+                --project-directory <root>/<dir> (default: none pinned
+                unless a fleet module sets one)
 EOF
     print_help_fragments "${CACHE_PRUNE_HELP_ENV[@]}"
     print_help_fragments "${CACHE_PRUNE_HELP_CORE_ENV[@]}"
@@ -493,7 +494,7 @@ measure_runtime() {
 # verb (uv/npm dual-verb, pip/bun purge-only) reports it as a purge-tier
 # estimate -- for uv/npm this is the *only* figure printed, because their
 # safe verb cannot be predicted (no dry run exists); a runtime with only a
-# safe verb (docker) reports it safe-tier -- as does a dual-verb runtime whose
+# safe verb (none today) reports it safe-tier -- as does a dual-verb runtime whose
 # probe predicts the safe verb (docker, RT_PURGE_UNPREDICTED_NOTE), which adds a
 # purge-scope note and never a purge figure; a runtime with neither (none
 # today) reports neither -- its bytes go into TOTAL_BYTES and stop there.
