@@ -1,5 +1,5 @@
 # shellcheck shell=sh
-# build-id.sh — fleet build-id helper (plans/fleet-build-version-gate.md, Decision 3).
+# build-id.sh — fleet build-id helper.
 # Sourceable copy-in template; bash + coreutils + git only.
 #
 #   . "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/build-id.sh"
@@ -7,7 +7,7 @@
 #   build_flags "${BASH_SOURCE[0]}" "$@"                          # exits 0 on --build/--version
 #
 # sh stanza, for executed-only #!/bin/sh scripts ($0 is the script there; never in a file
-# that can itself be sourced — plans/shell-script-disposition.md Decision 2):
+# that can itself be sourced):
 #
 #   . "$(dirname "$(realpath "$0")")/build-id.sh"; build_flags "$0" "$@"
 #
