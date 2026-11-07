@@ -431,3 +431,23 @@ GR_RC=0
 guarded_remove "$GR_ROOT" "$GR_ROOT/link" || GR_RC=$?
 assert_eq "0" "$GR_RC" "guarded_remove removes a symlinked leaf as a link"
 assert_success "the symlink target outside the root survives" test -f "$GR_OUTSIDE/keep/payload"
+
+echo "[path_on_noatime_mount] longest-prefix mount wins; \040 in a mount path is a space"
+NA_DIR="$SANDBOX/noatime space/inner/leaf"
+mkdir -p "$NA_DIR"
+NA_REAL=$(realpath "$SANDBOX/noatime space")
+NA_MOUNTS="$SANDBOX/noatime-mounts"
+printf 'none / ext4 rw,noatime 0 0\nnone %s tmpfs rw,relatime 0 0\nnone %s/inner tmpfs rw,noatime 0 0\n' "${NA_REAL// /\\040}" "${NA_REAL// /\\040}" > "$NA_MOUNTS"
+assert_success "the longest-prefix mount (a noatime one, escaped space path) decides" path_on_noatime_mount "$NA_DIR" "$NA_MOUNTS"
+printf 'none / ext4 rw,noatime 0 0\nnone %s tmpfs rw,relatime 0 0\n' "${NA_REAL// /\\040}" > "$NA_MOUNTS"
+assert_failure "a relatime mount longer than a noatime / wins" path_on_noatime_mount "$NA_DIR" "$NA_MOUNTS"
+assert_failure "an unreadable mounts file reads as not noatime" path_on_noatime_mount "$NA_DIR" "$SANDBOX/no-such-mounts"
+
+echo "[outermost_marker_dirs] outermost only, sibling sorting before a nested dir, validator runs before dedupe"
+OM_ROOT="$SANDBOX/outermost"
+rm -rf "$OM_ROOT"
+mkdir -p "$OM_ROOT/a/sub" "$OM_ROOT/a-x" "$OM_ROOT/node_modules/n" "$OM_ROOT/b/inner"
+touch "$OM_ROOT/a/m.cfg" "$OM_ROOT/a/sub/m.cfg" "$OM_ROOT/a-x/m.cfg" "$OM_ROOT/node_modules/n/m.cfg" "$OM_ROOT/b/m.cfg" "$OM_ROOT/b/inner/m.cfg"
+om_not_b() { [[ "$1" != */b/m.cfg ]]; }
+assert_eq "$OM_ROOT/a"$'\n'"$OM_ROOT/a-x"$'\n'"$OM_ROOT/b" "$(outermost_marker_dirs "$OM_ROOT" - -name m.cfg | LC_ALL=C sort)" "a sibling (a-x) sorting between a dir and its nested dir does not hide or duplicate; node_modules is pruned"
+assert_eq "$OM_ROOT/a"$'\n'"$OM_ROOT/a-x"$'\n'"$OM_ROOT/b/inner" "$(outermost_marker_dirs "$OM_ROOT" om_not_b -name m.cfg | LC_ALL=C sort)" "a rejected ancestor marker does not hide its valid nested one"

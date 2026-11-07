@@ -208,3 +208,91 @@ guarded_remove() {
     [[ "$candidate" == "$root_real"/* ]] || return 2
     rm -rf --one-file-system -- "$candidate" || return 3
 }
+
+### shared path guards and discovery helpers ##################################
+
+# path_contained <path> <expected-real>: <path> is not itself a symlink and
+# its realpath equals <expected-real> (no symlinked component on the way).
+path_contained() {
+    local path="$1"
+    local expected="$2"
+    local real
+
+    [[ ! -L "$path" ]] || return 1
+    real=$(realpath -e -- "$path" 2>/dev/null) || return 1
+    [[ "$real" == "$expected" ]]
+}
+
+# path_on_noatime_mount <path> <mounts-file>: the longest-prefix mount holding
+# the path carries the noatime option. <mounts-file> replaces
+# /proc/self/mounts when non-empty (test seam, passed by the caller); an
+# unreadable table or unresolvable path reads as not noatime.
+path_on_noatime_mount() {
+    local path best="" opts="" mp mopts
+    local src="${2:-/proc/self/mounts}"
+
+    path=$(realpath -e -- "$1" 2>/dev/null) || return 1
+    [[ -r "$src" ]] || return 1
+    while read -r _ mp _ mopts _; do
+        mp=${mp//\\040/ }
+        if [[ "$mp" == / || "$path" == "$mp" || "$path" == "$mp"/* ]] && ((${#mp} >= ${#best})); then
+            best="$mp"
+            opts="$mopts"
+        fi
+    done < "$src"
+    [[ ",$opts," == *,noatime,* ]]
+}
+
+# path_git_tracked <dir>: <dir> is inside a git work tree and any path under
+# it is tracked.
+path_git_tracked() {
+    local dir="$1"
+    local tracked
+
+    git -C "$dir" rev-parse --is-inside-work-tree >/dev/null 2>&1 || return 1
+    tracked=$(git -C "$dir" ls-files -- . 2>/dev/null | head -n 1)
+    [[ -n "$tracked" ]]
+}
+
+# outermost_marker_dirs <root> <validator|-> <find-predicate...>: the
+# outermost directories under <root> holding a regular file that matches the
+# find predicate (pruning .git and node_modules; find -P never follows a
+# symlink). <validator> is a function called with each marker path before
+# anything is deduplicated: a marker it rejects (non-zero) is dropped, so an
+# invalid ancestor marker can never hide a valid nested one. "-" accepts
+# every marker.
+outermost_marker_dirs() {
+    local root="$1"
+    local validator="$2"
+    local marker dir prev=""
+
+    shift 2
+    while IFS= read -r marker; do
+        [[ -n "$marker" ]] || continue
+        if [[ "$validator" != - ]]; then
+            "$validator" "$marker" || continue
+        fi
+        # Trailing slash so a dir's descendants sort contiguously right after
+        # it: without it, a sibling like "target-x" sorts between "target"
+        # and "target/sub" ('-' < '/') and the nested dir is kept twice.
+        printf '%s/\n' "${marker%/*}"
+    done < <(find -P "$root" \( -name .git -o -name node_modules \) -prune -o \
+        -type f "$@" -print 2>/dev/null) |
+        LC_ALL=C sort -u |
+        while IFS= read -r dir; do
+            if [[ -n "$prev" && "$dir" == "$prev"* ]]; then
+                continue
+            fi
+            prev="$dir"
+            printf '%s\n' "${dir%/}"
+        done
+}
+
+# env_days <value> <default>: <value> when it is all digits, else <default>
+# (an unset or empty value reads as the default too).
+env_days() {
+    local days="$1"
+
+    [[ "$days" =~ ^[0-9]+$ ]] || days="$2"
+    printf '%s\n' "$days"
+}
