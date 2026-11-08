@@ -535,7 +535,7 @@ is_eq('1', rt('trash')->{detect}->(rt('trash')), 'gio plus the fixture dir is de
 { local $ENV{CACHE_PRUNE_TRASH_DIR} = ''; local $ENV{XDG_DATA_HOME} = "$SB/xdg";
 	is_eq("$SB/xdg/Trash", CachePrune::Runtime::trash::trash_dir(), 'the default dir is ${XDG_DATA_HOME}/Trash');
 	delete $ENV{XDG_DATA_HOME};
-	is_eq("$SB/home/.local/share/Trash", CachePrune::Runtime::trash::trash_dir(), 'without XDG_DATA_HOME it is $HOME/.local/share/Trash'); }
+	is_eq("$ENV{HOME}/.local/share/Trash", CachePrune::Runtime::trash::trash_dir(), 'without XDG_DATA_HOME it is $HOME/.local/share/Trash'); }
 
 section('[trash --report] files/ + info/ (+ expunged/) sized, nothing emptied');
 is_eq("available $texp $texp trash", rt('trash')->{size}->(rt('trash'), ''), 'size counts files/ + info/, all reclaimable');
