@@ -1,6 +1,0 @@
-uv cache dir
-uv cache prune
-npm config get cache
-npm cache verify
-docker info
-pip cache dir

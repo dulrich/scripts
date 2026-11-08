@@ -1,8 +1,0 @@
-uv cache dir
-uv cache clean
-npm config get cache
-npm cache clean --force
-docker info
-pip cache dir
-pip cache purge
-bun pm cache rm

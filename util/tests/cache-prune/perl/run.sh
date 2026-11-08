@@ -2,7 +2,7 @@
 # CC0: This work has been marked as dedicated to the public domain.
 # Hermetic regression tests for util/cache-prune/perl/cache-prune.pl, the cache-prune tool (the
 # util/cache-prune.sh shim execs it). Core logic runs in-process via unit.pl and docker.pl (faked
-# seams); the CLI, the fleet-module seam and the golden-output cases (golden/: stdout, stderr,
+# seams); the CLI, the fleet-module seam and the golden-output cases (golden/: one full dump per family, stdout, stderr,
 # exit status and tool-call log captured from the retired bash tool) run as real subprocesses
 # with stub uv/npm/pip/bun/cargo/docker/gio executables on PATH, inside a mktemp sandbox.
 for _a in "$@"; do case "$_a" in --help|-h)
@@ -106,26 +106,58 @@ golden() {
 	done
 }
 
-echo "[golden] the whole report (docker daemon down, trash absent) matches the golden capture"
-for args in "--report" "--report --include-purge" "--yes" "--yes --include-purge"; do
+# Golden policy: one full dump per family (core--report, core--yes, docker--report, docker--yes,
+# help); every variant below asserts only its delta against the family dump, never a full copy.
+# keep <tag>: save the last run (SANDBOX/p.out, p.err, p.log) for a later same_as comparison.
+keep() { for s in out err log; do cp "$SANDBOX/p.$s" "$SANDBOX/keep-$1.$s"; done; }
+# same_as <tag> <label>: the last run is identical to the kept run, i.e. the variant has no delta.
+same_as() { for s in out err log; do
+	if cmp -s "$SANDBOX/keep-$1.$s" "$SANDBOX/p.$s"; then ok "$2: $s identical to the $1 run"
+	else bad "$2: $s differs from the $1 run"; diff "$SANDBOX/keep-$1.$s" "$SANDBOX/p.$s" | head -20 || true; fi; done; }
+# core_run <args...>: the core report on the stub runtimes, no docker daemon, no trash.
+core_run() {
 	fixture
-	# shellcheck disable=SC2086 # word-split the flag set on purpose
-	p_rc=0; run_perl $args > "$SANDBOX/p.out" 2> "$SANDBOX/p.err" || p_rc=$?
+	p_rc=0; run_perl "$@" > "$SANDBOX/p.out" 2> "$SANDBOX/p.err" || p_rc=$?
 	cp "$STUB_LOG" "$SANDBOX/p.log"
-	name=$(printf "%s" "core$args" | tr " " "_")
-	golden "$name" "$p_rc"
-	p_cmp=$(cat "$SANDBOX/p.out")
-done
-assert_has "$p_cmp" "uv: observed footprint change: 5.0KB (5096 bytes)" "a real purge reports the measured delta"
-assert_has "$p_cmp" "cargo: observed footprint change: 4.9KB (5000 bytes)" "cargo's purge frees registry/src only"
+	p_out=$(cat "$SANDBOX/p.out"); p_err=$(cat "$SANDBOX/p.err"); p_log=$(cat "$SANDBOX/p.log")
+}
 
-echo "[golden] a failing verb: the warning and exit status 1"
-fixture
-p_rc=0; STUB_UV_PRUNE_RC=1 run_perl --yes > "$SANDBOX/p.out" 2> "$SANDBOX/p.err" || p_rc=$?
-cp "$STUB_LOG" "$SANDBOX/p.log"
-golden "core--yes_uv-prune-fails" "$p_rc"
+echo "[golden] the whole report (docker daemon down, trash absent) matches the golden capture"
+core_run --report; golden "core--report" "$p_rc"; keep core-report
+core_run --yes; golden "core--yes" "$p_rc"; keep core-yes
+
+echo "[variants] core: deltas against the family dumps"
+core_run --report --include-purge
+assert_eq "0" "$p_rc" "--report --include-purge exits 0"
+same_as core-report "--report --include-purge"
+core_run --yes --include-purge
+assert_eq "0" "$p_rc" "--yes --include-purge exits 0"
+assert_eq "" "$p_err" "--yes --include-purge writes nothing to stderr"
+assert_has "$p_log" "uv cache clean" "--include-purge runs uv's purge verb"
+assert_has "$p_log" "npm cache clean --force" "--include-purge runs npm's purge verb"
+assert_has "$p_log" "pip cache purge" "--include-purge runs pip's purge verb"
+assert_has "$p_log" "bun pm cache rm" "--include-purge runs bun's purge verb"
+assert_hasnt "$p_log" "uv cache prune" "--include-purge replaces uv's safe verb"
+assert_hasnt "$p_log" "npm cache verify" "--include-purge replaces npm's safe verb"
+assert_has "$p_out" "uv: observed footprint change: 5.0KB (5096 bytes)" "a real purge reports the measured delta"
+assert_has "$p_out" "npm: observed footprint change: 19.5KB (20000 bytes)" "npm's purge reports its measured delta"
+assert_has "$p_out" "pip: prune complete.
+pip: observed footprint change: 2.9KB (3000 bytes)" "pip's purge completes and reports its delta"
+assert_has "$p_out" "bun: prune complete.
+bun: observed footprint change: 6.8KB (7000 bytes)" "bun's purge completes and reports its delta"
+assert_has "$p_out" "cargo: prune complete.
+cargo: observed footprint change: 4.9KB (5000 bytes)" "cargo's purge frees registry/src only"
+assert_has "$p_out" "Observed footprint change (measured, not predicted): 39.2KB (40096 bytes)" "the total is the sum of the purge deltas"
+
+core_run --yes
+assert_eq "0" "$p_rc" "a clean --yes run exits 0"
+core_run_fail() { fixture; p_rc=0; STUB_UV_PRUNE_RC=1 run_perl --yes > "$SANDBOX/p.out" 2> "$SANDBOX/p.err" || p_rc=$?; cp "$STUB_LOG" "$SANDBOX/p.log"; p_out=$(cat "$SANDBOX/p.out"); p_log=$(cat "$SANDBOX/p.log"); }
+core_run_fail
 assert_eq "1" "$p_rc" "a failed safe verb exits 1"
 assert_eq "WARNING: uv: prune failed" "$(cat "$SANDBOX/p.err")" "the failure warning is the bash wording"
+assert_has "$p_out" "uv: observed footprint change: 0.0B (0 bytes) -- partial result: the action above reported failure" "a failed verb's delta line is marked partial"
+assert_hasnt "$p_out" "uv: prune complete." "a failed verb does not claim completion"
+assert_has "$p_log" "uv cache prune" "the failing verb was still invoked"
 
 # ---- docker + trash golden cases, against a fixture docker and a gio stub -----------------
 # The fixture docker answers every read the build-cache probe and the residue step make from
@@ -181,17 +213,18 @@ printf '%s\n' '[{"Name":"/gone-x-1","Id":"c1","Image":"sha256:ua","Config":{"Ima
 TRASH="$SANDBOX/trash"
 trash_fixture() { rm -rf "$TRASH"; mkdir -p "$TRASH/files/dir1" "$TRASH/info"; head -c 4096 /dev/zero > "$TRASH/files/a.bin"; head -c 8192 /dev/zero > "$TRASH/files/dir1/b.bin"; head -c 100 /dev/zero > "$TRASH/info/a.bin.trashinfo"; : > "$TRASH/files/.hidden"; }
 # dparity <label> <args...>: the tool on the fixture docker + gio; stdout, stderr, exit status
-# and the full tool-call log must match the golden capture byte for byte.
+# and the full tool-call log are captured for the golden comparison or the variant deltas.
 dparity() {
+	# shellcheck disable=SC2034 # the label documents the call site; the name is passed to golden
 	label=$1; shift
 	fixture; trash_fixture
 	p_rc=0; PATH="$DSTUBS:$PATH" CACHE_PRUNE_GIO=gio CACHE_PRUNE_TRASH_DIR="$TRASH" CACHE_PRUNE_REPO_ROOT="$SANDBOX/dr-root" DFIX="$DFIX" run_perl "$@" > "$SANDBOX/p.out" 2> "$SANDBOX/p.err" || p_rc=$?
 	cp "$STUB_LOG" "$SANDBOX/p.log"
-	golden "docker$(printf "%s" "$label" | tr " ()=" "____")" "$p_rc"
 	p_out=$(cat "$SANDBOX/p.out"); p_log=$(cat "$SANDBOX/p.log")
 }
-echo "[golden] docker build cache, residue and trash match the golden capture in every non-interactive mode"
+echo "[golden] docker build cache, residue and trash: the report and --yes dumps match the golden capture"
 dparity "--report" --report
+golden "docker--report" "$p_rc"; keep docker-report
 assert_has "$p_out" "docker reclaimable via the safe verb (5.6GB, 6000000000 bytes)" "the system-df Build Cache row is the safe figure"
 assert_has "$p_out" "docker superseded images: 9.0B (9 bytes, 2 tags) (safe tier, upper bound: shared layers)" "the residue report runs under docker"
 assert_has "$p_out" "docker anonymous volumes: 1 dangling" "the anonymous volume line is reported"
@@ -199,8 +232,12 @@ assert_has "$p_out" "trash: 3 items in files/ -- purge tier, interactive confirm
 assert_hasnt "$p_log" "builder prune" "--report runs no build-cache verb"
 assert_hasnt "$p_log" "docker rm" "--report removes nothing"
 assert_hasnt "$p_log" "gio " "--report never invokes gio"
+echo "[variants] docker: deltas against the family dumps"
 dparity "--report --include-purge" --report --include-purge
+assert_eq "0" "$p_rc" "--report --include-purge exits 0"
+same_as docker-report "docker --report --include-purge"
 dparity "--yes" --yes
+golden "docker--yes" "$p_rc"; keep docker-yes
 assert_has "$p_log" "docker builder prune --force" "--yes runs the unfiltered safe verb"
 assert_has "$p_log" "docker rmi webapp-overlay:v0.11.1
 docker rmi webapp-overlay:v0.11.3" "--yes removes the superseded tags"
@@ -209,6 +246,31 @@ assert_hasnt "$p_log" "volume rm" "--yes removes no volume"
 assert_has "$p_out" "skipped: 2 unreferenced images need a per-image interactive confirm" "--yes skips unreferenced images with the reason"
 assert_has "$p_out" "skipped: trash needs an interactive confirm" "--yes never empties trash"
 dparity "--yes --include-purge" --yes --include-purge
+assert_eq "0" "$p_rc" "docker --yes --include-purge exits 0"
+assert_eq "" "$(cat "$SANDBOX/p.err")" "docker --yes --include-purge writes nothing to stderr"
+keep docker-purge
+assert_has "$p_log" "docker system df -v --format json
+docker compose version
+docker images -q --no-trunc
+docker image inspect sha256:old sha256:old1 sha256:overlay sha256:ua sha256:ub
+docker ps -aq --no-trunc" "the purge run reads the residue inventory"
+assert_has "$p_log" "docker compose -f $SANDBOX/dr-root/homelab/compose.yml --profile * config --no-interpolate --format json" "the purge run resolves the compose project"
+assert_has "$p_log" "uv cache clean" "the purge run uses uv's purge verb"
+assert_has "$p_log" "npm cache clean --force" "the purge run uses npm's purge verb"
+assert_has "$p_log" "pip cache purge" "the purge run uses pip's purge verb"
+assert_has "$p_log" "bun pm cache rm" "the purge run uses bun's purge verb"
+assert_hasnt "$p_log" "uv cache prune" "the purge run replaces uv's safe verb"
+assert_hasnt "$p_log" "docker builder prune --force" "the purge run replaces the safe build-cache verb"
+assert_has "$p_out" "docker residue: stale containers removed 1, failed 0; anonymous volumes removed 1, failed 0; superseded tags removed 2, failed 0; unreferenced images removed 0, failed 0" "the residue summary counts the stale container and the anonymous volume"
+assert_has "$p_out" "uv: observed footprint change: 5.0KB (5096 bytes)" "the purge run reports uv's measured delta"
+assert_has "$p_out" "npm: observed footprint change: 19.5KB (20000 bytes)" "the purge run reports npm's measured delta"
+assert_has "$p_out" "pip: prune complete.
+pip: observed footprint change: 2.9KB (3000 bytes)" "the purge run completes pip and reports its delta"
+assert_has "$p_out" "bun: prune complete.
+bun: observed footprint change: 6.8KB (7000 bytes)" "the purge run completes bun and reports its delta"
+assert_has "$p_out" "cargo: prune complete.
+cargo: observed footprint change: 4.9KB (5000 bytes)" "the purge run completes cargo and reports its delta"
+assert_has "$p_out" "Observed footprint change (measured, not predicted): 39.2KB (40096 bytes)" "the purge run totals the deltas"
 assert_has "$p_log" "docker builder prune -a --force
 docker system df" "--yes --include-purge runs the purge verb instead of the safe verb"
 assert_has "$p_log" "docker rm gone-x-1" "stale containers are removed"
@@ -217,13 +279,26 @@ assert_hasnt "$p_log" "named-d" "a named volume is never removed"
 assert_hasnt "$p_log" "gio " "--yes --include-purge still never empties trash"
 assert_has "$p_out" "docker images/containers/volumes: observed footprint change 0.0B (0 bytes)" "the residue step prints its own footprint line"
 dparity "--yes --docker-until 24h" --yes --docker-until 24h
+assert_eq "0" "$p_rc" "--yes --docker-until 24h exits 0"
 assert_has "$p_log" "docker builder prune --filter until=24h --force" "--docker-until narrows the safe verb"
+assert_hasnt "$p_log" "docker builder prune --force" "the unfiltered safe verb is replaced, not repeated"
+# Everything but that one argv is the --yes dump: removing the filter from the log restores it.
+sed 's/ --filter until=24h//' "$SANDBOX/p.log" > "$SANDBOX/p.log.nofilter"
+if cmp -s "$SANDBOX/keep-docker-yes.log" "$SANDBOX/p.log.nofilter" && cmp -s "$SANDBOX/keep-docker-yes.out" "$SANDBOX/p.out" && cmp -s "$SANDBOX/keep-docker-yes.err" "$SANDBOX/p.err"; then ok "--docker-until 24h differs from --yes in the filter argv only"
+else bad "--docker-until 24h differs from --yes beyond the filter argv"; fi
 dparity "--yes --include-purge --docker-until=24h" --yes --include-purge --docker-until=24h
 assert_hasnt "$p_log" "until=" "--docker-until never filters the purge verb"
+same_as docker-purge "--yes --include-purge --docker-until=24h"
 STUB_DF_MODE=fail dparity "--yes (system df fails)" --yes
+assert_eq "0" "$p_rc" "a failing plain system df still exits 0"
 assert_has "$p_out" "docker reclaimable via the safe verb (3.7GB, 4000000000 bytes)" "buildx du is the fallback size source"
+assert_has "$p_out" "Estimated safe-tier reclaimable (upper bound): 3.7GB (4000000000 bytes)" "the fallback figure feeds the safe-tier estimate"
+assert_eq "2" "$(printf '%s\n' "$p_log" | grep -c '^docker buildx du$')" "the fallback is called once per probe (before and after)"
+assert_hasnt "$p_out" "docker: observed footprint change: unavailable" "a same-source fallback pair still reports a real delta"
 STUB_DF_MODE=flip dparity "--yes (source flips)" --yes
+assert_eq "0" "$p_rc" "a source flip still exits 0"
 assert_has "$p_out" "docker: observed footprint change: unavailable (docker size source changed between probes: system-df -> buildx-du)" "a cross-source pair reports the delta unavailable"
+assert_eq "1" "$(printf '%s\n' "$p_log" | grep -c '^docker buildx du$')" "only the second probe falls back to buildx du"
 
 echo "[missing tool] absent executables are named skips, never failures"
 mkdir -p "$SANDBOX/only-uv"
@@ -241,13 +316,21 @@ assert_has "$help_out" "usage: cache-prune [--report | --yes [--include-purge]]"
 assert_eq "$(cat "$GOLDEN/help.out")" "$help_out" "--help matches the golden capture (trash fragments included)"
 assert_eq "$help_out" "$(run_perl -h)" "-h is --help"
 assert_eq "$help_out" "$(run_perl --report --help)" "--help after a mode flag still prints help and exits 0"
-for case in "--bogus" "--docker-until" "--docker-until bogus" "--docker-until=99x" "--docker-until 168"; do
-	# shellcheck disable=SC2086
-	p_rc=0; p_err=$(CACHE_PRUNE_SHIM=util/cache-prune.sh run_perl $case 2>&1 >/dev/null) || p_rc=$?
-	g=$GOLDEN/usage$(printf "%s" "$case" | tr " =" "__").err
-	assert_eq "2" "$p_rc" "'$case' is a usage error: exit 2"
-	assert_eq "$(cat "$g")" "$p_err" "'$case' prints the golden usage message (program name via CACHE_PRUNE_SHIM)"
-done
+# usage_case <expected stderr> <args...>: a usage error exits 2 with exactly this message, the
+# program name taken from CACHE_PRUNE_SHIM.
+usage_case() {
+	u_exp=$1; shift
+	p_rc=0; p_err=$(CACHE_PRUNE_SHIM=util/cache-prune.sh run_perl "$@" 2>&1 >/dev/null) || p_rc=$?
+	assert_eq "2" "$p_rc" "'$*' is a usage error: exit 2"
+	assert_eq "$u_exp" "$p_err" "'$*' prints the usage message (program name via CACHE_PRUNE_SHIM)"
+}
+u_usage='ERROR: usage: util/cache-prune.sh [--report|--yes] [--include-purge] [--docker-until <window>] [-h|--help]'
+u_window() { printf "ERROR: invalid --docker-until window: '%s' (expected <number><s|m|h|d|w>, e.g. 168h)" "$1"; }
+usage_case "$u_usage" --bogus
+usage_case "$u_usage" --docker-until
+usage_case "$(u_window bogus)" --docker-until bogus
+usage_case "$(u_window 99x)" --docker-until=99x
+usage_case "$(u_window 168)" --docker-until 168
 p_err=$(run_perl --bogus 2>&1 >/dev/null) || true
 assert_eq "ERROR: usage: $PROG [--report|--yes] [--include-purge] [--docker-until <window>] [-h|--help]" "$p_err" "without CACHE_PRUNE_SHIM the usage error names \$0"
 fixture

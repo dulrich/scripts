@@ -1,1 +1,0 @@
-ERROR: usage: util/cache-prune.sh [--report|--yes] [--include-purge] [--docker-until <window>] [-h|--help]
