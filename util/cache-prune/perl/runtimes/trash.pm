@@ -4,7 +4,7 @@
 # runtimes/trash.pm: the `trash` runtime -- the user's home trash (purge verb only,
 # interactive-only: user-deleted data, never emptied under --yes). A core runtime module
 # (interface: CachePrune/Runtime.pm POD), loaded in the CachePrune::Runtime::CORE_ORDER slot.
-# The port of runtimes/trash.sh. perl-base only.
+# perl-base only.
 package CachePrune::Runtime::trash;
 use strict;
 use warnings;

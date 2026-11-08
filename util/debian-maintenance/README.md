@@ -7,7 +7,7 @@ Interactive APT maintenance for Debian-family systems. It must run as root on a 
 Each destructive step is simulated first and then asks for its own explicit confirmation:
 
 1. `apt-get update`, then upgrade and full-upgrade.
-2. Old-kernel cleanup. The newest two installed kernels and the running kernel are always kept, and a boot-critical package guard refuses any removal that would take out what the system needs to boot.
+2. Old-kernel cleanup. The keep-set protects it: the newest two installed kernels and the running kernel are always kept. (The boot-critical package guard, which refuses any removal that would take out what the system needs to boot, covers full-upgrade and autoremove.)
 3. Autoremove of packages no longer required.
 4. A sweep of `rc`-state kernel packages (old `linux-image-*` and `linux-modules-*` that were removed but not purged), purged behind a confirm. Only exact `rc` status is considered, never the running kernel.
 5. APT archive cleanup: a preview with `apt-get -s autoclean` and one confirm to run it, then a separate confirm for a full `apt-get clean`.

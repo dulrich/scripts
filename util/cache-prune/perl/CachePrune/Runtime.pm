@@ -10,8 +10,8 @@ our %BY_NAME;    # name -> runtime hashref
 our %HELP = map { $_ => [] } qw(runtimes env core_runtimes core_env_lead core_env
 	core_verbs core_residue core_options core_notes_safe core_notes_purge core_notes_delta
 	core_env_residue core_purge_caveat);
-# Core load order: core runtimes/*.pm named here load first, in this order (the bash
-# RUNTIME_ORDER core order); any other core module follows, sorted.
+# Core load order: core runtimes/*.pm named here load first, in this order (the report and
+# prune order); any other core module follows, sorted.
 our @CORE_ORDER = qw(uv npm docker pip bun cargo trash);
 
 my %HOOKS = map { $_ => 1 } qw(detect absent cache_dir size prune purge purge_prompt
@@ -84,8 +84,8 @@ sub load_core {
 	load_module($_) for @files;
 }
 
-# load_fleet($dir): every regular *.pm in $dir, sorted; anything else (the overlay's bash
-# *.sh modules) is ignored silently; an absent dir loads nothing.
+# load_fleet($dir): every regular *.pm in $dir, sorted; anything else (non-module
+# files) is ignored silently; an absent dir loads nothing.
 sub load_fleet {
 	my ($dir) = @_;
 	return unless defined $dir && length $dir && -d $dir;
@@ -127,12 +127,12 @@ a package or return true, but should use its own package for its subs) and regis
 =head1 DISCOVERY AND ORDER
 
 C<cache-prune.pl> loads, in this order: the core modules in F<perl/runtimes/> -- those named
-in C<@CachePrune::Runtime::CORE_ORDER> (C<uv npm docker pip bun cargo trash>, the bash core
-order) first, in that order, then any other core F<*.pm> sorted by name -- and then every
+in C<@CachePrune::Runtime::CORE_ORDER> (C<uv npm docker pip bun cargo trash>, the report and
+prune order) first, in that order, then any other core F<*.pm> sorted by name -- and then every
 regular F<*.pm> in the fleet directory, sorted by name. Only F<*.pm> files are loaded from the
-fleet directory; anything else there (the overlay's bash F<*.sh> modules) is ignored silently,
+fleet directory; anything else there (non-module files) is ignored silently,
 and an absent directory, or one without F<*.pm>, leaves the tool unchanged. A module that fails
-to compile aborts the run (the bash tool's C<source> under C<set -e> behaves the same).
+to compile aborts the run.
 
 Run order is registration order: C<register_runtime> appends, or inserts right after the
 runtime named by C<after> when that one is already registered (an unknown C<after> appends).
@@ -147,7 +147,7 @@ C<detect> or C<size>, a hook that is not a code ref, an unknown key or an unknow
 Every hook is called with the runtime hashref C<$rt> as its first argument. C<< $rt->{name} >>
 is the name; C<< $rt->{state} >> is a hashref private to the module (initialised to C<{}>) --
 the place for scan results a size hook leaves for C<detail>, C<purge_prompt>,
-C<safe_reclaimable> and the verbs (the bash modules' scan globals). Run state is read from
+C<safe_reclaimable> and the verbs. Run state is read from
 C<CachePrune::Core>: C<$MODE> (C<report>/C<yes>/C<interactive>), C<$INCLUDE_PURGE>,
 C<$DOCKER_UNTIL>. Hooks that print write to STDOUT; warnings go through
 C<CachePrune::Core::warn_msg> (C<WARNING: ...> on STDERR).

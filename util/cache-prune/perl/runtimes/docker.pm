@@ -5,8 +5,7 @@
 # prune, purge verb docker builder prune -a), plus its image/container/volume residue (the
 # detail and residue hooks, over CachePrune::DockerResidue in-process). A core runtime module
 # (interface: CachePrune/Runtime.pm POD), loaded in the CachePrune::Runtime::CORE_ORDER slot.
-# The port of runtimes/docker.sh and docker-residue.sh's orchestration. perl-base only; the
-# residue hooks need JSON::PP and report `no JSON::PP on host` without it.
+# perl-base only; the residue hooks need JSON::PP and report `no JSON::PP on host` without it.
 package CachePrune::Runtime::docker;
 use strict;
 use warnings;

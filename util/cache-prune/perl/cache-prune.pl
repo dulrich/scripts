@@ -3,9 +3,9 @@
 # https://creativecommons.org/publicdomain/zero/1.0/
 #
 # cache-prune.pl: report and (optionally) prune rebuildable language-runtime caches for the
-# invoking user -- the perl port of util/cache-prune.sh, side by side with it until the
-# cutover. Not a router subcommand (mode 644): run as `perl util/cache-prune/perl/cache-prune.pl
-# [--report | --yes [--include-purge]] [--docker-until <window>] [-h|--help]`.
+# invoking user. Not a router subcommand (mode 644): the dash shim util/cache-prune.sh (`util
+# cache-prune`) execs it as `perl cache-prune.pl [--report | --yes [--include-purge]]
+# [--docker-until <window>] [-h|--help]`, with CACHE_PRUNE_SHIM set to its own path.
 #
 # Layout (beside this file, found via its own real path):
 #   CachePrune/Core.pm         run state, output helpers, command seam

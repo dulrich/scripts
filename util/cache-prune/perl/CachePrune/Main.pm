@@ -24,7 +24,7 @@ our $PURGE_RECLAIMABLE_BYTES = 0;
 our $OVERLAP_RECLAIMABLE_BYTES = 0;
 our $DELTA_BYTES = 0;
 
-# The name usage errors print (bash: $0); a future shim sets CACHE_PRUNE_SHIM to its own path.
+# The name usage errors print: CACHE_PRUNE_SHIM (the util/cache-prune.sh shim's own path), else $0.
 sub prog_name { return (defined $ENV{CACHE_PRUNE_SHIM} && length $ENV{CACHE_PRUNE_SHIM}) ? $ENV{CACHE_PRUNE_SHIM} : $0; }
 
 sub reset_totals {
@@ -124,8 +124,7 @@ TXT
 ### guards ####################################################################
 
 # usage_error: exit status 2, like every usage error (unknown flag, --docker-until without a
-# value, a rejected window). The message is the bash wording; the bash CLI's exit 1 here is a
-# bug (its `return 2` is unreachable under set -e) this port does not copy.
+# value, a rejected window).
 sub usage_error {
 	CachePrune::Core::die_msg('usage: ' . prog_name()
 		. ' [--report|--yes] [--include-purge] [--docker-until <window>] [-h|--help]');

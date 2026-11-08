@@ -2,8 +2,9 @@
 # CC0: This work has been marked as dedicated to the public domain.
 # Hermetic regression tests for util/cache-prune/perl/cache-prune.pl, the cache-prune tool (the
 # util/cache-prune.sh shim execs it). Core logic runs in-process via unit.pl and docker.pl (faked
-# seams); the CLI, the fleet-module seam and the golden-output cases (golden/: one full dump per family, stdout, stderr,
-# exit status and tool-call log captured from the retired bash tool) run as real subprocesses
+# seams); the CLI, the fleet-module seam and the golden-output cases (golden/: one full dump
+# per family -- stdout, stderr, exit status and tool-call log -- with variants asserted as
+# deltas against it) run as real subprocesses
 # with stub uv/npm/pip/bun/cargo/docker/gio executables on PATH, inside a mktemp sandbox.
 for _a in "$@"; do case "$_a" in --help|-h)
 	printf 'usage: %s %s\n' "${0##*/}" ''

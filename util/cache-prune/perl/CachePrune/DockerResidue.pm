@@ -9,7 +9,7 @@
 #
 # JSON::PP is loaded lazily (json_reason / _json), never at compile time, so the cache-prune
 # perl core and every other runtime run on a host without it; the residue step then reports
-# `no JSON::PP on host`, as the bash tool does. hbytes is the one docker size parser (the
+# `no JSON::PP on host`. hbytes is the one docker size parser (the
 # build-cache size probe in runtimes/docker.pm calls it too) and never touches JSON::PP.
 package CachePrune::DockerResidue;
 use strict;
@@ -121,7 +121,7 @@ sub ts {
 
 sub arr { my $v = shift; return ref($v) eq 'ARRAY' ? @$v : (); }
 
-# Record fields per class, in the order the bash TSV row carried them.
+# Record fields per class (the field names classify's typed records carry).
 my %FIELDS = (
     superseded   => [qw(tag id size created blockers)],
     unreferenced => [qw(tag id size created blockers)],
@@ -431,9 +431,17 @@ sub dockerfile_bases {
 }
 
 # capture($root): probe the daemon + compose files (every command through the Core seam, stdin
-# and stderr on /dev/null) and return ONE capture hashref (images, containers, compose,
-# base_refs, volumes, image_error, volume_error) for classify. Fail closed: any compose/Dockerfile/inspect failure
-# sets image_error and empties the image classes; volumes report regardless.
+# and stderr on /dev/null) and return ONE capture hashref for classify:
+#   images       [{id, tags, created, size}]                          (cap_images)
+#   containers   [{name, id, image_id, image_ref, state, created, project, service, size_rw}]
+#                                                                      (cap_containers)
+#   compose      [{project, services => [{name, image, build}]}]      (compose_entry)
+#   base_refs    [sorted Dockerfile FROM refs]                        (dockerfile_bases)
+#   volumes      [{name, size, links, anonymous}]                     (cap_volumes)
+#   image_error  undef, or why the image classes failed closed
+#   volume_error undef, or why the volume probe failed
+# Fail closed: any compose/Dockerfile/inspect failure sets image_error and empties images,
+# containers, compose and base_refs; volumes report regardless.
 sub capture {
     my $root = shift // '';
     my ($image_error, $volume_error) = ('', '');
