@@ -22,7 +22,9 @@ usage() {
 	printf '%s\n' 'Report (default, read-only) or push (--push) master of every git repo directly'
 	printf '%s\n' 'under the code root that has a root INITIATIVE.md (or legacy DEVELOPMENT.md).'
 	printf '%s\n' '  --push               push master to its upstream; mirror the github remote,'
-	printf '%s\n' '                       rebuilding the projection only when it lags. Refused'
+	printf '%s\n' '                       rebuilding the projection only when it lags or a tag is unprojected,'
+	printf '%s\n' '                       then releasing unreleased tags (publish.mjs release --push)'
+	printf '%s\n' '                       after the github leg. Refused'
 	printf '%s\n' '                       (exit 2, nothing pushed) when CLAUDECODE or CODEX_* is set'
 	printf '%s\n' '  --verbose            also list in-sync and skipped repos (default: pending only)'
 	printf '%s\n' '  --root <dir>         code root (default: code_path from config.sh, else ~/code)'
@@ -66,7 +68,7 @@ fi
 # _pa_repo <push 0|1> <name>: run inside the repo. Prints the summary line.
 # Returns 0 = in sync / pushed, 1 = failed, 2 = skipped, 3 = work pending (status).
 _pa_repo () {
-	local do_push=$1 name=$2 remote merge ahead=0 proj="" pending=0 top st lag ptip btip unp=no
+	local do_push=$1 name=$2 remote merge ahead=0 proj="" pending=0 top st lag ptip btip unp=no unproj=- unrel=-
 	local rc=0 tmp have_st=0
 	if ! git rev-parse --verify -q refs/heads/master > /dev/null; then
 		[ "$verbose" -eq 1 ] && echo "$name: skipped (no master branch)"
@@ -95,10 +97,13 @@ _pa_repo () {
 				st='!status-failed'
 				proj="; projection status unavailable"
 			elif st=$(_push_parse_status "$st"); then
-				IFS=$'\t' read -r _ lag ptip btip <<< "$st"
+				IFS=$'\t' read -r _ lag ptip btip unproj unrel <<< "$st"
+				: "${unproj:=-}" "${unrel:=-}"
 				[ "$ptip" != "$btip" ] && unp=yes
 				proj="; projection lag ${lag:-?}, unpushed projection: $unp"
-				{ _push_needs_projection "$st" || [ "$unp" = yes ]; } && pending=1
+				[ "$unproj" != - ] && proj+="; unprojected tags: $unproj"
+				[ "$unrel" != - ] && proj+="; unreleased tags: $unrel"
+				{ _push_needs_projection "$st" || [ "$unp" = yes ] || [ "$unrel" != - ]; } && pending=1
 			else
 				st=''
 				proj="; projection status unavailable"
@@ -120,8 +125,11 @@ _pa_repo () {
 		push_repo --branch master --when-lagging --status "$st"
 	else
 		push_repo --branch master --when-lagging
-	fi < /dev/null > "$tmp" 2>&1 || rc=1
-	if [ "$rc" -ne 0 ]; then
+	fi < /dev/null > "$tmp" 2>&1 || rc=$?
+	if [ "$rc" -eq 5 ]; then
+		echo "$name: FAILED (release; branch pushes kept; origin +$ahead$proj)"
+		sed 's/^/    /' "$tmp"
+	elif [ "$rc" -ne 0 ]; then
 		echo "$name: FAILED (origin +$ahead$proj)"
 		sed 's/^/    /' "$tmp"
 	elif [ "$pending" -eq 1 ] || [ "$verbose" -eq 1 ]; then
@@ -129,6 +137,7 @@ _pa_repo () {
 		sed 's/^/    /' "$tmp"
 	fi
 	rm -f "$tmp"
+	[ "$rc" -eq 0 ] || rc=1
 	return "$rc"
 }
 

@@ -48,8 +48,8 @@ calls="$root/project-calls"
 : > "$calls"
 cat > "$root/publish-stub.sh" <<'STUB'
 #!/bin/bash
-# stub publish.mjs: status | project --repo <r>
-cmd=$1 r=$3
+# stub publish.mjs: status | project | release --push, repo is the last argument
+cmd=$1 r=${*: -1}
 state="$r/.git/stub-projected"
 case $cmd in
 	status)
@@ -67,16 +67,30 @@ case $cmd in
 		pt=$(git -C "$r" rev-parse -q --verify refs/heads/public || echo null)
 		pu=$(git -C "$r" rev-parse -q --verify refs/remotes/github/master || echo null)
 		q() { [ "$1" = null ] && printf null || printf '"%s"' "$1"; }
-		printf '{\n  "manifest": {\n    "lagCommits": 99\n  },\n  "sourceTip": "%s",\n  "projectedSource": %s,\n  "publicTip": %s,\n  "publishedTip": %s,\n  "lagCommits": %s\n}\n' \
-			"$src" "$projj" "$(q "$pt")" "$(q "$pu")" "$lag" ;;
+		tags() { local t out=; for t in $(echo "$2" | tr , " "); do out+="${out:+,}{\"tag\":\"$t\",\"reason\":\"$1\"}"; done; printf "%s" "$out"; }
+		unproj=$STUB_UNPROJECTED unrel=$STUB_UNRELEASED
+		[ -f "$r/.git/stub-tagsproj" ] && { unrel+=",$unproj"; unproj=; }
+		[ -f "$r/.git/stub-released" ] && unrel=
+		ul=$(tags unprojected "$unproj"; [ -n "$unproj" ] && [ -n "${unrel#,}" ] && printf ,; tags unreleased "${unrel#,}")
+		printf '{\n  "manifest": {\n    "lagCommits": 99\n  },\n  "sourceTip": "%s",\n  "projectedSource": %s,\n  "publicTip": %s,\n  "publishedTip": %s,\n  "lagCommits": %s,\n  "unreleasedTags": [%s]\n}\n' \
+			"$src" "$projj" "$(q "$pt")" "$(q "$pu")" "$lag" "$ul" ;;
 	project)
 		[ -n "${STUB_FAIL:-}" ] && { echo "scan: FAIL"; exit 1; }
 		echo "$r" >> "$STUB_CALLS"
 		git -C "$r" rev-parse master > "$state"
+		[ -n "${STUB_UNPROJECTED:-}" ] && : > "$r/.git/stub-tagsproj"
 		git -C "$r" branch -f public master ;;
+	release)
+		echo "$*" >> "$STUB_RELEASE_CALLS"
+		[ -n "${STUB_RELEASE_FAIL:-}" ] && { echo "noise"; echo "release: no GitHub token" >&2; exit 1; }
+		: > "$r/.git/stub-released"
+		echo "released" ;;
 esac
 STUB
 export STUB_CALLS="$calls"
+export STUB_RELEASE_CALLS="$root/release-calls"
+: > "$STUB_RELEASE_CALLS"
+export STUB_UNPROJECTED='' STUB_UNRELEASED=''
 
 commit() { git -C "$1" commit -q --allow-empty -m "$2"; }
 # mkrepo <name> [initiative-file]: repo with INITIATIVE.md, bare origin, tracking master.
@@ -205,8 +219,8 @@ commit "$root/code/pub" once
 export STUB_STATUS_LOG="$root/status-calls"
 : > "$STUB_STATUS_LOG"
 run --push
-check '--push runs publish.mjs status exactly once per repo' \
-	"$(if [[ $PUSH_OUT != *'pub: FAILED'* ]] && [ "$(wc -l < "$STUB_STATUS_LOG")" -eq 1 ] && [[ $PUSH_OUT == *'(projecting public)'* ]]; then echo 0; else echo 1; fi)"
+check '--push reads publish.mjs status once up front, plus one re-read after a projection (release check)' \
+	"$(if [[ $PUSH_OUT != *'pub: FAILED'* ]] && [ "$(wc -l < "$STUB_STATUS_LOG")" -eq 2 ] && [[ $PUSH_OUT == *'(projecting public)'* ]]; then echo 0; else echo 1; fi)"
 
 # 12 a failed status call aborts the repo: FAILED, nothing pushed, no projection
 commit "$root/code/pub" statusfail
@@ -217,6 +231,57 @@ STUB_STATUS_FAIL=1 run --push
 check 'failed status call aborts the repo once, pushing and projecting nothing' \
 	"$(if [[ $PUSH_OUT == *'pub: FAILED'* && $PUSH_OUT == *'(projection status failed; not pushing to github)'* && $PUSH_OUT == *'(not pushing to origin either'* ]] && [ "$(git -C "$root/origins/pub.git" rev-parse master)" = "$origin_before" ] && [ "$(wc -l < "$calls")" -eq "$before_calls" ] && [ "$(wc -l < "$STUB_STATUS_LOG")" -eq 1 ]; then echo 0; else echo 1; fi)"
 unset STUB_STATUS_LOG
+
+# 13 auto-release after the github leg (stubbed release; separate one-repo roots)
+mkpub() { # <case>: fully pushed repo, zero lag, github mirror current
+	local c="$root/c_$1" r="$root/c_$1/r"
+	mkdir -p "$c"; git init -q -b master "$r"; : > "$r/INITIATIVE.md"
+	git -C "$r" add -A; commit "$r" base
+	git init -q --bare -b master "$root/o_$1.git"; git init -q --bare -b master "$root/g_$1.git"
+	git -C "$r" remote add origin "$root/o_$1.git"; git -C "$r" remote add github "$root/g_$1.git"
+	git -C "$r" config remote.github.push refs/heads/public:refs/heads/master
+	echo '{}' > "$r/.publication.json"
+	git -C "$r" push -q -u origin master
+	git -C "$r" rev-parse master > "$r/.git/stub-projected"; git -C "$r" branch -f public master
+	git -C "$r" push -q github public:master; git -C "$r" fetch -q github
+}
+runc() { local c=$1; shift; PUSH_OUT=$(bash "$script" --root "$root/c_$c" --publish-mjs "$root/publish-stub.sh" "$@" 2>&1); PUSH_RC=$?; }
+rel_n() { wc -l < "$STUB_RELEASE_CALLS"; }
+
+mkpub none
+before_proj=$(wc -l < "$calls")
+runc none --push
+check 'no unreleased tags: release is never called' "$(if [ "$(rel_n)" -eq 0 ] && [ "$PUSH_RC" -eq 0 ]; then echo 0; else echo 1; fi)"
+
+mkpub tagonly
+before_proj=$(wc -l < "$calls")
+STUB_UNPROJECTED=v1.0.0 runc tagonly
+check 'bare mode lists an unprojected tag as pending and runs neither project nor release' \
+	"$(if [[ $PUSH_OUT == *'unprojected tags: v1.0.0'* ]] && [ "$(rel_n)" -eq 0 ] && [ "$(wc -l < "$calls")" -eq "$before_proj" ]; then echo 0; else echo 1; fi)"
+STUB_UNPROJECTED=v1.0.0 runc tagonly --push
+check 'tag-only unprojected at zero lag projects, then releases once in the same run' \
+	"$(if [ "$(wc -l < "$calls")" -eq $((before_proj + 1)) ] && [ "$(rel_n)" -eq 1 ] && [[ $PUSH_OUT == *'release: pushed (v1.0.0)'* ]] && [ "$PUSH_RC" -eq 0 ]; then echo 0; else echo 1; fi)"
+
+mkpub unrel
+before_proj=$(wc -l < "$calls"); before_rel=$(rel_n)
+STUB_UNRELEASED=v2.0.0 runc unrel
+check 'bare mode lists an unreleased tag as pending and runs neither project nor release' \
+	"$(if [[ $PUSH_OUT == *'unreleased tags: v2.0.0'* && $PUSH_OUT == *'1 pending'* ]] && [ "$(rel_n)" -eq "$before_rel" ] && [ "$(wc -l < "$calls")" -eq "$before_proj" ]; then echo 0; else echo 1; fi)"
+STUB_UNRELEASED=v2.0.0 runc unrel --push
+check 'unreleased tag: exactly one release --push, no projection' \
+	"$(if [ "$(rel_n)" -eq $((before_rel + 1)) ] && grep -q '^release --push --repo ' "$STUB_RELEASE_CALLS" && [ "$(wc -l < "$calls")" -eq "$before_proj" ]; then echo 0; else echo 1; fi)"
+STUB_UNRELEASED=v2.0.0 runc unrel --push
+check 'a recorded release is not released again' "$(if [ "$(rel_n)" -eq $((before_rel + 1)) ]; then echo 0; else echo 1; fi)"
+
+mkpub fail
+commit "$root/c_fail/r" newwork
+before_rel=$(rel_n)
+STUB_UNRELEASED=v3.0.0 STUB_RELEASE_FAIL=1 runc fail --push
+check 'release failure keeps the branch pushes, is FAILED and counted in the summary' \
+	"$(if [ "$PUSH_RC" -eq 1 ] && [[ $PUSH_OUT == *'FAILED (release;'* && $PUSH_OUT == *'release: failed (release: no GitHub token)'* && $PUSH_OUT == *'1 failed'* ]] && [ "$(git -C "$root/c_fail/r" rev-parse master)" = "$(git -C "$root/o_fail.git" rev-parse master)" ] && [ "$(git -C "$root/c_fail/r" rev-parse public)" = "$(git -C "$root/g_fail.git" rev-parse master)" ] && [ "$(rel_n)" -eq $((before_rel + 1)) ]; then echo 0; else echo 1; fi)"
+mkpub rc5
+( cd "$root/c_rc5/r" && publish_mjs="$root/publish-stub.sh" STUB_UNRELEASED=v3.0.0 STUB_RELEASE_FAIL=1 push_repo --branch master --when-lagging > /dev/null 2>&1 )
+check 'push_repo returns the distinct release-failure code 5' "$(if [ $? -eq 5 ]; then echo 0; else echo 1; fi)"
 
 printf '%d passed, %d failed\n' "$pass_count" "$fail_count"
 [ "$fail_count" -eq 0 ]

@@ -17,8 +17,10 @@ esac
 
 # _push_parse_status <status-json>: parse a `publish.mjs status` document once
 # with perl + JSON::PP. Prints one tab-separated line
-#   projectedSource<TAB>lagCommits<TAB>publicTip<TAB>publishedTip
-# where a JSON null, a missing key or a non-scalar value prints as `null`.
+#   projectedSource<TAB>lagCommits<TAB>publicTip<TAB>publishedTip<TAB>unprojected<TAB>unreleased
+# where a JSON null, a missing key or a non-scalar value prints as `null`; the
+# last two are comma-joined tag names from `unreleasedTags` entries with reason
+# `unprojected` / `unreleased` (`-` when none or the key is absent).
 # Returns non-zero (prints nothing) when perl or JSON::PP is missing or the
 # document is not a JSON object: callers report "status unavailable" and
 # treat it as needing projection, never as current. Runs only when called.
@@ -30,22 +32,60 @@ _push_parse_status () {
 		local $/; my $in = <STDIN>;
 		my $d = eval { JSON::PP->new->decode($in) };
 		exit 4 unless ref $d eq "HASH";
-		print join("\t", map {
+		my @u = ref $d->{unreleasedTags} eq "ARRAY" ? @{$d->{unreleasedTags}} : ();
+		my $tags = sub {
+			my $r = shift;
+			my @t = map { $_->{tag} =~ tr/\t\n,//dr } grep {
+				ref $_ eq "HASH" && defined $_->{tag} && !ref $_->{tag} && ($_->{reason} // "") eq $r
+			} @u;
+			@t ? join(",", @t) : "-";
+		};
+		print join("\t", (map {
 			my $v = $d->{$_};
 			(!defined $v || ref $v) ? "null" : ($v =~ tr/\t\n//dr)
-		} qw(projectedSource lagCommits publicTip publishedTip)), "\n";
+		} qw(projectedSource lagCommits publicTip publishedTip)),
+			$tags->("unprojected"), $tags->("unreleased")), "\n";
 	' 2> /dev/null
 }
 
 # _push_needs_projection <parsed-status>: pure, consumes _push_parse_status
 # output. 0 = rebuild the projection (lagCommits > 0, no projected source yet,
-# or an unavailable/empty status), 1 = current.
+# an unavailable/empty status, or an `unprojected` tag even at zero lag),
+# 1 = current.
 _push_needs_projection () {
-	local proj lag _rest
-	IFS=$'\t' read -r proj lag _rest <<< "$1"
+	local proj lag _pt _bt unproj _rest
+	IFS=$'\t' read -r proj lag _pt _bt unproj _rest <<< "$1"
 	case $proj in '' | null) return 0 ;; esac
 	case $lag in '' | null | *[!0-9]*) return 0 ;; esac
+	case ${unproj:--} in -) ;; *) return 0 ;; esac
 	[ "$lag" -gt 0 ]
+}
+
+# _push_release <publish.mjs> <repo-top> [<parsed-status>]: the auto-release
+# step. Without a parsed status (or with an unusable one) it re-reads
+# `publish.mjs status`; runs `release --push` once when any `unreleased` tag
+# is listed. Prints one line either way. Returns 0 = nothing to release or
+# released, 5 = release failed (branch pushes are never undone).
+_push_release () {
+	local pub=$1 top=$2 parsed=${3-} raw unrel out
+	if [ -z "$parsed" ] || [ "$parsed" = '!status-failed' ]; then
+		if raw=$(bun "$pub" status --repo "$top" 2> /dev/null) &&
+			parsed=$(_push_parse_status "$raw"); then :; else
+			echo "(release: status unavailable; not releasing)"
+			return 0
+		fi
+	fi
+	IFS=$'\t' read -r _ _ _ _ _ unrel _ <<< "$parsed"
+	case ${unrel:--} in -) return 0 ;; esac
+	echo "(releasing $unrel)"
+	if out=$(bun "$pub" release --push --repo "$top" 2>&1); then
+		[ -n "$out" ] && printf '%s\n' "$out"
+		echo "release: pushed ($unrel)"
+		return 0
+	fi
+	out=${out##*$'\n'}
+	echo "release: failed (${out:-no output}) — branch pushes kept"
+	return 5
 }
 
 # push_repo [--branch <b>] [--when-lagging] [--status <parsed>]: run the whole
@@ -65,9 +105,15 @@ _push_needs_projection () {
 # Prints the user-visible messages. Returns 0 = all succeeded or nothing to
 # push, 1 = projection failed (nothing pushed), 3 = no upstream (with
 # --branch: before anything runs; without: "(nothing to push)" printed, github
-# still mirrored), 4 = a push failed.
+# still mirrored), 4 = a push failed, 5 = the auto-release failed after the
+# github leg (4 and 3 never mask it: 4 wins only when a push failed).
+#   4. release: after a successful github leg, when status lists an
+#      `unreleased` tag, `publish.mjs release --push` runs once (_push_release);
+#      a projection that just ran re-reads status first so a newly projected
+#      tag is released in the same run.
 push_repo () {
-	local branch='' lagging=0 status='' have_status=0 rc=0 origin_rc=0
+	local branch='' lagging=0 status='' have_status=0 rc=0 origin_rc=0 ghfail=0
+	local projected=0 pubok=0 rel_rc=0 relstatus=''
 	local remote='' merge='' unpushed gh=0 ghspec='' src='' dst='' top pub ghpush
 	while [ $# -gt 0 ]; do
 		case $1 in
@@ -111,6 +157,7 @@ push_repo () {
 					elif [ "$lagging" -eq 1 ] && [ "$have_status" -eq 0 ]; then
 						status=$(_push_parse_status "$status") || status=''
 					fi
+					pubok=1
 					if [ "$lagging" -eq 1 ] && [ "$status" = '!status-failed' ]; then
 						echo "(projection status failed; not pushing to github)"
 						echo "(not pushing to origin either; amend the flagged commits locally)"
@@ -125,6 +172,7 @@ push_repo () {
 							echo "(not pushing to origin either; amend the flagged commits locally)"
 							return 1
 						fi
+						projected=1
 					fi
 				else
 					echo "(publish_mjs unset or missing; pushing the existing projection)"
@@ -164,14 +212,22 @@ push_repo () {
 		if [ -z "$ghpush" ] || [ "$ghpush" -gt 0 ]; then
 			echo "(pushing ${ghpush:-all} refs to github)"
 			if [ -n "$ghspec" ]; then
-				git push github || rc=4
+				git push github || { rc=4; ghfail=1; }
 			else
-				git push github "$src:$dst" || rc=4
+				git push github "$src:$dst" || { rc=4; ghfail=1; }
 			fi
 		else
 			echo "(nothing to push to github)"
 		fi
 	fi
+
+	# 4. release, once the github leg has succeeded. A handed-in status is
+	# stale after a projection ran, so only a still-current one is reused.
+	if [ "$gh" -eq 1 ] && [ "$pubok" -eq 1 ] && [ "$ghfail" -eq 0 ]; then
+		[ "$projected" -eq 0 ] && { [ "$have_status" -eq 1 ] || [ "$lagging" -eq 1 ]; } && relstatus=$status
+		_push_release "$pub" "$top" "$relstatus" || rel_rc=$?
+	fi
 	[ "$rc" -ne 0 ] && return "$rc"
+	[ "$rel_rc" -ne 0 ] && return "$rel_rc"
 	return "$origin_rc"
 }
