@@ -73,10 +73,13 @@ CachePrune::Runtime::register_runtime({
 	size => \&size,
 	# No prune hook, by decision: cargo's only verb is the registry/src purge.
 	purge => \&purge,
-	help => { core_env_lead => q{  CARGO_HOME    overrides cargo's home (the purge verb removes only the
+	help => {
+		core_env_lead => q{  CARGO_HOME    overrides cargo's home (the purge verb removes only the
                 children of registry/src, the unpacked crate sources;
                 registry/cache, registry/index and git/ are kept, and
-                cargo re-extracts src from registry/cache offline)} },
+                cargo re-extracts src from registry/cache offline)},
+		core_purge_caveat => q{cargo clears registry/src children only},
+	},
 });
 
 1;

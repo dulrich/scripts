@@ -28,6 +28,19 @@ CachePrune::Runtime::register_runtime({
 	prune => sub { CachePrune::Core::cmd_run('uv', 'cache', 'prune') == 0 },
 	# The destructive purge: clears the whole cache, forcing a re-download on next use.
 	purge => sub { CachePrune::Core::cmd_run('uv', 'cache', 'clean') == 0 },
+	# The uv/npm paragraphs are one fragment owned by uv, the first of the pair in
+	# @CORE_ORDER; they describe both runtimes' verbs together.
+	help => {
+		core_verbs => q{uv and npm each carry two verbs: a conservative safe verb (uv cache prune,
+npm cache verify) that frees little by design, and a destructive purge
+verb (uv cache clean, npm cache clean --force) that clears the whole
+cache and forces a re-download on next use -- the cache-only bytes this
+tool reports as reclaimable are mostly only reachable via the purge verb.},
+		core_notes_purge => q{  uv/npm/pip/bun's purge-tier figure is what a full clean would free, and is
+  never printed against their safe verb -- uv/npm's safe verb frees an
+  unpredictable amount by design (no dry run exists for it) and is reported
+  as such rather than with a number attached to it.},
+	},
 });
 
 1;

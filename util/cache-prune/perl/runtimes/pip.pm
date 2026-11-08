@@ -25,6 +25,16 @@ CachePrune::Runtime::register_runtime({
 	cache_dir => \&cache_dir,
 	size => \&CachePrune::Adapters::generic_size,
 	purge => sub { CachePrune::Core::cmd_run('pip', 'cache', 'purge') == 0 },
+	# One fragment owned by pip, the first of pip/bun in @CORE_ORDER: the paragraph compares the
+	# purge-only runtimes with the dual-verb ones, so it is not split per runtime.
+	help => {
+		core_verbs => q{pip and bun have only the destructive purge verb. Interactively, each
+destructive purge gets its own separate confirm: pip/bun are offered
+theirs unconditionally (it is their only verb), uv/npm/docker
+are offered theirs
+only when --include-purge was also passed -- without it, plain interactive
+use never risks their caches.},
+	},
 });
 
 1;

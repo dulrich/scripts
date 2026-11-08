@@ -7,7 +7,9 @@ use warnings;
 our @ORDER;      # registered runtime hashrefs, in run order
 our %BY_NAME;    # name -> runtime hashref
 # Help fragments, printed verbatim by usage() at fixed slots (see POD).
-our %HELP = map { $_ => [] } qw(runtimes env core_runtimes core_env_lead core_env);
+our %HELP = map { $_ => [] } qw(runtimes env core_runtimes core_env_lead core_env
+	core_verbs core_residue core_options core_notes_safe core_notes_purge core_notes_delta
+	core_env_residue core_purge_caveat);
 # Core load order: core runtimes/*.pm named here load first, in this order (the bash
 # RUNTIME_ORDER core order); any other core module follows, sorted.
 our @CORE_ORDER = qw(uv npm docker pip bun cargo trash);
@@ -268,7 +270,7 @@ Help fragments, each printed verbatim followed by a newline. Slots, in usage() o
 C<runtimes> (fleet runtime text) and C<core_runtimes> before the C<Notes:> block;
 C<core_env_lead> first under C<Honoured environment:>, before the shared
 C<CACHE_PRUNE_REPO_ROOT> entry; then C<env> (fleet) and C<core_env> after it. Fragments of
-one slot print in registration order. A fragment naming a default path stays generic
+one slot print in registration order. The core runtimes add C<core_verbs> (the verb paragraphs), C<core_residue> (the docker residue section) and C<core_options> (option entries, before C<-h, --help>) in the preamble, C<core_notes_safe>, C<core_notes_purge> and C<core_notes_delta> in the C<Notes:> block, and C<core_env_residue> after C<core_env_lead>. C<core_purge_caveat> is inline: its fragments (no trailing newline, no leading text) are joined with C<; > and spliced into the C<--yes --include-purge> mode entry, after C<(their only verb;>. A fragment naming a default path stays generic
 (C<< <repo>/private/... >>).
 
 =item state => HASHREF

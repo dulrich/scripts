@@ -3,7 +3,10 @@
 #
 # CachePrune::Main: the command-line surface, the per-runtime lifecycle (detect/resolve,
 # measure/report, elect/run, measure/report the outcome) and the Total block. Every runtime is
-# a registered module (CachePrune::Runtime); nothing here names one. perl-base only.
+# a registered module (CachePrune::Runtime). Runtime-specific prose (help text) lives in the runtime
+# modules; only fixed CLI and discovery names stay here: the --docker-until flag and its validation,
+# the root-refusal message, the trash note in the Total label and @CORE_ORDER (Runtime.pm). Sentences
+# naming several runtimes derive the names from the registry (core set, filtered by hook). perl-base only.
 package CachePrune::Main;
 use strict;
 use warnings;
@@ -33,73 +36,72 @@ sub reset_totals {
 
 sub _frag { print "$_\n" for @{ $CachePrune::Runtime::HELP{ $_[0] } }; }
 
+# Core runtimes (a discovery fact: @CORE_ORDER membership), in registry order, filtered by a
+# hook predicate. Help sentences that name several runtimes derive their names from here; fleet
+# runtimes registered by the overlay are excluded so the help stays the core's.
+sub _core_names {
+	my ($want) = @_;
+	my %core = map { $_ => 1 } @CachePrune::Runtime::CORE_ORDER;
+	return map { $_->{name} } grep { $core{ $_->{name} } && $want->($_) } @CachePrune::Runtime::ORDER;
+}
+
+# "a", "a and b", "a, b and c".
+sub _and_list {
+	my @n = @_;
+	return pop @n unless @n > 1;
+	my $last = pop @n;
+	return join(', ', @n) . " and $last";
+}
+
 sub usage {
+	my @cached = _core_names(sub { !$_[0]{interactive_only} });
+	my @trashy = _core_names(sub { $_[0]{interactive_only} });
+	my @safe = _core_names(sub { $_[0]{prune} });
+	my @purge_only = _core_names(sub { $_[0]{purge} && !$_[0]{prune} && !$_[0]{interactive_only} });
+	my @both = _core_names(sub { $_[0]{prune} && $_[0]{purge} });
+	my $both_head = shift @both;
+	my $both_rest = _and_list(@both);
+	my $cached = join ', ', @cached;
+	my $trashy = join ', ', @trashy;
+	my $safe = join ', ', @safe;
+	my $purge_only = _and_list(@purge_only);
+	# Inline slot: fragments are joined into the template mid-line, not printed as lines.
+	my $caveat = join '; ', @{ $CachePrune::Runtime::HELP{core_purge_caveat} };
 	print <<'TXT';
 usage: cache-prune [--report | --yes [--include-purge]]
                     [--docker-until <window>] [-h|--help]
 
+TXT
+	print <<TXT;
 Reports (and, outside --report, optionally prunes) rebuildable
-language-runtime caches (uv, npm, docker, pip, bun, cargo) plus the
-home trash (trash) for the invoking user. Refuses to run as root.
+language-runtime caches ($cached) plus the
+home trash ($trashy) for the invoking user. Refuses to run as root.
 
 Modes:
   (default)              interactive; per-runtime confirm (default: No)
   --report               report cache sizes only; never prompts, never mutates
-  --yes                  auto-confirm the safe verb for uv, npm, docker;
-                         pip, bun and cargo have no safe verb and are
-                         skipped entirely, never prompted; trash is never
+  --yes                  auto-confirm the safe verb for $safe;
+                         $purge_only have no safe verb and are
+                         skipped entirely, never prompted; $trashy is never
                          emptied under --yes
-  --yes --include-purge  purges pip, bun and cargo (their only verb;
-                         cargo clears registry/src children only); for uv,
-                         npm and docker this instead runs their purge verb in
-                         place of their safe verb, not in addition to it; trash
+  --yes --include-purge  purges $purge_only (their only verb;
+                         $caveat); for $both_head,
+                         $both_rest this instead runs their purge verb in
+                         place of their safe verb, not in addition to it; $trashy
                          is still skipped (interactive confirm only)
 
-uv and npm each carry two verbs: a conservative safe verb (uv cache prune,
-npm cache verify) that frees little by design, and a destructive purge
-verb (uv cache clean, npm cache clean --force) that clears the whole
-cache and forces a re-download on next use -- the cache-only bytes this
-tool reports as reclaimable are mostly only reachable via the purge verb.
-docker carries two verbs too: its safe verb (docker builder prune) frees
-the figure reported as reclaimable; its purge verb (docker builder
-prune -a) clears the whole unused build cache, up to its reported total,
-forcing cold rebuilds, and is never age-filtered.
-pip and bun have only the destructive purge verb. Interactively, each
-destructive purge gets its own separate confirm: pip/bun are offered
-theirs unconditionally (it is their only verb), uv/npm/docker
-are offered theirs
-only when --include-purge was also passed -- without it, plain interactive
-use never risks their caches.
+TXT
+	_frag('core_verbs');
+	print <<'TXT';
 
-Docker image/container residue (after the build-cache verb(s), from a fresh
-classification; never in --report; named volumes are reported, never removed):
-  superseded images      an older tag of a repository a live compose
-                         service or Dockerfile base uses -- safe tier:
-                         removed by --yes (docker rmi <repo:tag>), one
-                         confirm interactively
-  stale containers       created/exited containers of no current compose
-                         service -- purge tier: removed (docker rm) only by
-                         --yes --include-purge, or one confirm interactively
-                         with --include-purge
-  anonymous volumes      dangling volumes labelled com.docker.volume.anonymous
-                         that were already dangling before this run's
-                         removals -- purge tier, same rule as stale
-                         containers (docker volume rm <name>)
-  unreferenced images    images nothing live references -- never removed
-                         non-interactively; interactive --include-purge
-                         offers one confirm per image
-  Order: stale containers, anonymous volumes, superseded, unreferenced. Never -f, never prune.
-  A per-item failure (e.g. an image still in use) is a warning; the rest
-  continue. The step prints its own images/containers/volumes footprint change.
+TXT
+	_frag('core_residue');
+	print <<'TXT';
 
 Options:
-  --docker-until <window>  narrow the docker safe builder prune (never the
-                           purge verb, which is always unfiltered) to records at
-                           least that old (default: no filter -- the safe
-                           prune targets the full build cache docker
-                           itself reports as reclaimable). Opt-in because
-                           a window leaves recent build cache in place,
-                           while the default clears all of it.
+TXT
+	_frag('core_options');
+	print <<'TXT';
   -h, --help               show this help and exit
 
 TXT
@@ -107,35 +109,14 @@ TXT
 	_frag('core_runtimes');
 	print <<'TXT';
 Notes:
-  Reclaimable is reported per tier, never as one combined figure: docker's
-  safe-tier figure is an upper bound (Docker's own "not pinned by an active
-  build" definition), not a guarantee of what a prune will actually free;
-  uv/npm/pip/bun's purge-tier figure is what a full clean would free, and is
-  never printed against their safe verb -- uv/npm's safe verb frees an
-  unpredictable amount by design (no dry run exists for it) and is reported
-  as such rather than with a number attached to it.
-
-  Every action (outside --report) measures the affected cache immediately
-  before and after and reports the observed footprint change -- a
-  measurement, not an exact attribution: docker's own accounting has been
-  measured to disagree with real disk freed by about 1%, and a concurrent
-  cache write can make the delta negative. A run that frees nothing reports
-  0B explicitly rather than falling back to the estimate.
-
-Honoured environment:
 TXT
+	_frag('core_notes_safe');
+	_frag('core_notes_purge');
+	print "\n";
+	_frag('core_notes_delta');
+	print "\nHonoured environment:\n";
 	_frag('core_env_lead');
-	print <<'TXT';
-  CACHE_PRUNE_REPO_ROOT
-                overrides the root docker residue classification searches
-                for compose files (default: unset, which skips the compose
-                search; a fleet module may supply a default)
-  CACHE_PRUNE_COMPOSE_PROJECT_DIRS
-                newline-separated <file>=<dir> pairs, both relative to that
-                root: each listed compose file is resolved with
-                --project-directory <root>/<dir> (default: none pinned
-                unless a fleet module sets one)
-TXT
+	_frag('core_env_residue');
 	_frag('env');
 	_frag('core_env');
 }

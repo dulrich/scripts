@@ -336,6 +336,57 @@ CachePrune::Runtime::register_runtime({
 	],
 	detail => \&detail,
 	residue => \&residue,
+	help => {
+		core_verbs => q{docker carries two verbs too: its safe verb (docker builder prune) frees
+the figure reported as reclaimable; its purge verb (docker builder
+prune -a) clears the whole unused build cache, up to its reported total,
+forcing cold rebuilds, and is never age-filtered.},
+		core_residue => q{Docker image/container residue (after the build-cache verb(s), from a fresh
+classification; never in --report; named volumes are reported, never removed):
+  superseded images      an older tag of a repository a live compose
+                         service or Dockerfile base uses -- safe tier:
+                         removed by --yes (docker rmi <repo:tag>), one
+                         confirm interactively
+  stale containers       created/exited containers of no current compose
+                         service -- purge tier: removed (docker rm) only by
+                         --yes --include-purge, or one confirm interactively
+                         with --include-purge
+  anonymous volumes      dangling volumes labelled com.docker.volume.anonymous
+                         that were already dangling before this run's
+                         removals -- purge tier, same rule as stale
+                         containers (docker volume rm <name>)
+  unreferenced images    images nothing live references -- never removed
+                         non-interactively; interactive --include-purge
+                         offers one confirm per image
+  Order: stale containers, anonymous volumes, superseded, unreferenced. Never -f, never prune.
+  A per-item failure (e.g. an image still in use) is a warning; the rest
+  continue. The step prints its own images/containers/volumes footprint change.},
+		core_options => q{  --docker-until <window>  narrow the docker safe builder prune (never the
+                           purge verb, which is always unfiltered) to records at
+                           least that old (default: no filter -- the safe
+                           prune targets the full build cache docker
+                           itself reports as reclaimable). Opt-in because
+                           a window leaves recent build cache in place,
+                           while the default clears all of it.},
+		core_notes_safe => q{  Reclaimable is reported per tier, never as one combined figure: docker's
+  safe-tier figure is an upper bound (Docker's own "not pinned by an active
+  build" definition), not a guarantee of what a prune will actually free;},
+		core_notes_delta => q{  Every action (outside --report) measures the affected cache immediately
+  before and after and reports the observed footprint change -- a
+  measurement, not an exact attribution: docker's own accounting has been
+  measured to disagree with real disk freed by about 1%, and a concurrent
+  cache write can make the delta negative. A run that frees nothing reports
+  0B explicitly rather than falling back to the estimate.},
+		core_env_residue => q{  CACHE_PRUNE_REPO_ROOT
+                overrides the root docker residue classification searches
+                for compose files (default: unset, which skips the compose
+                search; a fleet module may supply a default)
+  CACHE_PRUNE_COMPOSE_PROJECT_DIRS
+                newline-separated <file>=<dir> pairs, both relative to that
+                root: each listed compose file is resolved with
+                --project-directory <root>/<dir> (default: none pinned
+                unless a fleet module sets one)},
+	},
 });
 
 1;
