@@ -76,13 +76,12 @@ assert_not_contains() {
 
 fixture_repo="$fixture_root/scripts fixture"
 fixture_home="$fixture_root/home fixture"
-mkdir -p "$fixture_repo/util/lib" "$fixture_repo/private" \
+mkdir -p "$fixture_repo/util" "$fixture_repo/private" \
 	"$fixture_home/custom code/project" "$fixture_home/custom downloads"
 cp "$repo_dir/aliases.sh" "$repo_dir/git-aliases.sh" \
 	"$repo_dir/debian-aliases.sh" "$repo_dir/gentoo-aliases.sh" "$fixture_repo/"
 cp "$repo_dir/util/dispatch.sh" "$repo_dir/util/lib.sh" \
 	"$repo_dir/util/completions.sh" "$fixture_repo/util/"
-cp "$repo_dir/util/lib/push.sh" "$fixture_repo/util/lib/"
 
 # Keep machine-local fixture data literal until aliases.sh sources it.
 # shellcheck disable=SC2016
@@ -267,158 +266,6 @@ b
 assert_eq 'checkout master' "${git_calls[-1]}" 'b defaults to the primary branch'
 m topic
 assert_eq 'merge --no-edit topic' "${git_calls[-1]}" 'm forwards an explicit branch'
-
-clear() { :; }
-ls() {
-	printf 'LS'
-	printf ' %q' "$@"
-	printf '\n'
-}
-git_mode=outside
-gh_mode=none
-git() {
-	[[ -n "${git_log:-}" ]] && printf '%s\n' "$*" >> "$git_log"
-	case "$1 ${2:-}" in
-		'rev-parse --is-inside-work-tree')
-			[[ "$git_mode" != outside ]]
-			;;
-		'remote get-url')
-			[[ "$gh_mode" != none ]]
-			;;
-		'config --get')
-			[[ "$gh_mode" == hybrid ]] && printf 'refs/heads/public:refs/heads/master\n'
-			;;
-		'rev-parse --abbrev-ref')
-			printf 'master\n'
-			;;
-		'rev-parse --show-toplevel')
-			printf '%s\n' "$cl_top"
-			;;
-		'push github')
-			printf 'PUSHED-GITHUB\n'
-			;;
-		'rev-list --count')
-			# github ranges: the projection is already published; the private
-			# HEAD never descends from it.
-			case "${3:-}" in
-				github/master..public) printf '%s\n' "${gh_ahead:-0}"; return ;;
-				github/master..HEAD) printf '1\n'; return ;;
-			esac
-			case "$git_mode" in
-				nothing) printf '0\n' ;;
-				unpushed) printf '2\n' ;;
-				no-upstream) return 1 ;;
-			 esac
-			;;
-		'push ')
-			printf 'PUSHED\n'
-			return "${origin_push_rc:-0}"
-			;;
-		'status -bs')
-			printf 'STATUS\n'
-			;;
-		*) return 1 ;;
-	esac
-}
-
-output=$(cl 2>&1)
-assert_eq $'(not a git repository)\nLS -alF --color=auto' "$output" \
-	'cl reports the missing repository and falls back to the ll listing'
-
-git_mode=nothing
-output=$(cl 2>&1)
-assert_contains "$output" '(nothing to push)' 'cl reports a clean upstream range'
-assert_contains "$output" 'STATUS' 'cl still prints short status when nothing is unpushed'
-assert_not_contains "$output" 'PUSHED' 'cl does not push without unpushed commits'
-
-git_mode=unpushed
-output=$(cl 2>&1)
-assert_contains "$output" 'PUSHED' 'cl pushes when the upstream range has commits'
-assert_contains "$output" 'STATUS' 'cl prints short status after pushing'
-
-git_mode=no-upstream
-output=$(cl 2>&1)
-assert_contains "$output" '(nothing to push)' 'cl does not push when no upstream range can be proven'
-assert_not_contains "$output" 'PUSHED' 'cl gates push on a successful positive count'
-
-git_mode=nothing
-gh_mode=plain
-output=$(cl 2>&1)
-assert_contains "$output" 'PUSHED-GITHUB' 'cl mirrors HEAD to a plain github remote'
-
-gh_mode=hybrid
-cl_top=$(mktemp -d)
-publish_mjs="$cl_top/publish.mjs"
-: > "$publish_mjs"
-bun_rc=0
-bun() {
-	[[ -n "${bun_log:-}" ]] && printf 'bun %s\n' "$*" >> "$bun_log"
-	printf 'PROJECTED'
-	printf ' %q' "$@"
-	printf '\n'
-	return "$bun_rc"
-}
-output=$(cl 2>&1)
-assert_contains "$output" '(nothing to push to github)' 'cl counts the projection, not private HEAD, on a hybrid repo'
-assert_not_contains "$output" 'PUSHED-GITHUB' 'cl does not re-push github when the projection is published'
-assert_not_contains "$output" 'PROJECTED' 'cl does not project a hybrid repo without a publication manifest'
-
-: > "$cl_top/.publication.json"
-output=$(cl 2>&1)
-assert_contains "$output" "PROJECTED $publish_mjs project --repo $cl_top" 'cl projects a manifest repo before the github push'
-assert_contains "$output" '(nothing to push to github)' 'cl still counts the projection after projecting'
-
-bun_rc=1
-output=$(cl 2>&1)
-assert_contains "$output" '(projection failed; not pushing to github)' 'cl reports a failed projection'
-assert_not_contains "$output" 'nothing to push to github' 'cl skips the github count after a failed projection'
-assert_contains "$output" 'STATUS' 'cl still prints short status after a failed projection'
-
-git_log="$cl_top/git.log"
-: > "$git_log"
-gh_ahead=3
-cl > /dev/null 2>&1
-assert_not_contains "$(cat "$git_log")" 'push github' 'cl runs no github push after a failed projection'
-: > "$git_log"
-git_mode=unpushed
-output=$(cl 2>&1)
-assert_eq '' "$(grep -x 'push' "$git_log")" 'cl runs no origin push after a failed projection'
-assert_contains "$output" '(not pushing to origin either; amend the flagged commits locally)' 'cl says origin was held back too'
-git_mode=nothing
-unset git_log gh_ahead
-push_repo > /dev/null 2>&1
-assert_eq 1 "$?" 'push_repo returns status 1 on projection failure'
-
-bun_rc=0
-bun_log="$cl_top/bun.log"
-: > "$bun_log"
-publish_mjs=
-output=$(cl 2>&1)
-assert_contains "$output" '(publish_mjs unset or missing; pushing the existing projection)' 'cl falls back to the existing projection when publish_mjs is unset'
-publish_mjs="$cl_top/missing.mjs"
-output=$(cl 2>&1)
-assert_contains "$output" '(publish_mjs unset or missing; pushing the existing projection)' 'cl falls back to the existing projection when publish_mjs is missing'
-assert_eq '' "$(cat "$bun_log")" 'cl makes no bun call when publish_mjs is unset or missing'
-unset bun_log
-
-rm -rf "$cl_top"
-unset -f bun
-unset cl_top publish_mjs bun_rc
-gh_mode=none
-
-git_mode=no-upstream
-gh_mode=plain
-output=$(cl 2>&1)
-assert_eq $'(nothing to push)\n(pushing 1 refs to github)' "$(printf '%s\n' "$output" | grep -E '^\((nothing to push|pushing .* to github)\)$')" \
-	'cl prints (nothing to push) before the github messages when no upstream is countable'
-gh_mode=none
-
-git_mode=unpushed
-origin_push_rc=1
-cl > /dev/null 2>&1
-assert_eq 4 "$?" 'cl returns non-zero (push_repo 4) when the origin push fails'
-git_mode=nothing
-unset origin_push_rc
 
 if declare -F __git_complete >/dev/null; then
 	git_completion=$(complete -p a 2>/dev/null || true)

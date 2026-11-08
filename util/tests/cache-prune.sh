@@ -40,7 +40,6 @@ source "$HERE/../cache-prune.sh"
 # detect predicates, so tests can restore the real docker detect logic
 # (command -v docker && docker info) without duplicating it.
 ORIGINAL_RT_DOCKER_DETECT="$(declare -f rt_docker_detect)"
-ORIGINAL_RT_CODEX_DETECT="$(declare -f rt_codex_detect)"
 ORIGINAL_RT_TRASH_DETECT="$(declare -f rt_trash_detect)"
 declare -A ORIGINAL_RT_DETECT=()
 for mt_name in uv npm pip bun cargo; do
@@ -166,19 +165,11 @@ mkdir -p "$UV_DIR" "$NPM_DIR" "$PIP_DIR" "$BUN_DIR" "$CARGO_DIR"
 
 # The fleet root docker residue classification searches for compose files
 # (and any fleet module that enumerates it). Exported here, before any suite
-# runs, so nothing can reach the real /home/_shared_code: it is pointed at an
-# *empty* sandbox directory; suites that need a fixture root build their own
+# runs, so nothing can reach a real fleet root (a fleet module may default
+# one): it is pointed at an *empty* sandbox directory; suites that need a fixture root build their own
 # and re-point it for the duration of their own assertions.
 export CACHE_PRUNE_REPO_ROOT="$SANDBOX/empty-fleet-root"
 mkdir -p "$CACHE_PRUNE_REPO_ROOT"
-
-# The codex runtime's home root, for the same safety reason: its purge verb
-# deletes directories itself, and the RUNTIME_ORDER loops above would
-# otherwise reach the real ~/.codex* staging dirs under $HOME. An empty
-# sandbox directory has no .codex homes, so codex is never detected there;
-# cache-prune/codex.sh builds its own fixture homes and re-points it.
-export CACHE_PRUNE_CODEX_HOME_ROOT="$SANDBOX/empty-codex-home-root"
-mkdir -p "$CACHE_PRUNE_CODEX_HOME_ROOT"
 
 # The docker residue capture runs docker from a perl subprocess, which cannot
 # see the docker() function doubles below -- it would reach the host's real
@@ -213,8 +204,10 @@ export CACHE_PRUNE_TRASH_DIR="$SANDBOX/absent-trash"
 
 # --- optional fleet modules ----------------------------------------------
 #
-# util/cache-prune/fleet/*.sh runtimes (unpublished) have their own suites
-# under cache-prune/fleet/. Each suite may ship a <name>.bootstrap.sh, sourced
+# Fleet runtime modules (private overlay, see util/cache-prune.sh) have their
+# own suites in FLEET_TEST_DIR (default <repo>/private/tests/cache-prune/fleet,
+# overridable; point it and CACHE_PRUNE_FLEET_DIR at an empty dir to run the
+# suite as if the overlay were absent). Each suite may ship a <name>.bootstrap.sh, sourced
 # HERE -- before any core suite runs -- because the core suites loop over
 # every registered runtime with --include-purge: a loaded module's sandbox
 # must be in force first. A bootstrap may append functions to
@@ -222,7 +215,7 @@ export CACHE_PRUNE_TRASH_DIR="$SANDBOX/absent-trash"
 # all_absent below call. With the directory absent, none of this runs.
 FLEET_ALL_PRESENT_HOOKS=()
 FLEET_ALL_ABSENT_HOOKS=()
-FLEET_TEST_DIR="$HERE/cache-prune/fleet"
+FLEET_TEST_DIR=${FLEET_TEST_DIR:-$HERE/../../private/tests/cache-prune/fleet}
 
 run_fleet_hooks() {
     local hook
@@ -253,7 +246,6 @@ all_present() {
     rt_pip_detect() { return 0; }
     rt_bun_detect() { return 0; }
     rt_cargo_detect() { return 0; }
-    eval "$ORIGINAL_RT_CODEX_DETECT"
     eval "$ORIGINAL_RT_TRASH_DETECT"
     run_fleet_hooks "${FLEET_ALL_PRESENT_HOOKS[@]}"
 }
@@ -265,7 +257,6 @@ all_absent() {
     rt_pip_detect() { return 1; }
     rt_bun_detect() { return 1; }
     rt_cargo_detect() { return 1; }
-    rt_codex_detect() { return 1; }
     rt_trash_detect() { return 1; }
     run_fleet_hooks "${FLEET_ALL_ABSENT_HOOKS[@]}"
 }
@@ -576,8 +567,6 @@ source "$HERE/cache-prune/actions.sh"
 source "$HERE/cache-prune/cli.sh"
 # shellcheck source=util/tests/cache-prune/docker-residue.sh
 source "$HERE/cache-prune/docker-residue.sh"
-# shellcheck source=util/tests/cache-prune/codex.sh
-source "$HERE/cache-prune/codex.sh"
 # shellcheck source=util/tests/cache-prune/trash.sh
 source "$HERE/cache-prune/trash.sh"
 # shellcheck source=util/tests/cache-prune/missing-tool.sh

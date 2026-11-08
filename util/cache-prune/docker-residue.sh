@@ -60,8 +60,11 @@ case $_shguard_m in
   *) printf '%s: refusing %s invocation (supports: source; pipe callers set SHGUARD_MODE=pipe)\n' 'docker-residue.sh' "$_shguard_m" >&2; unset _shguard_m; return 1 2>/dev/null || exit 1 ;;
 esac
 # <<< shguard
+# docker_residue_repo_root: the root searched for compose files. Unset or
+# empty means no compose search at all (no default path); a fleet module may
+# supply a default.
 docker_residue_repo_root() {
-    printf '%s\n' "${CACHE_PRUNE_REPO_ROOT:-/home/_shared_code}"
+    printf '%s\n' "${CACHE_PRUNE_REPO_ROOT:-}"
 }
 
 # The JSON half of this module (capture shaping, classifier, footprint sum)

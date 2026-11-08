@@ -68,10 +68,6 @@ assert_contains "$mt_out" "exit=0 failed=0" "a missing gio is not a failure"
 mt_out=$(CACHE_PRUNE_TRASH_DIR="$SANDBOX/absent-trash" mt_process trash "$ORIGINAL_RT_TRASH_DETECT" 2>&1)
 assert_contains "$mt_out" "skip: trash: trash dir $SANDBOX/absent-trash absent" "an absent trash dir keeps its own reason"
 
-echo "[missing tool] a runtime with no tool to blame keeps the generic reason"
-mt_out=$(mt_process codex "$ORIGINAL_RT_CODEX_DETECT" 2>&1)
-assert_contains "$mt_out" "skip: codex: not detected" "codex has no executable to name"
-
 echo "[missing tool] docker residue: a missing perl is named in the report and the election"
 mt_out=$(mt_hide perl rt_docker_detail 2>&1)
 assert_eq "docker image/container/volume residue: unavailable (no perl on host)" "$mt_out" "the residue detail line names the missing perl"

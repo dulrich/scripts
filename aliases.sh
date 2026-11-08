@@ -38,7 +38,6 @@ work_user="username"
 EXTERNAL_OUTPUT="DP-1-3"
 INTERNAL_OUTPUT="eDP-1-1"
 AUDIO_SINK="@DEFAULT_AUDIO_SINK@" # wpctl target for volume(): a PipeWire node id or name, or the default sink
-publish_mjs="" # path to publish.mjs; cl projects .publication.json repos before pushing github
 
 # https://github.com/ElectricRCAircraftGuy/eRCaGuy_hello_world/blob/master/bash/get_script_path.sh
 here=$(dirname "$(realpath "${BASH_SOURCE[0]}")")
@@ -94,38 +93,6 @@ for _cd_name in .. ... down code; do
 	_comp "$_cd_name"
 done
 unset _cd_name
-
-# Per-repo push logic (push_repo) is shared with
-# `util push-all`.
-# shellcheck source=/dev/null
-source "$here/util/lib/push.sh"
-
-unalias cl 2> /dev/null
-cl () {
-	local rc
-
-	clear
-	if git rev-parse --is-inside-work-tree > /dev/null 2>&1; then
-		# Public repos also carry a `github` remote; mirror there too.
-		# Only the existence check is silenced (private repos lack it) —
-		# github's own push output is shown, never swallowed.
-		# Hybrid repos map a scanned projection via remote.github.push
-		# (e.g. public:master); count that source, never the private HEAD,
-		# whose history the projection rewrote.
-		# The projection (and its scan) runs before anything is pushed: a
-		# failed scan pushes nowhere, so the flagged commits are still local
-		# and can be amended without a force push.
-		push_repo
-		rc=$?
-		# No countable upstream reads as "nothing to push" (status 0).
-		[ "$rc" -eq 3 ] && rc=0
-		git status -bs
-		return "$rc"
-	else
-		echo "(not a git repository)"
-		ls -alF --color=auto
-	fi
-}
 
 # completion generator for offset paths: candidates are the subdirectories
 # of <base>/<typed prefix>, each printed on its own line as <typed

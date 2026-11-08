@@ -162,18 +162,17 @@ usage: cache-prune [--report | --yes [--include-purge]]
                     [--docker-until <window>] [-h|--help]
 
 Reports (and, outside --report, optionally prunes) rebuildable
-language-runtime caches (uv, npm, docker, pip, bun, cargo) plus leaked
-Codex staging copies (codex) and the home trash (trash) for the invoking
-user. Refuses to run as root.
+language-runtime caches (uv, npm, docker, pip, bun, cargo) plus the
+home trash (trash) for the invoking user. Refuses to run as root.
 
 Modes:
   (default)              interactive; per-runtime confirm (default: No)
   --report               report cache sizes only; never prompts, never mutates
   --yes                  auto-confirm the safe verb for uv, npm, docker;
-                         pip, bun, cargo and codex have no safe verb and are
+                         pip, bun and cargo have no safe verb and are
                          skipped entirely, never prompted; trash is never
                          emptied under --yes
-  --yes --include-purge  purges pip, bun, cargo and codex (their only verb;
+  --yes --include-purge  purges pip, bun and cargo (their only verb;
                          cargo clears registry/src children only); for uv,
                          npm and docker this instead runs their purge verb in
                          place of their safe verb, not in addition to it; trash
@@ -252,7 +251,8 @@ EOF
     cat <<'EOF'
   CACHE_PRUNE_REPO_ROOT
                 overrides the root docker residue classification searches
-                for compose files (default /home/_shared_code)
+                for compose files (default: unset, which skips the compose
+                search; a fleet module may supply a default)
   CACHE_PRUNE_COMPOSE_PROJECT_DIRS
                 newline-separated <file>=<dir> pairs, both relative to that
                 root: each listed compose file is resolved with
@@ -417,22 +417,23 @@ source "$CACHE_PRUNE_LIB/runtimes/pip.sh"
 source "$CACHE_PRUNE_LIB/runtimes/bun.sh"
 # shellcheck source=util/cache-prune/runtimes/cargo.sh
 source "$CACHE_PRUNE_LIB/runtimes/cargo.sh"
-# shellcheck source=util/cache-prune/runtimes/codex.sh
-source "$CACHE_PRUNE_LIB/runtimes/codex.sh"
 # shellcheck source=util/cache-prune/runtimes/trash.sh
 source "$CACHE_PRUNE_LIB/runtimes/trash.sh"
 
 ### fleet modules #############################################################
 
-# Optional, unpublished runtime modules: every util/cache-prune/fleet/*.sh
+# Optional, unpublished runtime modules: every $CACHE_PRUNE_FLEET_DIR/*.sh
 # present is sourced here, after the core runtimes and before anything
 # consumes the registry. A module follows the same contract as runtimes/*.sh,
 # and may name a core runtime as its register_runtime <after> slot.
-# The directory is absent from the public projection; with it absent nothing
-# below runs and core behaviour and output are unchanged. It sits under
-# cache-prune/, which util/dispatch.sh's util/*.sh glob cannot reach.
-if [[ -d "$CACHE_PRUNE_LIB/fleet" ]]; then
-    for cache_prune_module in "$CACHE_PRUNE_LIB"/fleet/*.sh; do
+# The modules live in the private overlay (private/util/cache-prune/fleet/
+# under the repo root, beside this script's real path), never in this repo;
+# CACHE_PRUNE_FLEET_DIR overrides the directory (tests point it at an empty
+# one). With it absent nothing below runs and core behaviour and output are
+# unchanged.
+CACHE_PRUNE_FLEET_DIR=${CACHE_PRUNE_FLEET_DIR:-$CACHE_PRUNE_LIB/../../private/util/cache-prune/fleet}
+if [[ -d "$CACHE_PRUNE_FLEET_DIR" ]]; then
+    for cache_prune_module in "$CACHE_PRUNE_FLEET_DIR"/*.sh; do
         [[ -f "$cache_prune_module" ]] || continue
         # shellcheck source=/dev/null
         source "$cache_prune_module"

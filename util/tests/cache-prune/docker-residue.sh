@@ -171,6 +171,17 @@ assert_contains "$(all_log)" "--profile * config --no-interpolate --format json"
 assert_eq "0" "$(grep -c -e "--project-directory" <<< "$(all_log)")" "an ordinary compose file gets no --project-directory"
 assert_eq $'superseded\twebapp-overlay:v0.11.3\tsha256:old\t5\t2026-01-01T00:00:00Z\t-' "$(grep -v '^volume' <<< "$dr_rows")" "captured compose + Dockerfiles classify end to end"
 
+echo "[docker-residue] capture: an unset CACHE_PRUNE_REPO_ROOT runs no compose search"
+# The capture runs in a subshell (the assertion must count in this shell).
+reset_logs
+(
+    unset CACHE_PRUNE_REPO_ROOT
+    DR_IMAGES_JSON='[]'
+    DR_CONTAINERS_JSON='[]'
+    docker_residue_capture > /dev/null
+)
+assert_eq "0" "$(grep -c -e "compose -f" <<< "$(all_log)")" "no root, no default: no compose file is searched or resolved"
+
 echo "[docker-residue] capture: CACHE_PRUNE_COMPOSE_PROJECT_DIRS pins and the unresolved-variable guard"
 DR_PIN_ROOT="$SANDBOX/docker-residue-pin-root"
 mkdir -p "$DR_PIN_ROOT/stack/deploy"
