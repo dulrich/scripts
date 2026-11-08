@@ -2,18 +2,19 @@
 # https://creativecommons.org/publicdomain/zero/1.0/
 #
 # CachePrune::DockerResidue: the JSON half of the docker residue step -- capture shaping (the
-# docker/compose subprocesses and the Dockerfile FROM parser), the classifier, the footprint sum
-# and hbytes. The one source of truth for that logic: the perl docker runtime
-# (perl/runtimes/docker.pm) calls it in-process.
+# docker/compose subprocesses, run through the CachePrune::Core command seam, and the Dockerfile
+# FROM parser), the classifier (capture hashref -> typed records), the footprint sum and hbytes.
+# The one source of truth for that logic: the perl docker runtime (perl/runtimes/docker.pm)
+# calls it in-process.
 #
 # JSON::PP is loaded lazily (json_reason / _json), never at compile time, so the cache-prune
 # perl core and every other runtime run on a host without it; the residue step then reports
-# `no JSON::PP on host`, as the bash tool does. hbytes and the docker runtime's
-# docker_size_to_bytes (and the bash twin in runtimes/docker.sh) are one contract: the shared
-# vector table in the test suites asserts them.
+# `no JSON::PP on host`, as the bash tool does. hbytes is the one docker size parser (the
+# build-cache size probe in runtimes/docker.pm calls it too) and never touches JSON::PP.
 package CachePrune::DockerResidue;
 use strict;
 use warnings;
+use CachePrune::Core ();
 
 my $J;
 our $HAVE_JSON;    # cached JSON::PP probe (tests set 0 to simulate a host without it)
@@ -31,9 +32,8 @@ sub _json {
     return $J;
 }
 
-sub slurp { local $/; my $s = <STDIN>; return defined $s ? $s : ''; }
+# dec: the capture-boundary decoder of docker's JSON output.
 sub dec { return _json()->decode($_[0]); }
-sub enc { return _json()->encode($_[0]); }
 sub isbool { return JSON::PP::is_bool($_[0]); }
 # jq truthiness: everything except null and false.
 sub truthy { my $v = shift; return 0 unless defined $v; return 0 if isbool($v) && !$v; return 1; }
@@ -50,16 +50,17 @@ sub tostr {
     return "$v";
 }
 
-# hbytes: docker's decimal human sizes -> integer bytes, or undef.
+# hbytes($token): the one docker size parser -- a decimal human size (`500B`, `2.5MB`, a bare
+# number of bytes) -> integer bytes, or undef. A plain defined scalar in (callers normalise JSON
+# values first; JSON::PP is never touched). Only the first space-separated word counts (`ps
+# --size` appends ` (virtual ...)`); a malformed number or an unknown unit is undef, never a guess.
 my %UNIT = ('' => 1, B => 1, kB => 1e3, KB => 1e3, MB => 1e6, GB => 1e9, TB => 1e12);
 sub hbytes {
-    my $s = tostr(shift);
+    my $s = shift;
+    return undef unless defined $s;
     $s = (split / /, $s, -1)[0] // '';
-    return undef unless $s =~ /^([0-9.]+)([A-Za-z]*)$/;
-    my ($n, $u) = ($1, $2);
-    die "hbytes: not a number: $n\n" unless $n =~ /^(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)$/;
-    my $m = exists $UNIT{$u} ? $UNIT{$u} : 1;
-    my $r = ($n + 0) * $m;
+    return undef unless $s =~ /\A((?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+))([A-Za-z]*)\z/ && exists $UNIT{$2};
+    my $r = ($1 + 0) * $UNIT{$2};
     my $i = int($r);
     $i -= 1 if $i > $r;
     return $i;
@@ -118,19 +119,41 @@ sub ts {
     return $t;
 }
 
-sub tsv { return join("\t", map { tostr($_) } @_); }
 sub arr { my $v = shift; return ref($v) eq 'ARRAY' ? @$v : (); }
 
+# Record fields per class, in the order the bash TSV row carried them.
+my %FIELDS = (
+    superseded   => [qw(tag id size created blockers)],
+    unreferenced => [qw(tag id size created blockers)],
+    stale        => [qw(name image_id size created state image_ref)],
+    volume       => [qw(name size links state)],
+    anonvolume   => [qw(name size)],
+    unavailable  => [qw(scope reason)],
+);
+
+# record($class, @values): one classifier record, every value rendered once as jq tostring and
+# UTF-8 encoded (what the consumers print).
+sub record {
+    my ($class, @v) = @_;
+    my %r = (class => $class);
+    my $f = $FIELDS{$class};
+    for my $i (0 .. $#$f) { my $s = tostr($v[$i]); utf8::encode($s); $r{ $f->[$i] } = $s; }
+    return \%r;
+}
+
+# classify($doc): the classifier over one capture hashref -> records (hashrefs keyed by the
+# %FIELDS names plus `class`): image candidates sorted as their rendered rows, then stale
+# containers, volumes, anonymous volumes and a volumes-unavailable record.
 sub classify {
     my $in = shift;
     my @vols = sort { $b->{size} <=> $a->{size} || $a->{name} cmp $b->{name} } arr($in->{volumes});
-    my @vol = map { tsv('volume', $_->{name}, $_->{size}, $_->{links}, ($_->{links} == 0 ? 'dangling' : 'linked')) } @vols;
-    push @vol, map { tsv('anonvolume', $_->{name}, $_->{size}) }
+    my @vol = map { record('volume', $_->{name}, $_->{size}, $_->{links}, ($_->{links} == 0 ? 'dangling' : 'linked')) } @vols;
+    push @vol, map { record('anonvolume', $_->{name}, $_->{size}) }
         grep { $_->{links} == 0 && isbool($_->{anonymous}) && $_->{anonymous} } @vols;
-    push @vol, tsv('unavailable', 'volumes', $in->{volume_error}) if truthy($in->{volume_error});
+    push @vol, record('unavailable', 'volumes', $in->{volume_error}) if truthy($in->{volume_error});
 
     if (truthy($in->{image_error})) {
-        return (tsv('unavailable', 'images', $in->{image_error}), @vol);
+        return (record('unavailable', 'images', $in->{image_error}), @vol);
     }
     my @images = arr($in->{images});
     my %byref;
@@ -176,13 +199,14 @@ sub classify {
         for my $tag (@tags) {
             my $n = $newest{repo(norm($tag))};
             my $class = ($tag ne '<none>' && defined $n && defined $ct && $ct <= $n) ? 'superseded' : 'unreferenced';
-            push @rows, tsv($class, $tag, $img->{id}, $img->{size}, $img->{created}, $blockers);
+            my @v = ($class, $tag, $img->{id}, $img->{size}, $img->{created}, $blockers);
+            push @rows, [ join("\t", map { tostr($_) } @v), record(@v) ];
         }
     }
-    @rows = sort @rows;
-    push @rows, map { tsv('stale', $_->{name}, $_->{image_id}, alt($_->{size_rw}, 'unavailable'),
-                          $_->{created}, $_->{state}, alt($_->{image_ref}, '-')) } @stale;
-    return (@rows, @vol);
+    my @recs = map { $_->[1] } sort { $a->[0] cmp $b->[0] } @rows;
+    push @recs, map { record('stale', $_->{name}, $_->{image_id}, alt($_->{size_rw}, 'unavailable'),
+                             $_->{created}, $_->{state}, alt($_->{image_ref}, '-')) } @stale;
+    return (@recs, @vol);
 }
 
 # jq -s: every JSON value in the input, in order.
@@ -197,27 +221,6 @@ sub values_of {
 
 ### capture ####################################################################
 
-# run_cmd: run one command (argv list, no shell) with stdin and stderr on
-# /dev/null; returns (success, stdout bytes with trailing newlines stripped,
-# as `$(...)` did). A command that cannot be started fails like a nonzero exit.
-sub run_cmd {
-    my @cmd = @_;
-    my $pid = open(my $fh, '-|');
-    die "fork: $!\n" unless defined $pid;
-    if (!$pid) {
-        open(STDIN, '<', '/dev/null');
-        open(STDERR, '>', '/dev/null');
-        { exec { $cmd[0] } @cmd; }
-        exit 127;
-    }
-    local $/;
-    my $out = <$fh>;
-    $out = '' unless defined $out;
-    close $fh;
-    $out =~ s/\n+\z//;
-    return ($? == 0, $out);
-}
-
 # cap_volumes: `docker system df -v --format json` -> volumes array.
 sub cap_volumes {
     my $doc = dec(shift);
@@ -226,7 +229,7 @@ sub cap_volumes {
         my $links = tonum(alt($_->{Links}, '0'));
         my $labels = tostr(alt($_->{Labels}, ''));
         my $anon = grep { ((split /=/, $_, 2)[0] // '') eq 'com.docker.volume.anonymous' } split /,/, $labels;
-        { name => $_->{Name}, size => (hbytes($_->{Size}) // 0), links => (defined $links ? $links : 0),
+        { name => $_->{Name}, size => (hbytes(tostr($_->{Size})) // 0), links => (defined $links ? $links : 0),
           anonymous => ($anon ? JSON::PP::true() : JSON::PP::false()) }
     } arr($src) ];
 }
@@ -240,7 +243,7 @@ sub cap_images {
 # cap_sizes: `docker ps -a --size` {id,size} lines -> {id: bytes}.
 sub cap_sizes {
     my %out;
-    $out{tostr($_->{id})} = hbytes($_->{size}) for values_of(shift);
+    $out{tostr($_->{id})} = hbytes(tostr($_->{size})) for values_of(shift);
     return \%out;
 }
 
@@ -427,47 +430,49 @@ sub dockerfile_bases {
     return \@out;
 }
 
-# capture($root): probe the daemon + compose files and return ONE JSON document (shape
-# in docker-residue.sh). Fail closed: any compose/Dockerfile/inspect failure
+# capture($root): probe the daemon + compose files (every command through the Core seam, stdin
+# and stderr on /dev/null) and return ONE capture hashref (images, containers, compose,
+# base_refs, volumes, image_error, volume_error) for classify. Fail closed: any compose/Dockerfile/inspect failure
 # sets image_error and empties the image classes; volumes report regardless.
 sub capture {
     my $root = shift // '';
     my ($image_error, $volume_error) = ('', '');
     my ($images, $containers, $compose, $volumes) = ([], [], [], []);
     my %bases;
-    my ($ok, $out);
+    my ($out, $rc);
+    my $cap = sub { return CachePrune::Core::cmd_capture({ stdin => 'null', stderr => 'null' }, @_); };
 
     # Volumes first: they report even when the image classes fail closed.
-    ($ok, $out) = run_cmd(qw(docker system df -v --format json));
-    my $vols = $ok && length $out ? eval { cap_volumes($out) } : undef;
+    ($out, $rc) = $cap->(qw(docker system df -v --format json));
+    my $vols = $rc == 0 && length $out ? eval { cap_volumes($out) } : undef;
     if (defined $vols) { $volumes = $vols; }
     else { $volume_error = 'docker system df -v failed'; }
 
-    ($ok) = run_cmd(qw(docker compose version));
-    $image_error = 'docker compose not available' unless $ok;
+    (undef, $rc) = $cap->(qw(docker compose version));
+    $image_error = 'docker compose not available' unless $rc == 0;
 
     if (!length $image_error) {
         # A failing `docker images` leaves the list empty, as the old pipeline did.
-        (undef, $out) = run_cmd(qw(docker images -q --no-trunc));
+        ($out) = $cap->(qw(docker images -q --no-trunc));
         my %seen;
         my @ids = sort grep { length && !$seen{$_}++ } split /\s+/, $out;
         if (@ids) {
-            ($ok, $out) = run_cmd(qw(docker image inspect), @ids);
-            my $imgs = $ok ? eval { cap_images($out) } : undef;
+            ($out, $rc) = $cap->(qw(docker image inspect), @ids);
+            my $imgs = $rc == 0 ? eval { cap_images($out) } : undef;
             if (defined $imgs) { $images = $imgs; } else { $image_error = 'docker image inspect failed'; }
         }
     }
 
     if (!length $image_error) {
-        ($ok, $out) = run_cmd(qw(docker ps -aq --no-trunc));
-        if (!$ok) { $image_error = 'docker ps failed'; }
+        ($out, $rc) = $cap->(qw(docker ps -aq --no-trunc));
+        if ($rc != 0) { $image_error = 'docker ps failed'; }
         else {
             my @ids = grep { length } split /\s+/, $out;
             if (@ids) {
-                (undef, $out) = run_cmd(qw(docker ps -a --size --no-trunc --format), '{"id":{{json .ID}},"size":{{json .Size}}}');
+                ($out) = $cap->(qw(docker ps -a --size --no-trunc --format), '{"id":{{json .ID}},"size":{{json .Size}}}');
                 my $sizes = eval { cap_sizes($out) } || {};
-                ($ok, $out) = run_cmd(qw(docker container inspect), @ids);
-                my $cs = $ok ? eval { cap_containers($out, $sizes) } : undef;
+                ($out, $rc) = $cap->(qw(docker container inspect), @ids);
+                my $cs = $rc == 0 ? eval { cap_containers($out, $sizes) } : undef;
                 if (defined $cs) { $containers = $cs; } else { $image_error = 'docker container inspect failed'; }
             }
         }
@@ -484,8 +489,8 @@ sub capture {
             my $name = $file;
             utf8::decode($name);
             my @pd = compose_project_dir($root, $file);
-            ($ok, $out) = run_cmd(qw(docker compose -f), $file, @pd, '--profile', '*', qw(config --no-interpolate --format json));
-            my $cfg = $ok ? eval { dec($out) } : undef;
+            ($out, $rc) = $cap->(qw(docker compose -f), $file, @pd, '--profile', '*', qw(config --no-interpolate --format json));
+            my $cfg = $rc == 0 ? eval { dec($out) } : undef;
             my ($entry, $builds) = isobj($cfg) && truthy($cfg->{name}) && isobj($cfg->{services}) ? eval { compose_entry($cfg) } : ();
             if (!defined $entry) { $image_error = "compose config failed: $name"; last FILE; }
             if (compose_has_unresolved($cfg)) { $image_error = "compose config has unresolved variable: $name"; last FILE; }
@@ -501,26 +506,18 @@ sub capture {
     if (length $image_error) {
         ($images, $containers, $compose, %bases) = ([], [], []);
     }
-    return enc({ images => $images, containers => $containers, compose => $compose,
+    return { images => $images, containers => $containers, compose => $compose,
                 base_refs => [ sort keys %bases ], volumes => $volumes,
                 image_error => (length $image_error ? $image_error : undef),
-                volume_error => (length $volume_error ? $volume_error : undef) }) . "\n";
+                volume_error => (length $volume_error ? $volume_error : undef) };
 }
 
-
-# classify_text($json_bytes): the classifier over one capture document -> TSV rows as UTF-8
-# bytes (what the CLI's `classify` mode prints, one per line). Dies on malformed input.
-sub classify_text {
-    my @rows = classify(dec($_[0]));
-    utf8::encode($_) for @rows;
-    return @rows;
-}
 
 # footprint($text): `docker system df --format json` lines -> Images + Containers + Local
 # Volumes bytes, or undef when any of the three rows is missing or unparsable. Dies on
 # malformed JSON.
 sub footprint {
-    my @s = map { hbytes($_->{Size}) }
+    my @s = map { hbytes(tostr($_->{Size})) }
         grep { my $t = tostr($_->{Type}); $t eq 'Images' || $t eq 'Containers' || $t eq 'Local Volumes' }
         values_of(shift);
     return undef unless @s == 3 && !grep { !defined } @s;

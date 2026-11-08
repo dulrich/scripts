@@ -4,8 +4,8 @@
 #
 # In-process cases for the perl docker and trash runtimes and CachePrune::DockerResidue, run by
 # ./run.sh: `perl docker.pl <cache-prune.pl> <sandbox> <fixture-dir>`. The entrypoint is loaded
-# with `require`; the command seam (cmd_capture/cmd_run/have_cmd), the residue capture's
-# run_cmd and confirm are replaced by a fake docker/gio that answers from in-memory fixtures and
+# with `require`; the command seam (cmd_capture/cmd_run/have_cmd, which the residue capture
+# runs through too) and confirm are replaced by a fake docker/gio that answers from in-memory fixtures and
 # logs every call, so nothing reaches a real daemon. Only du (trash sizing) runs for real, on
 # sandbox paths. The port of the bash docker-residue.sh and trash.sh suites plus the docker
 # cases of adapters/measurement/actions/cli/missing-tool.
@@ -126,7 +126,6 @@ my $real_capture = \&CachePrune::Core::cmd_capture;
 *CachePrune::Core::cmd_run = sub { return (fake_cmd(@_))[1]; };
 *CachePrune::Core::have_cmd = sub { return $PRESENT{ $_[0] } ? 1 : 0; };
 *CachePrune::Core::confirm = sub { push @CONFIRM_LOG, $_[0]; return (length $CONFIRM_YES && index($_[0], $CONFIRM_YES) >= 0) ? 1 : 0; };
-*CachePrune::DockerResidue::run_cmd = sub { my ($out, $rc) = fake_docker(@_[1 .. $#_]); return ($rc == 0, $out); };
 
 sub reset_logs { @ALL = (); @MUTATE = (); @CONFIRM_LOG = (); $CONFIRM_YES = ''; $CachePrune::Core::FAILED = 0; $CachePrune::Core::DOCKER_UNTIL = ''; CachePrune::Main::reset_totals(); }
 sub mode { ($CachePrune::Core::MODE, $CachePrune::Core::INCLUDE_PURGE) = @_; $CachePrune::Core::INCLUDE_PURGE //= 0; }
@@ -144,9 +143,17 @@ my $DR = 'CachePrune::DockerResidue';
 no strict 'refs';
 sub dsub { my $n = shift; return &{"CachePrune::Runtime::docker::$n"}(@_); }
 use strict 'refs';
-sub classify_doc { return join("\n", CachePrune::DockerResidue::classify_text($_[0])); }
+# classify_doc($doc): the classifier records of one capture hashref, or of fixture JSON decoded
+# here at the test boundary.
+sub classify_doc { my $d = shift; $d = JSON::PP->new->utf8->decode($d) unless ref $d; return CachePrune::DockerResidue::classify($d); }
+# rec_match($rec, \%want): every wanted field of the record is equal.
+sub rec_match { my ($r, $w) = @_; return !grep { ($r->{$_} // "\0") ne $w->{$_} } keys %$w; }
+sub has_rec { my ($recs, $w, $label) = @_; (grep { rec_match($_, $w) } @$recs) ? ok($label) : bad("$label (no record matching " . $J->encode($w) . ' in ' . $J->encode($recs) . ')'); }
+sub hasnt_rec { my ($recs, $w, $label) = @_; (grep { rec_match($_, $w) } @$recs) ? bad("$label (unexpected record matching " . $J->encode($w) . ')') : ok($label); }
+# recs_json($class, @recs): the records of one class, as canonical JSON, in order.
+sub recs_json { my ($class, @r) = @_; return $J->encode([ grep { $_->{class} =~ $class } @r ]); }
 sub capture_doc { local $ENV{CACHE_PRUNE_REPO_ROOT} = $_[0] if defined $_[0]; return CachePrune::DockerResidue::capture(CachePrune::Runtime::docker::repo_root()); }
-sub field { my ($doc, $k) = @_; my $v = $J->decode($doc)->{$k}; return ref $v ? join("\n", @$v) : defined $v ? $v : 'null'; }
+sub field { my ($doc, $k) = @_; my $v = $doc->{$k}; return ref $v ? join("\n", @$v) : defined $v ? $v : 'null'; }
 
 # ---- adapters.sh: docker ---------------------------------------------------------------
 section('[docker] registry membership: dual verb, daemon-owned cache, residue hooks');
@@ -169,12 +176,20 @@ has($out, 'skip: docker: no docker on host', 'a missing docker CLI is named');
 is_eq('0 ', F() . ' ' . all_log(), 'a missing docker CLI is no failure and runs nothing');
 $PRESENT{docker} = 1;
 
-section('[docker parse] unit normalization and the shared size vectors (docker_size_to_bytes, hbytes)');
+section('[docker parse] unit normalization and the shared size vectors (hbytes, the one size parser)');
 for my $v (['500B', 500], ['512kB', 512000], ['2.5MB', 2500000], ['4GB', 4000000000], ['3TB', 3000000000000], ['1.5kB', 1500], ['0B', 0]) {
-	is_eq($v->[1], CachePrune::Runtime::docker::docker_size_to_bytes($v->[0]), "docker_size_to_bytes: $v->[0] is $v->[1] bytes");
 	is_eq($v->[1], CachePrune::DockerResidue::hbytes($v->[0]), "hbytes: $v->[0] is $v->[1] bytes");
 }
-is_eq('2', CachePrune::Runtime::docker::docker_size_to_bytes('2.052GB*'), 'a starred token parses as the bash awk does (unknown unit multiplies by 1)');
+is_eq('<undef>', CachePrune::DockerResidue::hbytes('2.052GB*'), 'a starred token is an unknown unit: undef, never a guess');
+is_eq('<undef> <undef> <undef>', join(' ', map { CachePrune::DockerResidue::hbytes($_) // '<undef>' } '5XB', '5GiB', '1.2.3MB'), 'an unknown unit (5XB, 5GiB) or a malformed number is undef');
+is_eq('<undef>', CachePrune::DockerResidue::hbytes(' 5GB'), 'a leading space leaves an empty first word: undef');
+{
+	local $CachePrune::DockerResidue::HAVE_JSON = 0;
+	is_eq('1500 0', join(' ', CachePrune::DockerResidue::hbytes('1.5kB (virtual 2GB)'), CachePrune::DockerResidue::hbytes('0B')), 'hbytes parses with JSON::PP reported absent (first word only)');
+}
+my $lib = File::Basename::dirname($prog);
+is_eq('2500000 unloaded', scalar `$^X -I'$lib' -MCachePrune::DockerResidue -e 'print CachePrune::DockerResidue::hbytes("2.5MB"), " ", (\$INC{"JSON/PP.pm"} ? "loaded" : "unloaded")'`, 'hbytes never requires JSON::PP (fresh perl)');
+is_eq('', join(' ', CachePrune::Runtime::docker::docker_system_df_bytes("Build Cache  1  0  10GB  6XB (60%)\n")), 'an unknown-unit Build Cache token is no row');
 
 section('[docker parse] buildx du labels and the system df Build Cache row');
 is_eq('10000000000 4000000000', join(' ', CachePrune::Runtime::docker::docker_buildx_du_bytes($BUILDX_DU)), "Total:/Reclaimable: labels parse despite a preceding '*' shared-marker row");
@@ -259,8 +274,8 @@ hasnt($out, 'Observed footprint change', 'the --report Total section prints no d
 
 # ---- docker-residue.sh: classifier ---------------------------------------------------------
 section('[docker-residue] classifier over captured JSON');
-my $rows = classify_doc(slurp_file("$FIXD/classify-input.json"));
-my $class_of = sub { my $ref = shift; join('', map { (split /\t/)[0] } grep { (split /\t/)[1] eq $ref } split /\n/, $rows); };
+my @recs = classify_doc(slurp_file("$FIXD/classify-input.json"));
+my $class_of = sub { my $ref = shift; join('', map { $_->{class} } grep { ($_->{tag} // '') eq $ref } @recs); };
 is_eq('superseded', $class_of->('homelab-cameras:wp2'), 'an older work tag of a live repository (offset timestamps) is superseded');
 is_eq('superseded', $class_of->('llama-vulkan:b10121'), 'an older tag of the compose-pinned llama repository is superseded');
 is_eq('unreferenced', $class_of->('llama-vulkan:b11429-swap243'), 'a tag newer than its live sibling is unreferenced, never superseded');
@@ -269,11 +284,11 @@ is_eq('', $class_of->('homelab-cameras:latest'), 'the implied <project>-<service
 is_eq('', $class_of->('searxng/searxng:2026.8.22-9fea41204'), 'a docker.io/-prefixed compose ref matches the unprefixed local tag');
 is_eq('', $class_of->('ghcr.io/example/homehub:2026.9.4'), "a profiled service's image is live");
 is_eq('', $class_of->('ghcr.io/example/webapp:v0.11.4-slim') . $class_of->('alpine:latest'), 'Dockerfile base refs (incl. implicit :latest) protect their images');
-hasnt($rows, "stale\tengine-svc-tts", 'an exited container of a live compose service is not stale');
+hasnt_rec(\@recs, { class => 'stale', name => 'engine-svc-tts' }, 'an exited container of a live compose service is not stale');
 is_eq('', $class_of->('engine-svc-tts:torch2.11-rocm7.2'), "the image of a live service's exited container is live");
-has($rows, "stale\tlegacy_project-old-1\tsha256:prerename0000\t1000\t", "a pre-rename project's exited container is stale, with its writable-layer bytes");
-has($rows, "unreferenced\tlegacy_project-legacy-project:latest\tsha256:prerename0000\t384300000\t2026-07-09T00:00:00Z\tlegacy_project-old-1", 'an image held only by a stale container is a candidate naming its blocker');
-has($rows, "volume\thomelab_radar-data\t4300000000\t0\tdangling", 'a zero-link volume is flagged dangling');
+has_rec(\@recs, { class => 'stale', name => 'legacy_project-old-1', image_id => 'sha256:prerename0000', size => '1000' }, "a pre-rename project's exited container is stale, with its writable-layer bytes");
+has_rec(\@recs, { class => 'unreferenced', tag => 'legacy_project-legacy-project:latest', id => 'sha256:prerename0000', size => '384300000', created => '2026-07-09T00:00:00Z', blockers => 'legacy_project-old-1' }, 'an image held only by a stale container is a candidate naming its blocker');
+has_rec(\@recs, { class => 'volume', name => 'homelab_radar-data', size => '4300000000', links => '0', state => 'dangling' }, 'a zero-link volume is flagged dangling');
 
 section('[docker-residue] Dockerfile base-ref resolution (the FROM parser, through capture)');
 my $DR_ROOT = "$SB/docker-residue-root";
@@ -294,10 +309,10 @@ is_eq('null', field($build_doc->('Dockerfile.overlay', '{"GIT_SHA":"${X:-unknown
 
 section('[docker-residue] capture: compose resolved with every profile, fail closed on error');
 reset_logs();
-$rows = classify_doc(capture_doc($DR_ROOT));
+@recs = classify_doc(capture_doc($DR_ROOT));
 has(all_log(), '--profile * config --no-interpolate --format json', "compose is resolved uninterpolated with --profile '*'");
 hasnt(all_log(), '--project-directory', 'an ordinary compose file gets no --project-directory');
-is_eq("superseded\twebapp-overlay:v0.11.3\tsha256:old\t5\t2026-01-01T00:00:00Z\t-", join("\n", grep { !/\Avolume/ } split /\n/, $rows), 'captured compose + Dockerfiles classify end to end');
+is_eq($J->encode([{ class => 'superseded', tag => 'webapp-overlay:v0.11.3', id => 'sha256:old', size => '5', created => '2026-01-01T00:00:00Z', blockers => '-' }]), recs_json(qr/\A(?!volume)/, @recs), 'captured compose + Dockerfiles classify end to end');
 
 section('[docker-residue] capture: an unset or empty CACHE_PRUNE_REPO_ROOT runs no compose search');
 for my $root (undef, '') {
@@ -325,17 +340,16 @@ is_eq("compose config has unresolved variable: $DR_ROOT/homelab/compose.yml", fi
 is_eq("compose config has unresolved variable: $DR_ROOT/homelab/compose.yml", field($json_doc->('{"name":"p","services":{"s":{"image":"foo:$TAG"}}}'), 'image_error'), 'an unresolved unbraced $VAR image fails closed');
 is_eq('null', field($json_doc->('{"name":"p","services":{"s":{"image":"foo:a$$b"}}}'), 'image_error'), '$$ is an escape, not a reference');
 reset_logs(); $FX{compose_rc} = 1;
-$rows = classify_doc(capture_doc($DR_ROOT));
-has($rows, "unavailable\timages\tcompose config failed: ", 'a compose-config failure reports the image classes unavailable');
-is_eq('', join('', grep { /\A(?:superseded|unreferenced|stale)/ } split /\n/, $rows), 'a compose-config failure yields no candidates');
-has($rows, "volume\torphan-vol\t43350000\t0\tdangling", 'volumes still report when the image classes fail closed');
+@recs = classify_doc(capture_doc($DR_ROOT));
+has(join('', map { $_->{reason} } grep { $_->{class} eq 'unavailable' && $_->{scope} eq 'images' } @recs), 'compose config failed: ', 'a compose-config failure reports the image classes unavailable');
+is_eq('[]', recs_json(qr/\A(?:superseded|unreferenced|stale)\z/, @recs), 'a compose-config failure yields no candidates');
+has_rec(\@recs, { class => 'volume', name => 'orphan-vol', size => '43350000', links => '0', state => 'dangling' }, 'volumes still report when the image classes fail closed');
 $FX{compose_rc} = 0;
 
 section('[docker-residue] an unparsable created time fails safe (never superseded)');
 my $bad = $J->decode('{"images":[{"id":"sha256:live","tags":["webapp-overlay:v0.11.4"],"created":"2026-09-01T00:00:00Z","size":7},{"id":"sha256:old2","tags":["dead:1"],"created":"2026-01-01T00:00:00Z","size":1},{"id":"sha256:liveb","tags":["dead:2"],"created":"garbage","size":1}],"containers":[],"compose":[{"project":"p","services":[{"name":"a","image":"webapp-overlay:v0.11.4","build":false},{"name":"b","image":"dead:2","build":false}]}],"base_refs":[],"volumes":[],"image_error":null,"volume_error":null}');
 push @{ $bad->{images} }, { id => 'sha256:badts', tags => ['webapp-overlay:v0.0.1'], created => 'not-a-date', size => 3 };
-$rows = classify_doc($J->encode($bad));
-$class_of = sub { my $ref = shift; join('', map { (split /\t/)[0] } grep { (split /\t/)[1] eq $ref } split /\n/, $rows); };
+@recs = classify_doc($bad);
 is_eq('unreferenced', $class_of->('webapp-overlay:v0.0.1'), 'a candidate with an unparsable created time is unreferenced');
 is_eq('unreferenced', $class_of->('dead:1'), "a candidate whose live sibling's time is unparsable is unreferenced");
 
@@ -344,7 +358,7 @@ section('[docker-residue] a large image list (> 128 KiB of JSON) captures in-pro
 	local $FX{images} = $J->encode([ map { { Id => sprintf('sha256:%064x', $_), RepoTags => ["bulk/image-$_:v1"], Created => '2026-01-01T00:00:00Z', Size => $_ } } 1 .. 2500 ]);
 	my $big = capture_doc($DR_ROOT);
 	is_eq('1', length($FX{images}) > 131072 ? 1 : 0, 'the fixture image list exceeds 128 KiB');
-	is_eq('2500', scalar @{ $J->decode($big)->{images} }, 'every image of an oversized list is captured');
+	is_eq('2500', scalar @{ $big->{images} }, 'every image of an oversized list is captured');
 	is_eq('null', field($big, 'image_error'), 'an oversized list is no image_error');
 }
 
@@ -411,16 +425,16 @@ $FX{compose_rc} = 0;
 
 section('[docker-residue] anonymous volumes: capture, classification and report');
 $FX{volumes} = $ANON_VOLS;
-$rows = classify_doc(capture_doc());
-is_eq("anonvolume\tanon-b\t3000000\nanonvolume\tanon-a\t2000000", join("\n", grep { /\Aanonvolume/ } split /\n/, $rows), 'only zero-link volumes carrying the anonymous label key (first or not) are anonvolume rows');
-has($rows, "volume\tnamed-d\t5000000\t0\tdangling", 'a named dangling volume keeps its volume row');
-has($rows, "volume\tanon-linked\t1000000\t1\tlinked", 'a linked anonymous volume is a plain linked volume row');
-my ($rep) = capture(sub { CachePrune::Runtime::docker::report(split /\n/, $rows) });
+@recs = classify_doc(capture_doc());
+is_eq($J->encode([{ class => 'anonvolume', name => 'anon-b', size => '3000000' }, { class => 'anonvolume', name => 'anon-a', size => '2000000' }]), recs_json(qr/\Aanonvolume\z/, @recs), 'only zero-link volumes carrying the anonymous label key (first or not) are anonvolume rows');
+has_rec(\@recs, { class => 'volume', name => 'named-d', size => '5000000', links => '0', state => 'dangling' }, 'a named dangling volume keeps its volume row');
+has_rec(\@recs, { class => 'volume', name => 'anon-linked', size => '1000000', links => '1', state => 'linked' }, 'a linked anonymous volume is a plain linked volume row');
+my ($rep) = capture(sub { CachePrune::Runtime::docker::report(@recs) });
 has($rep, 'docker anonymous volumes: 2 dangling, 4.8MB (5000000 bytes) (purge tier, removed by name)', 'the report prints the anonymous volumes line');
 has($rep, 'docker volumes: 5 (4 dangling', 'the volumes line still counts every volume');
 has($rep, '2 named dangling: report-only, no verb', 'named dangling volumes say they are report-only');
 hasnt($rep, 'never removes volumes', 'the volumes line no longer claims no volume is ever removed');
-($rep) = capture(sub { CachePrune::Runtime::docker::report("unavailable\tvolumes\tdocker system df -v failed") });
+($rep) = capture(sub { CachePrune::Runtime::docker::report({ class => 'unavailable', scope => 'volumes', reason => 'docker system df -v failed' }) });
 has($rep, 'docker anonymous volumes: unavailable (docker system df -v failed)', 'volumes unavailable: the anonymous line claims no count');
 
 section('[docker-residue] anonymous volumes: election and removal');

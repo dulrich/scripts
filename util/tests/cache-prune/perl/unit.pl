@@ -685,5 +685,14 @@ CachePrune::Runtime::register_runtime({ name => 'noreason', detect => sub { 0 },
 has($out, 'skip: noreason: not detected', 'a runtime without an absent hook reads not detected');
 @CachePrune::Runtime::ORDER = grep { $_->{name} ne 'noreason' } @CachePrune::Runtime::ORDER;
 
+section('[command seam] both runners share the child setup: stdin/stderr nulled, dir entered');
+is_eq('eof', ($real_capture->({ stdin => 'null' }, 'sh', '-c', 'cat; echo eof'))[0], "cmd_capture with stdin => 'null': the child reads EOF at once");
+is_eq('0', $real_run->({ stdin => 'null' }, 'sh', '-c', '[ -z "$(cat)" ]'), "cmd_run with stdin => 'null': the child reads EOF at once");
+{
+	my ($o3, $e3, $got) = capture(sub { join(' ', $real_capture->({ stdin => 'null', stderr => 'null', dir => $SB }, 'sh', '-c', 'cat; pwd; echo noise >&2')) });
+	is_eq("$SB 0|", "$got|$e3", 'stdin, stderr and dir combine in one child: pwd is the dir, stderr is discarded');
+}
+is_eq('127', $real_run->({ stdin => 'null', dir => "$SB/no-such-dir" }, 'true'), 'an unenterable dir is a start failure (127) for cmd_run too');
+
 printf "\nUNIT %d passed, %d failed\n", $pass, $fail;
 exit($fail ? 1 : 0);

@@ -30,19 +30,6 @@ sub absent {
 	return CachePrune::Core::have_cmd('docker') ? 'docker daemon not reachable' : 'no docker on host';
 }
 
-# docker_size_to_bytes($token): one docker-rendered size token (decimal units) -> integer
-# bytes, exactly as the bash awk twin: trailing letters stripped for the number (awk's numeric
-# prefix), leading digits/dots stripped for the unit, an unknown unit multiplies by 1.
-sub docker_size_to_bytes {
-	my ($size) = @_;
-	$size //= '';
-	(my $num = $size) =~ s/[A-Za-z]+\z//;
-	(my $unit = $size) =~ s/\A[0-9.]+//;
-	my $n = $num =~ /\A[ \t\n]*([-+]?(?:[0-9]+\.?[0-9]*|\.[0-9]+)(?:[eE][-+]?[0-9]+)?)/ ? $1 + 0 : 0;
-	my %mul = (kB => 1000, MB => 1000 * 1000, GB => 1000 * 1000 * 1000, TB => 1000 * 1000 * 1000 * 1000);
-	return int($n * ($mul{$unit} // 1));
-}
-
 # _last_field($raw, $match, $idx): awk-style: whitespace fields of the last line $match accepts.
 sub _last_field {
 	my ($raw, $match, $idx) = @_;
@@ -54,13 +41,21 @@ sub _last_field {
 	return $v // '';
 }
 
+# _sizes(@tokens): every token through the one size parser (CachePrune::DockerResidue::hbytes), or
+# () -- no row -- when any of them does not parse.
+sub _sizes {
+	my @b = map { CachePrune::DockerResidue::hbytes($_) } @_;
+	return () if grep { !defined } @b;
+	return @b;
+}
+
 # docker_buildx_du_bytes($raw): the trailing `Total:` / `Reclaimable:` labelled lines, or ().
 sub docker_buildx_du_bytes {
 	my ($raw) = @_;
 	my $total = _last_field($raw, sub { $_[0] =~ /\ATotal:/ }, 1);
 	my $recl = _last_field($raw, sub { $_[0] =~ /\AReclaimable:/ }, 1);
 	return () unless length $total && length $recl;
-	return (docker_size_to_bytes($total), docker_size_to_bytes($recl));
+	return _sizes($total, $recl);
 }
 
 # docker_system_df_bytes($raw): plain `docker system df`'s two-word Build Cache row: SIZE ($5)
@@ -72,7 +67,7 @@ sub docker_system_df_bytes {
 	my $recl = _last_field($raw, $bc, 5);
 	$recl =~ s/\(.*\z//s;
 	return () unless length $total && length $recl;
-	return (docker_size_to_bytes($total), docker_size_to_bytes($recl));
+	return _sizes($total, $recl);
 }
 
 # size: system df's Build Cache row first (it predicts what the unfiltered safe prune frees),
@@ -108,20 +103,16 @@ sub purge { return CachePrune::Core::cmd_run('docker', 'builder', 'prune', '-a',
 # repo_root: the root searched for compose files; unset or empty means no compose search.
 sub repo_root { return $ENV{CACHE_PRUNE_REPO_ROOT} // ''; }
 
-# classify_rows(): (status, rows) of a fresh capture: ('ok', rows...) or ('failed') when the
-# classifier dies or prints nothing (a healthy run always prints a volume or unavailable row).
+# classify_rows(): (status, records) of a fresh capture: ('ok', records...) or ('failed') when
+# the classifier dies or returns nothing (a healthy run always has a volume or unavailable record).
 sub classify_rows {
 	my @rows = eval {
 		my $doc = CachePrune::DockerResidue::capture(repo_root());
-		CachePrune::DockerResidue::classify_text($doc);
+		CachePrune::DockerResidue::classify($doc);
 	};
 	return ('failed') if $@ || !@rows;
 	return ('ok', @rows);
 }
-
-# _fields($row): the row split as bash `IFS=$'\t' read` does (tab runs collapse, edge tabs
-# trimmed).
-sub _fields { my $r = shift; $r =~ s/\A\t+//; $r =~ s/\t+\z//; return split /\t+/, $r; }
 
 sub _num { my $v = shift; return (defined $v && $v =~ /\A-?[0-9]+\z/) ? $v : 0; }
 sub _hb { return CachePrune::Measurement::human_bytes(_num($_[0])); }
@@ -138,32 +129,34 @@ sub report {
 	my ($sup_n, $unref_n, $stale_n, $vol_n, $vol_dangling, $vol_dangling_bytes, $anon_n, $anon_bytes) = (0) x 8;
 	my ($img_un, $vol_un) = ('', '');
 	my ($sup_lines, $unref_lines, $stale_lines, $vol_lines) = ('', '', '', '');
-	for my $row (@rows) {
-		my ($class, $a, $b, $c, $d, $e, $f) = map { $_ // '' } _fields($row);
+	for my $r (@rows) {
+		my $class = $r->{class};
 		if ($class eq 'superseded' || $class eq 'unreferenced') {
-			my $line = sprintf('  %s  %s  %s  created %s%s', $a, short_id($b), _hb($c), _day($d),
-				$e ne '-' ? "  blocked by stale container(s): $e" : '') . "\n";
+			my $line = sprintf('  %s  %s  %s  created %s%s', $r->{tag}, short_id($r->{id}), _hb($r->{size}), _day($r->{created}),
+				$r->{blockers} ne '-' ? "  blocked by stale container(s): $r->{blockers}" : '') . "\n";
 			if ($class eq 'superseded') {
 				$sup_lines .= $line; $sup_n++;
-				$sup_bytes += _num($c) unless $seen_sup{$b}++;
+				$sup_bytes += _num($r->{size}) unless $seen_sup{ $r->{id} }++;
 			} else {
 				$unref_lines .= $line; $unref_n++;
-				$unref_bytes += _num($c) unless $seen_unref{$b}++;
+				$unref_bytes += _num($r->{size}) unless $seen_unref{ $r->{id} }++;
 			}
 		} elsif ($class eq 'stale') {
 			$stale_n++;
-			if ($c =~ /\A[0-9]+\z/) { $stale_bytes += $c; $c = CachePrune::Measurement::human_bytes($c); }
+			my $size = $r->{size};
+			if ($size =~ /\A[0-9]+\z/) { $stale_bytes += $size; $size = CachePrune::Measurement::human_bytes($size); }
 			else { $stale_unknown = 1; }
 			$stale_lines .= sprintf("  %s  %s  image %s (%s)  writable layer %s  created %s\n",
-				$a, $e, $f, short_id($b), $c, _day($d));
+				$r->{name}, $r->{state}, $r->{image_ref}, short_id($r->{image_id}), $size, _day($r->{created}));
 		} elsif ($class eq 'volume') {
 			$vol_n++;
-			if ($d eq 'dangling') { $vol_dangling++; $vol_dangling_bytes += _num($b); }
-			$vol_lines .= sprintf("  %s  %s  links %s%s\n", $a, _hb($b), $c, $d eq 'dangling' ? '  [dangling]' : '');
+			my $dangling = $r->{state} eq 'dangling';
+			if ($dangling) { $vol_dangling++; $vol_dangling_bytes += _num($r->{size}); }
+			$vol_lines .= sprintf("  %s  %s  links %s%s\n", $r->{name}, _hb($r->{size}), $r->{links}, $dangling ? '  [dangling]' : '');
 		} elsif ($class eq 'anonvolume') {
-			$anon_n++; $anon_bytes += _num($b);
+			$anon_n++; $anon_bytes += _num($r->{size});
 		} elsif ($class eq 'unavailable') {
-			if ($a eq 'images') { $img_un = $b; } else { $vol_un = $b; }
+			if ($r->{scope} eq 'images') { $img_un = $r->{reason}; } else { $vol_un = $r->{reason}; }
 		}
 	}
 	my $hb = \&CachePrune::Measurement::human_bytes;
@@ -241,28 +234,27 @@ sub residue {
 	my ($st, @rows) = classify_rows();
 	if ($st ne 'ok') { print "docker residue: nothing elected (classifier failed)\n"; return 0; }
 	for my $r (@rows) {
-		my @f = split /\t/, $r, -1;
-		if (($f[0] // '') eq 'unavailable' && ($f[1] // '') eq 'images') {
-			print 'docker residue: nothing elected (images unavailable: ' . ($f[2] // '') . ")\n";
+		if ($r->{class} eq 'unavailable' && $r->{scope} eq 'images') {
+			print "docker residue: nothing elected (images unavailable: $r->{reason})\n";
 			return 0;
 		}
 	}
 	my (@sup, @stale, @unref, @unref_target, @unref_size, %sup_seen, %anon_before);
 	my ($sup_bytes, $anon_bytes, $anon_n) = (0, 0, 0);
 	for my $r (@rows) {
-		my ($class, $a, $b, $c) = map { $_ // '' } _fields($r);
+		my $class = $r->{class};
 		if ($class eq 'superseded') {
-			push @sup, $a;
-			$sup_bytes += _num($c) unless $sup_seen{$b}++;
+			push @sup, $r->{tag};
+			$sup_bytes += _num($r->{size}) unless $sup_seen{ $r->{id} }++;
 		} elsif ($class eq 'unreferenced') {
-			push @unref, $a;
-			push @unref_target, $a eq '<none>' ? $b : $a;
-			push @unref_size, _hb($c);
+			push @unref, $r->{tag};
+			push @unref_target, $r->{tag} eq '<none>' ? $r->{id} : $r->{tag};
+			push @unref_size, _hb($r->{size});
 		} elsif ($class eq 'stale') {
-			push @stale, $a;
+			push @stale, $r->{name};
 		} elsif ($class eq 'anonvolume') {
-			$anon_n++ unless $anon_before{$a}++;
-			$anon_bytes += _num($b);
+			$anon_n++ unless $anon_before{ $r->{name} }++;
+			$anon_bytes += _num($r->{size});
 		}
 	}
 	my $hb = \&CachePrune::Measurement::human_bytes;
@@ -287,11 +279,8 @@ sub residue {
 	if ($do_vol) {
 		my @names;
 		my ($vst, @vrows) = classify_rows();
-		if ($vst eq 'ok' && !grep { /\Aunavailable\tvolumes\t/ } @vrows) {
-			for my $r (@vrows) {
-				my ($class, $a) = map { $_ // '' } _fields($r);
-				push @names, $a if $class eq 'anonvolume' && $anon_before{$a};
-			}
+		if ($vst eq 'ok' && !grep { $_->{class} eq 'unavailable' && $_->{scope} eq 'volumes' } @vrows) {
+			push @names, map { $_->{name} } grep { $_->{class} eq 'anonvolume' && $anon_before{ $_->{name} } } @vrows;
 		} else {
 			print "docker anonymous volumes: nothing elected (fresh volume capture unavailable)\n";
 		}

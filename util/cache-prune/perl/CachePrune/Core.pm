@@ -44,10 +44,20 @@ sub confirm {
 sub _status { my ($w) = @_; return $w == -1 ? 127 : ($w & 127 ? 128 + ($w & 127) : $w >> 8); }
 
 # Optional leading hashref of options for both runners: { dir => <chdir first>,
-# stderr => 'keep' (default) | 'null' }.
+# stdin => 'keep' (default) | 'null', stderr => 'keep' (default) | 'null' }.
+
+# _child_setup(\%opts): in the forked child, before exec: redirect stdin/stderr to /dev/null as
+# asked and chdir to dir (exit 127 when it cannot).
+sub _child_setup {
+	my ($o) = @_;
+	open(STDIN, '<', '/dev/null') if ($o->{stdin} // '') eq 'null';
+	open(STDERR, '>', '/dev/null') if ($o->{stderr} // '') eq 'null';
+	if (defined $o->{dir}) { chdir $o->{dir} or exit 127; }
+}
 
 # cmd_capture([\%opts,] @cmd): run @cmd, return (stdout with trailing newlines stripped, exit
-# status); stderr is inherited. A command that cannot be executed returns status 127.
+# status); stdin and stderr are inherited unless nulled. A command that cannot be executed
+# returns status 127.
 sub cmd_capture {
 	my @cmd = @_;
 	my %o = ref $cmd[0] eq q(HASH) ? %{ shift @cmd } : ();
@@ -55,8 +65,7 @@ sub cmd_capture {
 	my $pid = open(my $fh, '-|');
 	return ('', 127) unless defined $pid;
 	if ($pid == 0) {
-		open(STDERR, '>', '/dev/null') if ($o{stderr} // '') eq 'null';
-		if (defined $o{dir}) { chdir $o{dir} or exit 127; }
+		_child_setup(\%o);
 		{ no warnings 'exec'; exec { $cmd[0] } @cmd; }
 		exit 127;
 	}
@@ -77,8 +86,7 @@ sub cmd_run {
 	my $pid = fork;
 	return 127 unless defined $pid;
 	if ($pid == 0) {
-		open(STDERR, '>', '/dev/null') if ($o{stderr} // '') eq 'null';
-		if (defined $o{dir}) { chdir $o{dir} or exit 127; }
+		_child_setup(\%o);
 		{ no warnings 'exec'; exec { $cmd[0] } @cmd; }
 		exit 127;
 	}

@@ -275,7 +275,7 @@ purge line; safe-only -- safe line (+ C<safe_estimate_note>).
 =head1 SHARED HELPERS FOR MODULES
 
 C<CachePrune::Core>: C<cmd_capture([\%o,] @cmd)> -> (stdout, status), C<cmd_run([\%o,] @cmd)>
--> status (options C<< dir => DIR >>, C<< stderr => 'null' >>), C<have_cmd(NAME)>,
+-> status (options C<< dir => DIR >>, C<< stdin => 'null' >>, C<< stderr => 'null' >>), C<have_cmd(NAME)>,
 C<confirm(PROMPT)>, C<warn_msg(@words)>, C<docker_window_seconds(W)>; always call them fully
 qualified (the test seam replaces the globs). C<CachePrune::Measurement>: C<probe_available>,
 C<probe_unavailable>, C<probe_is_valid>, C<probe_is_available>, C<probe_compare>,
