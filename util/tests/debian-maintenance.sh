@@ -1,8 +1,9 @@
-#!/usr/bin/env bash
-# Hermetic regression tests for ../debian-maintenance.sh.
-# Test doubles below replace sourced functions and are invoked indirectly.
-# shellcheck disable=SC1091,SC2317
-
+#!/bin/sh
+# CC0: This work has been marked as dedicated to the public domain.
+# Hermetic regression tests for util/debian-maintenance.sh (dash shim) and
+# util/debian-maintenance/debian-maintenance.pl. Stage logic runs in-process via
+# debian-maintenance/unit.pl (faked command seam); --report, usage and
+# self-elevation run as real subprocesses with stub binaries on PATH.
 for _a in "$@"; do case "$_a" in --help|-h)
 	printf 'usage: %s %s\n' "${0##*/}" ''
 	printf '%s\n' 'Hermetic regression tests for util/debian-maintenance.sh; takes no arguments.'
@@ -15,407 +16,156 @@ case $_shguard_m in
   *) printf '%s: refusing %s invocation (supports: exec; pipe callers set SHGUARD_MODE=pipe)\n' 'debian-maintenance.sh' "$_shguard_m" >&2; unset _shguard_m; return 1 2>/dev/null || exit 1 ;;
 esac
 # <<< shguard
-_bid="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../lib/build-id.sh"
-# shellcheck source=util/lib/build-id.sh
-[ -r "$_bid" ] && { . "$_bid"; build_flags "${BASH_SOURCE[0]}" "$@"; }
-set -u
-
-HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=../debian-maintenance.sh
-source "$HERE/../debian-maintenance.sh"
-
-# These arrays are populated by the sourced maintenance functions.
-declare -a protected_kernel_packages removable_kernel_packages kernel_purge_packages rc_kernel_packages
-
+set -eu
+HERE=$(cd "$(dirname "$0")" && pwd)
+case " $* " in *" --build "*|*" --version "*)
+	# shellcheck source=util/lib/build-id.sh
+	. "$HERE/../lib/build-id.sh"; build_flags "$0" "$@";; esac
+SHIM="$HERE/../debian-maintenance.sh"
+PROG="$HERE/../debian-maintenance/debian-maintenance.pl"
 PASS=0
 FAIL=0
+SANDBOX=$(mktemp -d)
+trap 'rm -rf "$SANDBOX"' EXIT
 
-ok() {
-    PASS=$((PASS + 1))
-    printf '  ok   - %s\n' "$1"
-}
+ok() { PASS=$((PASS + 1)); printf '  ok   - %s\n' "$1"; }
+bad() { FAIL=$((FAIL + 1)); printf '  FAIL - %s\n' "$1"; }
+assert_eq() { if [ "$2" = "$1" ]; then ok "$3"; else bad "$3 (expected <$1>, got <$2>)"; fi; }
 
-bad() {
-    FAIL=$((FAIL + 1))
-    printf '  FAIL - %s\n' "$1"
-}
+# ---- in-process unit cases -------------------------------------------------
+unit_out=$(perl "$HERE/debian-maintenance/unit.pl" "$PROG" 2>&1) || true
+printf '%s\n' "$unit_out" | grep -v '^UNIT '
+unit_pass=$(printf '%s\n' "$unit_out" | grep -c '^  ok   - ' || true)
+unit_fail=$(printf '%s\n' "$unit_out" | grep -c '^  FAIL - ' || true)
+PASS=$((PASS + unit_pass))
+FAIL=$((FAIL + unit_fail))
+case "$unit_out" in *"UNIT $unit_pass passed, 0 failed"*) ;; *) bad "unit harness completed cleanly"; printf '%s\n' "$unit_out" | tail -5 ;; esac
 
-assert_eq() {
-    local expected="$1"
-    local actual="$2"
-    local label="$3"
+echo "[confirm] scripted stdin answers"
+for answer in y Y yes YES; do
+	if printf '%s\n' "$answer" | perl -e 'require $ARGV[0]; exit(main::confirm("Q?") ? 0 : 1)' "$PROG" 2>/dev/null; then
+		ok "confirm accepts $answer"
+	else
+		bad "confirm accepts $answer"
+	fi
+done
+for answer in n no '' maybe; do
+	if printf '%s\n' "$answer" | perl -e 'require $ARGV[0]; exit(main::confirm("Q?") ? 0 : 1)' "$PROG" 2>/dev/null; then
+		bad "confirm rejects <$answer>"
+	else
+		ok "confirm rejects <$answer>"
+	fi
+done
+if perl -e 'require $ARGV[0]; exit(main::confirm("Q?") ? 0 : 1)' "$PROG" </dev/null 2>/dev/null; then
+	bad "confirm at EOF answers no"
+else
+	ok "confirm at EOF answers no"
+fi
 
-    if [[ "$actual" == "$expected" ]]; then
-        ok "$label"
-    else
-        bad "$label (expected <$expected>, got <$actual>)"
-    fi
-}
-
-assert_success() {
-    local label="$1"
-    shift
-
-    if "$@"; then
-        ok "$label"
-    else
-        bad "$label"
-    fi
-}
-
-assert_failure() {
-    local label="$1"
-    shift
-
-    if "$@"; then
-        bad "$label"
-    else
-        ok "$label"
-    fi
-}
-
-array_contains() {
-    local needle="$1"
-    shift
-    local item
-
-    for item in "$@"; do
-        [[ "$item" == "$needle" ]] && return 0
-    done
-    return 1
-}
-
-echo "[inventory] installed-status filtering"
-dpkg-query() {
-    printf '%s\n' \
-        $'linux-image-6.1.0-1-amd64\t6.1.1\tii ' \
-        $'linux-image-6.1.0-2-amd64\t6.1.2\trc ' \
-        $'linux-image-unsigned-6.1.0-3-amd64\t6.1.3\thi ' \
-        $'linux-image-amd64\t6.1.3\tii '
-}
-inventory="$(query_installed_kernel_records)"
-assert_eq $'linux-image-6.1.0-1-amd64\t6.1.1\nlinux-image-unsigned-6.1.0-3-amd64\t6.1.3' \
-    "$inventory" "only fully installed concrete signed/unsigned images survive"
-unset -f dpkg-query
-
-echo "[retention] newest two plus running"
-query_installed_kernel_records() {
-    printf '%s\n' \
-        $'linux-image-6.1.0-1-amd64\t6.1.1' \
-        $'linux-image-6.1.0-2-amd64\t6.1.2' \
-        $'linux-image-6.1.0-3-amd64\t6.1.3'
-}
-boot_artifact_exists() {
-    [[ "$1" != "missing" ]]
-}
-load_installed_kernels
-assert_success "newest running kernel is recognized" select_protected_kernels "6.1.0-3-amd64"
-assert_eq "2" "${#protected_kernel_packages[@]}" "exactly two kernels protected when newest is running"
-assert_eq "linux-image-6.1.0-1-amd64" "${removable_kernel_packages[*]}" "oldest kernel is the only removal candidate"
-
-load_installed_kernels
-assert_success "older running kernel is recognized" select_protected_kernels "6.1.0-1-amd64"
-assert_eq "3" "${#protected_kernel_packages[@]}" "running kernel is retained in addition to newest two"
-assert_eq "0" "${#removable_kernel_packages[@]}" "no kernel is removable when all three are protected"
-
-load_installed_kernels
-assert_failure "missing running package blocks cleanup" select_protected_kernels "6.1.0-99-amd64"
-
-boot_artifact_exists() {
-    [[ "$1" != "6.1.0-2-amd64" ]]
-}
-load_installed_kernels
-assert_failure "missing protected boot artifact blocks cleanup" select_protected_kernels "6.1.0-3-amd64"
-
-echo "[purge list] exact release companions"
-boot_artifact_exists() { return 0; }
-load_installed_kernels
-select_protected_kernels "6.1.0-3-amd64"
-package_is_installed() {
-    case "$1" in
-        linux-image-6.1.0-1-amd64|linux-headers-6.1.0-1-amd64|linux-modules-6.1.0-1-amd64)
-            return 0
-            ;;
-        *)
-            return 1
-            ;;
-    esac
-}
-build_kernel_purge_list
-assert_success "old image included" array_contains "linux-image-6.1.0-1-amd64" "${kernel_purge_packages[@]}"
-assert_success "old modules included" array_contains "linux-modules-6.1.0-1-amd64" "${kernel_purge_packages[@]}"
-assert_failure "protected image excluded" array_contains "linux-image-6.1.0-3-amd64" "${kernel_purge_packages[@]}"
-assert_failure "shared ABI header is not guessed" array_contains "linux-headers-6.1.0-1" "${kernel_purge_packages[@]}"
-
-echo "[transaction policy] boot-critical removals"
-assert_success "kernel image is boot critical" is_boot_critical_package "linux-image-6.1.0-1-amd64"
-assert_success "kernel modules are boot critical" is_boot_critical_package "linux-modules-6.1.0-1-amd64"
-assert_success "GRUB is boot critical" is_boot_critical_package "grub-efi-amd64"
-assert_success "initramfs tools are boot critical" is_boot_critical_package "initramfs-tools-core"
-assert_failure "ordinary orphan is not boot critical" is_boot_critical_package "orphaned-library"
-
-APT_SIMULATION=""
-APT_LOG=""
-CONFIRM_RESULT=0
-apt-get() {
-    if [[ "${1:-}" == -s ]]; then
-        printf '%s\n' "$APT_SIMULATION"
-        return 0
-    fi
-    APT_LOG+="$*|"
-}
-confirm() {
-    return "$CONFIRM_RESULT"
-}
-
-APT_SIMULATION=$'Inst package-a\nRemv linux-image-6.1.0-1-amd64'
-APT_LOG=""
-run_full_upgrade >/dev/null 2>&1
-assert_eq "" "$APT_LOG" "full-upgrade is blocked for kernel removal"
-
-APT_SIMULATION=$'Inst package-a\nRemv obsolete-library'
-APT_LOG=""
-CONFIRM_RESULT=0
-run_full_upgrade >/dev/null 2>&1
-assert_eq "-y full-upgrade|" "$APT_LOG" "approved benign full-upgrade runs once"
-
-APT_LOG=""
-CONFIRM_RESULT=1
-run_full_upgrade >/dev/null 2>&1
-assert_eq "" "$APT_LOG" "declined full-upgrade does not execute"
-
-APT_SIMULATION=$'Remv linux-modules-6.1.0-1-amd64'
-APT_LOG=""
-CONFIRM_RESULT=0
-run_autoremove >/dev/null 2>&1
-assert_eq "" "$APT_LOG" "autoremove is blocked for kernel modules"
-
-APT_SIMULATION=$'Remv orphaned-library'
-APT_LOG=""
-run_autoremove >/dev/null 2>&1
-assert_eq "-y autoremove --purge|" "$APT_LOG" "approved benign autoremove runs once"
-
-echo "[rc kernels] removed-but-not-purged sweep"
-RC_FIXTURE=$'linux-image-6.1.0-1-amd64\trc \nlinux-image-6.1.0-3-amd64\tii \nlinux-modules-6.1.0-1-amd64\trc \nlinux-modules-extra-6.1.0-0-amd64\trc \nlinux-image-unsigned-6.1.0-9-amd64:amd64\trc \nlinux-image-6.1.0-4-amd64\tiU \nlinux-image-6.1.0-5-amd64\trc \nlinux-image-amd64\tii '
-dpkg-query() { printf '%s\n' "$RC_FIXTURE"; }
-assert_eq $'linux-image-6.1.0-1-amd64\nlinux-modules-6.1.0-1-amd64\nlinux-modules-extra-6.1.0-0-amd64\nlinux-image-unsigned-6.1.0-9-amd64\nlinux-image-6.1.0-5-amd64' \
-    "$(query_rc_kernel_packages)" "only exact rc-state image/modules packages are listed, arch suffix stripped"
-assert_eq "6.1.0-0-amd64" "$(rc_kernel_release_for_package linux-modules-extra-6.1.0-0-amd64)" "modules-extra release is parsed"
-assert_eq "6.1.0-9-amd64" "$(rc_kernel_release_for_package linux-image-unsigned-6.1.0-9-amd64)" "unsigned image release is parsed"
-load_rc_kernel_packages "6.1.0-5-amd64"
-assert_failure "an rc package named for the running kernel is never listed" array_contains "linux-image-6.1.0-5-amd64" "${rc_kernel_packages[@]}"
-assert_eq "4" "${#rc_kernel_packages[@]}" "the other rc packages are listed"
-
-DPKG_LOG=""
-dpkg() { DPKG_LOG+="$*|"; }
-uname() { printf '6.1.0-3-amd64\n'; }
-CONFIRM_RESULT=0
-run_rc_kernel_cleanup >/dev/null 2>&1
-assert_eq "--purge linux-image-6.1.0-1-amd64 linux-modules-6.1.0-1-amd64 linux-modules-extra-6.1.0-0-amd64 linux-image-unsigned-6.1.0-9-amd64 linux-image-6.1.0-5-amd64|" "$DPKG_LOG" "confirmed rc sweep purges every rc kernel package once, not blocked as boot-critical"
-DPKG_LOG=""
-CONFIRM_RESULT=1
-run_rc_kernel_cleanup >/dev/null 2>&1
-assert_eq "" "$DPKG_LOG" "declined rc sweep executes nothing"
-RC_FIXTURE=$'linux-image-6.1.0-3-amd64\tii '
-DPKG_LOG=""
-CONFIRM_RESULT=0
-run_rc_kernel_cleanup >/dev/null 2>&1
-assert_eq "" "$DPKG_LOG" "no rc packages: nothing executes even when confirm would accept"
-unset -f dpkg-query dpkg uname
-
-echo "[archive cleanup] Del-format parser (the autoclean trap)"
-assert_success "Del-format preview is recognised as archive work" \
-    archive_transaction_has_changes $'Del chatgpt 26.818.61809 [389 MB]'
-assert_failure "Inst/Remv-only preview is not treated as archive work" \
-    archive_transaction_has_changes $'Inst package-a\nRemv obsolete-library'
-
-echo "[archive cleanup] run_apt_cache_cleanup stages"
-du() { printf '1.0K\t%s\n' "$1"; }
-
-# confirm() is queue-driven here so the two independent confirms (autoclean,
-# then clean) can be scripted separately per test case.
-declare -a CONFIRM_QUEUE=()
-confirm() {
-    local result="${CONFIRM_QUEUE[0]:-1}"
-    CONFIRM_QUEUE=("${CONFIRM_QUEUE[@]:1}")
-    return "$result"
-}
-
-APT_SIMULATION=""
-APT_LOG=""
-CONFIRM_QUEUE=(1)
-run_apt_cache_cleanup >/dev/null 2>&1
-assert_eq "" "$APT_LOG" "empty/no-op preview plus declined clean: nothing executes"
-
-APT_SIMULATION=$'Del chatgpt 26.818.61809 [389 MB]'
-APT_LOG=""
-CONFIRM_QUEUE=(0 1)
-run_apt_cache_cleanup >/dev/null 2>&1
-assert_eq "-y autoclean|" "$APT_LOG" "confirmed autoclean runs apt-get -y autoclean exactly once"
-
-APT_SIMULATION=$'Del chatgpt 26.818.61809 [389 MB]'
-APT_LOG=""
-CONFIRM_QUEUE=(1 1)
-run_apt_cache_cleanup >/dev/null 2>&1
-assert_eq "" "$APT_LOG" "declined autoclean executes nothing"
-
-APT_SIMULATION=$'Del chatgpt 26.818.61809 [389 MB]'
-APT_LOG=""
-CONFIRM_QUEUE=(0 1)
-run_apt_cache_cleanup >/dev/null 2>&1
-case "$APT_LOG" in
-    *autoclean*clean*) bad "clean must not run before its own separate confirm (log: $APT_LOG)" ;;
-    *autoclean*) ok "clean runs only after its own separate confirm" ;;
-    *) bad "expected autoclean in log, got: $APT_LOG" ;;
-esac
-
-APT_SIMULATION=$'Del chatgpt 26.818.61809 [389 MB]'
-APT_LOG=""
-CONFIRM_QUEUE=(0 0)
-run_apt_cache_cleanup >/dev/null 2>&1
-assert_eq "-y autoclean|-y clean|" "$APT_LOG" "confirming both runs autoclean then clean, in that order"
-
-echo "[journal cleanup] run_journal_cleanup"
-JOURNAL_LOG=""
-JOURNAL_USAGE_RC=0
-journalctl() {
-    if [[ "$1" == --disk-usage ]]; then
-        printf 'Archived and active journals take up 633.4M in the file system.\n'
-        return "$JOURNAL_USAGE_RC"
-    fi
-    JOURNAL_LOG+="$*|"
-}
-
-CONFIRM_QUEUE=(1)
-run_journal_cleanup >/dev/null 2>&1
-assert_eq "" "$JOURNAL_LOG" "declined journal vacuum executes nothing"
-
-JOURNAL_LOG=""
-CONFIRM_QUEUE=(0)
-run_journal_cleanup >/dev/null 2>&1
-assert_eq "--vacuum-size=200M|" "$JOURNAL_LOG" "confirmed journal vacuum runs --vacuum-size at the cap exactly once"
-
-JOURNAL_LOG=""
-JOURNAL_USAGE_RC=1
-CONFIRM_QUEUE=(0)
-run_journal_cleanup >/dev/null 2>&1
-assert_eq "" "$JOURNAL_LOG" "unreadable journal usage skips the vacuum even when confirm would accept"
-JOURNAL_USAGE_RC=0
-
-unset -f journalctl
-CONFIRM_QUEUE=(0)
-JOURNAL_OUT="$(PATH=/nonexistent run_journal_cleanup 2>&1)"
-case "$JOURNAL_OUT" in
-    *"journalctl not found"*) ok "missing journalctl skips the stage" ;;
-    *) bad "missing journalctl should skip (got: $JOURNAL_OUT)" ;;
-esac
-
+# ---- --report as a subprocess ------------------------------------------------
+# stdin/stdout are redirected, so neither is a terminal: proves no TTY is needed and
+# that stdout carries the JSON object alone. apt/apt-get/dpkg-query are PATH stubs.
 echo "[report mode] --report posture JSON (stubbed apt/apt-get on PATH)"
-
-# Unlike the source-and-stub cases above, --report is exercised as a real
-# subprocess: that is the only way to prove it needs neither root nor a TTY
-# (stdin/stdout are redirected here, so neither is a terminal) and that stdout
-# carries the JSON object alone. `apt`/`apt-get` are stubbed as executables in
-# a PATH prefix directory -- no real apt is ever consulted.
-REPORT_STUB_DIR=""
-
+STUBS="$SANDBOX/stubs"
 make_report_stubs() {
-    REPORT_STUB_DIR="$(mktemp -d)"
-    printf '#!/usr/bin/env bash\n%s\n' "$1" > "$REPORT_STUB_DIR/apt"
-    printf '#!/usr/bin/env bash\n%s\n' "$2" > "$REPORT_STUB_DIR/apt-get"
-    printf '#!/usr/bin/env bash\n%s\n' "${3:-true}" > "$REPORT_STUB_DIR/dpkg-query"
-    chmod +x "$REPORT_STUB_DIR/apt" "$REPORT_STUB_DIR/apt-get" "$REPORT_STUB_DIR/dpkg-query"
+	rm -rf "$STUBS"
+	mkdir -p "$STUBS"
+	printf '#!/bin/sh\n%s\n' "$1" > "$STUBS/apt"
+	printf '#!/bin/sh\n%s\n' "$2" > "$STUBS/apt-get"
+	printf '#!/bin/sh\n%s\n' "${3:-true}" > "$STUBS/dpkg-query"
+	chmod +x "$STUBS/apt" "$STUBS/apt-get" "$STUBS/dpkg-query"
 }
-
 json_field() {
-    local json="$1"
-    local key="$2"
-
-    if [[ "$json" =~ \"$key\":(-?[0-9]+|true|false) ]]; then
-        printf '%s\n' "${BASH_REMATCH[1]}"
-    else
-        printf '%s\n' "MISSING"
-    fi
-}
-
-run_maintenance_quiet() {
-    PATH="$REPORT_STUB_DIR:$PATH" bash "$HERE/../debian-maintenance.sh" "$@" \
-        >/dev/null 2>&1 </dev/null
+	v=$(printf '%s\n' "$1" | sed -n "s/.*\"$2\":\(-\{0,1\}[0-9][0-9]*\|true\|false\).*/\1/p")
+	printf '%s\n' "${v:-MISSING}"
 }
 
 make_report_stubs \
-    'printf "Listing...\n"
+	'printf "Listing...\n"
 printf "libfoo/stable 1.2 amd64 [upgradable from: 1.1]\n"
 printf "libbar/stable-security 2.0 amd64 [upgradable from: 1.9]\n"
 printf "libbaz/stable 3.0 amd64 [upgradable from: 2.9]\n"' \
-    'printf "Reading package lists...\n"
+	'printf "Reading package lists...\n"
 printf "Remv orphan-one [1.0]\n"
 printf "Remv orphan-two [2.0]\n"' \
-    'printf "linux-image-6.1.0-1-amd64\trc \nlinux-modules-6.1.0-1-amd64\trc \nlinux-image-6.1.0-3-amd64\tii \n"'
+	'printf "linux-image-6.1.0-1-amd64\trc \nlinux-modules-6.1.0-1-amd64\trc \nlinux-image-6.1.0-3-amd64\tii \n"'
 
-REPORT_JSON="$(PATH="$REPORT_STUB_DIR:$PATH" bash "$HERE/../debian-maintenance.sh" --report </dev/null 2>/dev/null)"
-assert_eq "3" "$(json_field "$REPORT_JSON" upgradable)" "upgradable counts package lines, not the Listing banner"
-assert_eq "1" "$(json_field "$REPORT_JSON" securityUpgradable)" "securityUpgradable counts only -security suites"
-assert_eq "2" "$(json_field "$REPORT_JSON" autoremovable)" "autoremovable counts simulated Remv lines"
-assert_eq "2" "$(json_field "$REPORT_JSON" rcKernels)" "rcKernels counts rc-state kernel packages only"
+REPORT_JSON=$(PATH="$STUBS:$PATH" sh "$SHIM" --report </dev/null 2>/dev/null)
+assert_eq 3 "$(json_field "$REPORT_JSON" upgradable)" "upgradable counts package lines, not the Listing banner"
+assert_eq 1 "$(json_field "$REPORT_JSON" securityUpgradable)" "securityUpgradable counts only -security suites"
+assert_eq 2 "$(json_field "$REPORT_JSON" autoremovable)" "autoremovable counts simulated Remv lines"
+assert_eq 2 "$(json_field "$REPORT_JSON" rcKernels)" "rcKernels counts rc-state kernel packages only"
 case "$REPORT_JSON" in
-    '{"host":"'*'","indexAgeSeconds":'*',"upgradable":'*'}') ok "stdout is exactly one JSON object, host first" ;;
-    *) bad "stdout is exactly one JSON object, host first (got <$REPORT_JSON>)" ;;
+	'{"host":"'*'","indexAgeSeconds":'*',"upgradable":'*'}') ok "stdout is exactly one JSON object, host first" ;;
+	*) bad "stdout is exactly one JSON object, host first (got <$REPORT_JSON>)" ;;
 esac
 case "$(json_field "$REPORT_JSON" indexAgeSeconds)" in
-    MISSING) bad "indexAgeSeconds is an integer age or -1" ;;
-    *) ok "indexAgeSeconds is an integer age or -1" ;;
+	MISSING) bad "indexAgeSeconds is an integer age or -1" ;;
+	*) ok "indexAgeSeconds is an integer age or -1" ;;
 esac
 case "$(json_field "$REPORT_JSON" rebootRequired)" in
-    true|false) ok "rebootRequired is a JSON boolean" ;;
-    *) bad "rebootRequired is a JSON boolean (got <$REPORT_JSON>)" ;;
+	true|false) ok "rebootRequired is a JSON boolean" ;;
+	*) bad "rebootRequired is a JSON boolean (got <$REPORT_JSON>)" ;;
 esac
 # shellcheck disable=SC2016  # perl program, not shell expansion
-assert_success "report output parses as a 7-key JSON object" perl -MJSON::PP -e \
-    'my $d = eval { decode_json($ARGV[0]) }; exit((ref($d) eq "HASH" && keys(%$d) == 7) ? 0 : 1)' \
-    "$REPORT_JSON"
-rm -rf "$REPORT_STUB_DIR"
+KEYCHECK='my $d = eval { decode_json($ARGV[0]) }; exit((ref($d) eq "HASH" && join(",", sort keys %$d) eq "autoremovable,host,indexAgeSeconds,rcKernels,rebootRequired,securityUpgradable,upgradable") ? 0 : 1)'
+if perl -MJSON::PP -e "$KEYCHECK" "$REPORT_JSON"; then ok "report output parses as a 7-key JSON object"; else bad "report output parses as a 7-key JSON object"; fi
+
+# Pipe protocol: the program alone on stdin, from an unrelated cwd, gives the same object.
+PIPE_JSON=$(cd "$SANDBOX" && PATH="$STUBS:$PATH" perl - --report < "$PROG" 2>/dev/null)
+assert_eq "$REPORT_JSON" "$(printf '%s\n' "$PIPE_JSON" | sed 's/"indexAgeSeconds":[-0-9]*/"indexAgeSeconds":X/' | sed "s/X/$(json_field "$REPORT_JSON" indexAgeSeconds)/")" "perl - --report with the source on stdin prints the same object"
 
 make_report_stubs 'printf "Listing...\n"' 'printf "Reading package lists...\n"'
-REPORT_JSON="$(PATH="$REPORT_STUB_DIR:$PATH" bash "$HERE/../debian-maintenance.sh" --report </dev/null 2>/dev/null)"
-assert_success "a clean host still exits 0" run_maintenance_quiet --report
-assert_eq "0" "$(json_field "$REPORT_JSON" upgradable)" "header-only apt output reports zero upgradable"
-assert_eq "0" "$(json_field "$REPORT_JSON" securityUpgradable)" "header-only apt output reports zero security upgradable"
-assert_eq "0" "$(json_field "$REPORT_JSON" autoremovable)" "no Remv lines reports zero autoremovable"
-assert_eq "0" "$(json_field "$REPORT_JSON" rcKernels)" "no rc kernels reports zero rcKernels"
+REPORT_JSON=$(PATH="$STUBS:$PATH" sh "$SHIM" --report </dev/null 2>/dev/null) && rc=0 || rc=$?
+assert_eq 0 "$rc" "a clean host still exits 0"
+assert_eq 0 "$(json_field "$REPORT_JSON" upgradable)" "header-only apt output reports zero upgradable"
+assert_eq 0 "$(json_field "$REPORT_JSON" securityUpgradable)" "header-only apt output reports zero security upgradable"
+assert_eq 0 "$(json_field "$REPORT_JSON" autoremovable)" "no Remv lines reports zero autoremovable"
+assert_eq 0 "$(json_field "$REPORT_JSON" rcKernels)" "no rc kernels reports zero rcKernels"
 
-assert_failure "an unknown flag is a usage error" run_maintenance_quiet --bogus
-USAGE_STDERR="$(PATH="$REPORT_STUB_DIR:$PATH" bash "$HERE/../debian-maintenance.sh" --bogus </dev/null 2>&1 >/dev/null || true)"
-case "$USAGE_STDERR" in
-    *"usage: "*"[--report]"*) ok "the usage message advertises the optional --report argument" ;;
-    *) bad "the usage message advertises the optional --report argument (got <$USAGE_STDERR>)" ;;
-esac
-rm -rf "$REPORT_STUB_DIR"
-
-echo "[self-elevation] non-root interactive run re-execs under sudo"
-
-# `util debian-maintenance` reaches this script through an alias, so a non-root
-# run must re-exec itself by absolute path under sudo rather than only telling
-# the user to. A stub `sudo` on PATH records its argv instead of elevating; a
-# PATH without any sudo must still fail with the manual hint.
-if ((EUID == 0)); then
-    ok "self-elevation (skipped: suite running as root)"
+if PATH="$STUBS:$PATH" sh "$SHIM" --bogus </dev/null >/dev/null 2>&1; then
+	bad "an unknown flag is a usage error"
 else
-    SUDO_STUB_DIR="$(mktemp -d)"
-    printf '#!/usr/bin/env bash\nprintf "SUDO %%s\\n" "$*"\n' > "$SUDO_STUB_DIR/sudo"
-    chmod +x "$SUDO_STUB_DIR/sudo"
-    SCRIPT_ABS="$(realpath "$HERE/../debian-maintenance.sh")"
-    SUDO_OUT="$(PATH="$SUDO_STUB_DIR:$PATH" bash "$HERE/../debian-maintenance.sh" </dev/null 2>&1)"
-    assert_eq "SUDO -- $SCRIPT_ABS" "$SUDO_OUT" "a non-root run re-execs the absolute script path under sudo"
+	ok "an unknown flag is a usage error"
+fi
+USAGE_STDERR=$(PATH="$STUBS:$PATH" sh "$SHIM" --bogus </dev/null 2>&1 >/dev/null || true)
+case "$USAGE_STDERR" in
+	*"usage: "*"[--report]"*) ok "the usage message advertises the optional --report argument" ;;
+	*) bad "the usage message advertises the optional --report argument (got <$USAGE_STDERR>)" ;;
+esac
+if PATH="$STUBS:$PATH" sh "$SHIM" --report --report </dev/null >/dev/null 2>&1; then
+	bad "more than one argument is a usage error"
+else
+	ok "more than one argument is a usage error"
+fi
+HELP_OUT=$(sh "$SHIM" --help </dev/null 2>/dev/null) && rc=0 || rc=$?
+case "$rc:$HELP_OUT" in
+	"0:usage: debian-maintenance.sh [--report]"*) ok "--help prints usage on stdout and exits 0" ;;
+	*) bad "--help prints usage on stdout and exits 0 (got <$rc:$HELP_OUT>)" ;;
+esac
 
-    EMPTY_PATH_DIR="$(mktemp -d)"
-    NOSUDO_ERR="$(PATH="$EMPTY_PATH_DIR" "$BASH" "$HERE/../debian-maintenance.sh" </dev/null 2>&1 || true)"
-    case "$NOSUDO_ERR" in
-        *"Run as root, e.g.: sudo "*) ok "without sudo on PATH a non-root run fails with the manual hint" ;;
-        *) bad "without sudo on PATH a non-root run fails with the manual hint (got <$NOSUDO_ERR>)" ;;
-    esac
-    rm -rf "$SUDO_STUB_DIR" "$EMPTY_PATH_DIR"
+# ---- self-elevation ------------------------------------------------------------
+# `util debian-maintenance` reaches the shim through an alias, so a non-root run must re-exec
+# the shim by absolute path under sudo. A stub `sudo` records its argv instead of elevating;
+# a PATH without sudo must still fail with the manual hint.
+echo "[self-elevation] non-root interactive run re-execs under sudo"
+if [ "$(id -u)" -eq 0 ]; then
+	ok "self-elevation (skipped: suite running as root)"
+else
+	mkdir -p "$SANDBOX/sudo"
+	printf '#!/bin/sh\nprintf "SUDO %%s\\n" "$*"\n' > "$SANDBOX/sudo/sudo"
+	chmod +x "$SANDBOX/sudo/sudo"
+	SHIM_ABS=$(readlink -f "$SHIM")
+	SUDO_OUT=$(PATH="$SANDBOX/sudo:$PATH" sh "$SHIM" </dev/null 2>&1)
+	assert_eq "SUDO -- $SHIM_ABS" "$SUDO_OUT" "a non-root run re-execs the absolute shim path under sudo"
+	mkdir -p "$SANDBOX/empty"
+	PERL_BIN=$(command -v perl)
+	NOSUDO_ERR=$(DEBIAN_MAINTENANCE_SHIM="$SHIM_ABS" PATH="$SANDBOX/empty" "$PERL_BIN" "$PROG" </dev/null 2>&1 || true)
+	case "$NOSUDO_ERR" in
+		*"Run as root, e.g.: sudo "*) ok "without sudo on PATH a non-root run fails with the manual hint" ;;
+		*) bad "without sudo on PATH a non-root run fails with the manual hint (got <$NOSUDO_ERR>)" ;;
+	esac
 fi
 
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
-((FAIL == 0))
+[ "$FAIL" -eq 0 ]

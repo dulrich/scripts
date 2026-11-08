@@ -41,7 +41,8 @@ for shell_file in "${shell_files[@]}"; do
 done
 
 section 'Debian maintenance smoke'
-bash util/tests/debian-maintenance.sh
+perl -wc util/debian-maintenance/debian-maintenance.pl
+sh util/tests/debian-maintenance.sh
 
 section 'util router smoke'
 bash util/tests/util-router.sh
