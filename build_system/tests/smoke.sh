@@ -81,7 +81,10 @@ assert_true() {
 #    carried into the generated project, alongside _build.c.
 # ---------------------------------------------------------------------------
 proj="$fixture/proj"
-bash "$ROOT/mkproject.sh" -x smoke "$proj"
+# Run from the fixture: mkproject resolves the -x exe name against the cwd, and a
+# cwd inside the repo checkout leaks that path into the generated .gitignore
+# (a cwd-dependent failure of the self-containment check below).
+(cd "$fixture" && bash "$ROOT/mkproject.sh" -x smoke "$proj")
 
 if [[ -f "$proj/_build.c" && -d "$proj/parts" ]]; then
 	ok "generated layout carries _build.c and a parts/ directory"
