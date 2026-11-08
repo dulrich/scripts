@@ -142,12 +142,13 @@ TXT
 
 ### guards ####################################################################
 
-# usage_error: exit status 1, as the bash CLI really exits (its die fails under set -e before
-# its `return 2` is reached; only a rejected --docker-until window exits 2 there).
+# usage_error: exit status 2, like every usage error (unknown flag, --docker-until without a
+# value, a rejected window). The message is the bash wording; the bash CLI's exit 1 here is a
+# bug (its `return 2` is unreachable under set -e) this port does not copy.
 sub usage_error {
 	CachePrune::Core::die_msg('usage: ' . prog_name()
 		. ' [--report|--yes] [--include-purge] [--docker-until <window>] [-h|--help]');
-	return 1;
+	return 2;
 }
 
 # set_docker_until($window) -> 1 accepted, 0 rejected (message printed, window untouched).
@@ -329,8 +330,8 @@ sub print_total {
 	print "Total counts every byte present, including any runtime with no verb; the safe- and purge-tier figures are separate per-verb estimates and are never summed into one number; the observed footprint change is what was actually measured before/after acting, not a prediction.\n";
 }
 
-# main(@args) -> exit status: 0 ok; 1 a runtime failed, root, no TTY or a usage error; 2 an
-# invalid --docker-until window (the bash CLI's exact statuses).
+# main(@args) -> exit status: 0 ok; 1 a runtime failed, root or no TTY; 2 a usage error (an
+# unknown flag, --docker-until without a value or with an invalid window).
 sub main {
 	my @args = @_;
 	$CachePrune::Core::MODE = 'interactive';

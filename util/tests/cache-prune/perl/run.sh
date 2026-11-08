@@ -1,9 +1,9 @@
 #!/bin/sh
 # CC0: This work has been marked as dedicated to the public domain.
 # Hermetic regression tests for util/cache-prune/perl/cache-prune.pl (the perl port, side by
-# side with util/cache-prune.sh). Core logic runs in-process via unit.pl (faked command seam);
+# side with util/cache-prune.sh). Core logic runs in-process via unit.pl and docker.pl (faked seams);
 # the CLI, the fleet-module seam and byte parity with the bash tool run as real subprocesses
-# with stub uv/npm/pip/bun/cargo/docker executables on PATH, inside a mktemp sandbox.
+# with stub uv/npm/pip/bun/cargo/docker/gio executables on PATH, inside a mktemp sandbox.
 for _a in "$@"; do case "$_a" in --help|-h)
 	printf 'usage: %s %s\n' "${0##*/}" ''
 	printf '%s\n' 'Hermetic regression tests for util/cache-prune/perl/cache-prune.pl; takes no arguments.'
@@ -35,14 +35,16 @@ assert_has() { case "$1" in *"$2"*) ok "$3" ;; *) bad "$3 (expected <$2> in <$1>
 assert_hasnt() { case "$1" in *"$2"*) bad "$3 (did not expect <$2> in <$1>)" ;; *) ok "$3" ;; esac; }
 
 # ---- in-process unit cases -------------------------------------------------
-mkdir "$SANDBOX/unit"
-unit_out=$(perl "$HERE/unit.pl" "$PROG" "$SANDBOX/unit" 2>&1) || true
+for unit in unit docker; do
+rm -rf "$SANDBOX/unit"; mkdir "$SANDBOX/unit"
+unit_out=$(perl "$HERE/$unit.pl" "$PROG" "$SANDBOX/unit" "$HERE/../fixtures/docker-residue" 2>&1) || true
 printf '%s\n' "$unit_out" | grep -v '^UNIT '
 unit_pass=$(printf '%s\n' "$unit_out" | grep -c '^  ok   - ' || true)
 unit_fail=$(printf '%s\n' "$unit_out" | grep -c '^  FAIL - ' || true)
 PASS=$((PASS + unit_pass))
 FAIL=$((FAIL + unit_fail))
-case "$unit_out" in *"UNIT "*" passed, "*" failed"*) ;; *) bad "unit.pl ran to completion" ;; esac
+case "$unit_out" in *"UNIT "*" passed, "*" failed"*) ;; *) bad "$unit.pl ran to completion" ;; esac
+done
 
 # ---- subprocess sandbox ----------------------------------------------------
 STUBS="$SANDBOX/stubs"
@@ -52,8 +54,9 @@ export STUB_LOG="$SANDBOX/stub.log"
 export STUB_UV_DIR="$SANDBOX/uv-cache" STUB_NPM_DIR="$SANDBOX/npm-cache" STUB_PIP_DIR="$SANDBOX/pip-cache"
 export BUN_INSTALL="$SANDBOX/bun-install" CARGO_HOME="$SANDBOX/cargo-home"
 export CACHE_PRUNE_FLEET_DIR="$SANDBOX/empty-fleet" FLEET_TEST_DIR="$SANDBOX/empty-fleet"
-# The bash tool's docker and trash runtimes must never reach the host: docker is a stub that
-# fails `docker info` (daemon not reachable), the trash dir is absent and gio is a missing path.
+# Neither tool's docker or trash runtime may reach the host: docker is a stub that fails
+# `docker info` (daemon not reachable) unless a case swaps in the fixture docker, the trash dir
+# is absent and gio is a missing path unless a case points them into the sandbox.
 export CACHE_PRUNE_TRASH_DIR="$SANDBOX/absent-trash" CACHE_PRUNE_GIO="$SANDBOX/no-such-gio"
 unset CACHE_PRUNE_REPO_ROOT CACHE_PRUNE_SHIM 2>/dev/null || true
 
@@ -87,17 +90,10 @@ fixture() {
 	: > "$STUB_LOG"
 }
 
-# strip_sections <names...>: drop "==== <name> ====" sections (header through the line
-# before the next header) from stdin.
-strip_sections() {
-	awk -v names=" $* " '/^==== .* ====$/ { n = $2; skip = (index(names, " " n " ") > 0) }
-		!skip { print }' | awk 'NR > 1 && prev == "" && $0 == "" { next } { print; prev = $0 }'
-}
-
 run_perl() { perl "$PROG" "$@" </dev/null; }
 run_bash() { bash "$BASH_TOOL" "$@" </dev/null; }
 
-echo "[parity] uv/npm/pip/bun/cargo output is byte-identical to the bash tool"
+echo "[parity] the whole report (docker daemon down, trash absent) is byte-identical to the bash tool"
 for args in "--report" "--report --include-purge" "--yes" "--yes --include-purge"; do
 	fixture
 	# shellcheck disable=SC2086 # word-split the flag set on purpose
@@ -108,12 +104,12 @@ for args in "--report" "--report --include-purge" "--yes" "--yes --include-purge
 	p_rc=0; run_perl $args > "$SANDBOX/p.out" 2> "$SANDBOX/p.err" || p_rc=$?
 	cp "$STUB_LOG" "$SANDBOX/p.log"
 	assert_eq "$b_rc" "$p_rc" "$args: exit status matches the bash tool ($b_rc)"
-	b_cmp=$(strip_sections docker trash < "$SANDBOX/b.out")
+	b_cmp=$(cat "$SANDBOX/b.out")
 	p_cmp=$(cat "$SANDBOX/p.out")
-	if [ "$b_cmp" = "$p_cmp" ]; then ok "$args: stdout is byte-identical once the bash-only docker/trash sections are dropped"
+	if [ "$b_cmp" = "$p_cmp" ]; then ok "$args: stdout is byte-identical, docker and trash sections included"
 	else bad "$args: stdout parity"; diff "$SANDBOX/b.out" "$SANDBOX/p.out" | head -20 || true; fi
 	assert_eq "$(cat "$SANDBOX/b.err")" "$(cat "$SANDBOX/p.err")" "$args: stderr matches"
-	assert_eq "$(grep -v '^docker ' "$SANDBOX/b.log")" "$(cat "$SANDBOX/p.log")" "$args: the same tool calls, in the same order"
+	assert_eq "$(cat "$SANDBOX/b.log")" "$(cat "$SANDBOX/p.log")" "$args: the same tool calls, in the same order"
 done
 assert_has "$p_cmp" "uv: observed footprint change: 5.0KB (5096 bytes)" "a real purge reports the measured delta"
 assert_has "$p_cmp" "cargo: observed footprint change: 4.9KB (5000 bytes)" "cargo's purge frees registry/src only"
@@ -125,7 +121,119 @@ fixture
 p_rc=0; STUB_UV_PRUNE_RC=1 run_perl --yes > "$SANDBOX/p.out" 2> "$SANDBOX/p.err" || p_rc=$?
 assert_eq "1 1" "$b_rc $p_rc" "a failed safe verb exits 1 in both tools"
 assert_eq "WARNING: uv: prune failed" "$(cat "$SANDBOX/p.err")" "the failure warning is the bash wording"
-assert_eq "$(strip_sections docker trash < "$SANDBOX/b.out")" "$(cat "$SANDBOX/p.out")" "the partial-result output matches the bash tool"
+assert_eq "$(cat "$SANDBOX/b.out")" "$(cat "$SANDBOX/p.out")" "the partial-result output matches the bash tool"
+
+# ---- docker + trash parity, against a fixture docker and a gio stub -----------------
+# The fixture docker answers every read the build-cache probe and the residue step make from
+# files under $DFIX, logs every call to STUB_LOG, and fakes every mutation (exit 0, nothing
+# real). STUB_DF_MODE: ok | fail (plain `system df` fails: buildx du fallback) | flip (plain
+# `system df` fails once a builder prune ran: a cross-source before/after pair).
+DFIX="$SANDBOX/docker-fix"
+DSTUBS="$SANDBOX/docker-stubs"
+mkdir -p "$DFIX" "$DSTUBS" "$SANDBOX/dr-root/homelab"
+: > "$SANDBOX/dr-root/homelab/compose.yml"
+cat > "$DSTUBS/docker" <<'STUB'
+#!/bin/sh
+printf 'docker %s\n' "$*" >> "$STUB_LOG"
+f="$DFIX"
+case "$*" in
+	info) ;;
+	"system df")
+		[ "${STUB_DF_MODE:-ok}" = fail ] && exit 1
+		[ "${STUB_DF_MODE:-ok}" = flip ] && grep -q '^docker builder prune' "$STUB_LOG" && exit 1
+		cat "$f/system-df.txt" ;;
+	"buildx du") cat "$f/buildx-du.txt" ;;
+	"builder prune"*) ;;
+	"system df -v --format json") cat "$f/volumes.json" ;;
+	"system df --format json") cat "$f/footprint.json" ;;
+	"compose version") ;;
+	"compose -f "*) cat "$f/compose.json" ;;
+	"images -q --no-trunc") cat "$f/image-ids.txt" ;;
+	"image inspect"*) cat "$f/images.json" ;;
+	"ps -aq --no-trunc") cat "$f/container-ids.txt" ;;
+	"ps -a --size"*) cat "$f/sizes.json" ;;
+	"container inspect"*) cat "$f/containers.json" ;;
+	"rm "*|"rmi "*|"volume rm "*) ;;
+	*) exit 1 ;;
+esac
+exit 0
+STUB
+cat > "$DSTUBS/gio" <<'STUB'
+#!/bin/sh
+printf 'gio %s\n' "$*" >> "$STUB_LOG"
+exit 0
+STUB
+chmod +x "$DSTUBS/docker" "$DSTUBS/gio"
+printf 'TYPE            TOTAL     ACTIVE    SIZE      RECLAIMABLE\nImages          12        4         3.2GB     1.1GB (34%%)\nBuild Cache     42        0         10GB      6GB (60%%)\n' > "$DFIX/system-df.txt"
+printf 'ID             RECLAIMABLE  SIZE       LAST ACCESSED\naaaa1111aaaa   true         2.5GB*     3 days ago\nShared:\t\t2.5GB\nPrivate:\t8GB\nReclaimable:\t4GB\nTotal:\t\t10GB\n' > "$DFIX/buildx-du.txt"
+printf '%s\n' '{"Volumes":[{"Name":"anon-a","Size":"2MB","Links":"0","Labels":"com.docker.volume.anonymous="},{"Name":"named-d","Size":"5MB","Links":"0","Labels":"com.docker.compose.project=p"},{"Name":"used","Size":"1kB","Links":"1","Labels":""}]}' > "$DFIX/volumes.json"
+printf '%s\n' '{"Type":"Images","Size":"40B"}' '{"Type":"Containers","Size":"1kB"}' '{"Type":"Local Volumes","Size":"5MB"}' > "$DFIX/footprint.json"
+printf '%s\n' '{"name":"homelab","services":{"web":{"image":"webapp-overlay:v0.11.4"}}}' > "$DFIX/compose.json"
+printf '%s\n' sha256:old sha256:old1 sha256:overlay sha256:ua sha256:ub > "$DFIX/image-ids.txt"
+printf '%s\n' '[{"Id":"sha256:old","RepoTags":["webapp-overlay:v0.11.3"],"Created":"2026-01-01T00:00:00Z","Size":5},{"Id":"sha256:old1","RepoTags":["webapp-overlay:v0.11.1"],"Created":"2025-12-01T00:00:00Z","Size":4},{"Id":"sha256:overlay","RepoTags":["webapp-overlay:v0.11.4"],"Created":"2026-09-01T00:00:00Z","Size":7},{"Id":"sha256:ua","RepoTags":["orphan-a:1"],"Created":"2026-02-01T00:00:00Z","Size":11},{"Id":"sha256:ub","RepoTags":[],"Created":"2026-02-01T00:00:00Z","Size":13}]' > "$DFIX/images.json"
+printf '%s\n' c1 > "$DFIX/container-ids.txt"
+printf '%s\n' '{"id":"c1","size":"1kB"}' > "$DFIX/sizes.json"
+printf '%s\n' '[{"Name":"/gone-x-1","Id":"c1","Image":"sha256:ua","Config":{"Image":"orphan-a:1","Labels":{"com.docker.compose.project":"gone","com.docker.compose.service":"x"}},"State":{"Status":"exited"},"Created":"2026-02-02T00:00:00Z"}]' > "$DFIX/containers.json"
+TRASH="$SANDBOX/trash"
+trash_fixture() { rm -rf "$TRASH"; mkdir -p "$TRASH/files/dir1" "$TRASH/info"; head -c 4096 /dev/zero > "$TRASH/files/a.bin"; head -c 8192 /dev/zero > "$TRASH/files/dir1/b.bin"; head -c 100 /dev/zero > "$TRASH/info/a.bin.trashinfo"; : > "$TRASH/files/.hidden"; }
+# dparity <label> <args...>: both tools on the fixture docker + gio; stdout, stderr, exit
+# status and the full tool-call log must match byte for byte.
+dparity() {
+	label=$1; shift
+	fixture; trash_fixture
+	b_rc=0; PATH="$DSTUBS:$PATH" CACHE_PRUNE_GIO=gio CACHE_PRUNE_TRASH_DIR="$TRASH" CACHE_PRUNE_REPO_ROOT="$SANDBOX/dr-root" DFIX="$DFIX" run_bash "$@" > "$SANDBOX/b.out" 2> "$SANDBOX/b.err" || b_rc=$?
+	cp "$STUB_LOG" "$SANDBOX/b.log"
+	fixture; trash_fixture
+	p_rc=0; PATH="$DSTUBS:$PATH" CACHE_PRUNE_GIO=gio CACHE_PRUNE_TRASH_DIR="$TRASH" CACHE_PRUNE_REPO_ROOT="$SANDBOX/dr-root" DFIX="$DFIX" run_perl "$@" > "$SANDBOX/p.out" 2> "$SANDBOX/p.err" || p_rc=$?
+	cp "$STUB_LOG" "$SANDBOX/p.log"
+	assert_eq "$b_rc" "$p_rc" "$label: exit status matches the bash tool ($b_rc)"
+	if [ "$(cat "$SANDBOX/b.out")" = "$(cat "$SANDBOX/p.out")" ]; then ok "$label: stdout is byte-identical, docker residue and trash included"
+	else bad "$label: stdout parity"; diff "$SANDBOX/b.out" "$SANDBOX/p.out" | head -20 || true; fi
+	assert_eq "$(cat "$SANDBOX/b.err")" "$(cat "$SANDBOX/p.err")" "$label: stderr matches"
+	assert_eq "$(cat "$SANDBOX/b.log")" "$(cat "$SANDBOX/p.log")" "$label: the same tool calls (docker and gio included), in the same order"
+	p_out=$(cat "$SANDBOX/p.out"); p_log=$(cat "$SANDBOX/p.log")
+}
+echo "[parity] docker build cache, residue and trash match the bash tool in every non-interactive mode"
+dparity "--report" --report
+assert_has "$p_out" "docker reclaimable via the safe verb (5.6GB, 6000000000 bytes)" "the system-df Build Cache row is the safe figure"
+assert_has "$p_out" "docker superseded images: 9.0B (9 bytes, 2 tags) (safe tier, upper bound: shared layers)" "the residue report runs under docker"
+assert_has "$p_out" "docker anonymous volumes: 1 dangling" "the anonymous volume line is reported"
+assert_has "$p_out" "trash: 3 items in files/ -- purge tier, interactive confirm only" "trash detail counts dot entries in files/"
+assert_hasnt "$p_log" "builder prune" "--report runs no build-cache verb"
+assert_hasnt "$p_log" "docker rm" "--report removes nothing"
+assert_hasnt "$p_log" "gio " "--report never invokes gio"
+dparity "--report --include-purge" --report --include-purge
+dparity "--yes" --yes
+assert_has "$p_log" "docker builder prune --force" "--yes runs the unfiltered safe verb"
+assert_has "$p_log" "docker rmi webapp-overlay:v0.11.1
+docker rmi webapp-overlay:v0.11.3" "--yes removes the superseded tags"
+assert_hasnt "$p_log" "docker rm " "--yes removes no stale container"
+assert_hasnt "$p_log" "volume rm" "--yes removes no volume"
+assert_has "$p_out" "skipped: 2 unreferenced images need a per-image interactive confirm" "--yes skips unreferenced images with the reason"
+assert_has "$p_out" "skipped: trash needs an interactive confirm" "--yes never empties trash"
+dparity "--yes --include-purge" --yes --include-purge
+assert_has "$p_log" "docker builder prune -a --force
+docker system df" "--yes --include-purge runs the purge verb instead of the safe verb"
+assert_has "$p_log" "docker rm gone-x-1" "stale containers are removed"
+assert_has "$p_log" "docker volume rm anon-a" "the pre-existing anonymous dangling volume is removed by name"
+assert_hasnt "$p_log" "named-d" "a named volume is never removed"
+assert_hasnt "$p_log" "gio " "--yes --include-purge still never empties trash"
+assert_has "$p_out" "docker images/containers/volumes: observed footprint change 0.0B (0 bytes)" "the residue step prints its own footprint line"
+dparity "--yes --docker-until 24h" --yes --docker-until 24h
+assert_has "$p_log" "docker builder prune --filter until=24h --force" "--docker-until narrows the safe verb"
+dparity "--yes --include-purge --docker-until=24h" --yes --include-purge --docker-until=24h
+assert_hasnt "$p_log" "until=" "--docker-until never filters the purge verb"
+STUB_DF_MODE=fail dparity "--yes (system df fails)" --yes
+assert_has "$p_out" "docker reclaimable via the safe verb (3.7GB, 4000000000 bytes)" "buildx du is the fallback size source"
+STUB_DF_MODE=flip dparity "--yes (source flips)" --yes
+assert_has "$p_out" "docker: observed footprint change: unavailable (docker size source changed between probes: system-df -> buildx-du)" "a cross-source pair reports the delta unavailable"
+for v in "500B 500" "512kB 512000" "2.5MB 2500000" "4GB 4000000000" "3TB 3000000000000" "1.5kB 1500" "0B 0"; do
+	tok=${v% *}; exp=${v#* }
+	got=$(printf '{"Type":"Images","Size":"%s"}\n{"Type":"Containers","Size":"0B"}\n{"Type":"Local Volumes","Size":"0B"}\n' "$tok" | perl "$HERE/../../../cache-prune/docker-residue.pl" footprint 2>&1)
+	assert_eq "$exp" "$got" "wrapper footprint (module hbytes): $tok is $exp bytes"
+done
+w_rc=0; perl "$HERE/../../../cache-prune/docker-residue.pl" bogus 2>/dev/null || w_rc=$?
+assert_eq "2" "$w_rc" "the wrapper rejects an unknown mode with exit 2"
 
 echo "[missing tool] absent executables are named skips, never failures"
 mkdir -p "$SANDBOX/only-uv"
@@ -140,23 +248,23 @@ echo "[cli] --help, usage errors and mode guards"
 help_rc=0; help_out=$(run_perl --help 2>/dev/null) || help_rc=$?
 assert_eq "0" "$help_rc" "--help exits 0"
 assert_has "$help_out" "usage: cache-prune [--report | --yes [--include-purge]]" "--help prints usage on stdout"
-bash_help=$(run_bash --help | awk '/^The trash runtime reports/ { skip = 1 } skip && /^$/ { skip = 0; next } !skip' | awk '/^  CACHE_PRUNE_TRASH_DIR$/ { exit } { print }')
-assert_eq "$bash_help" "$help_out" "--help matches the bash help minus the out-of-scope trash fragments"
+bash_help=$(run_bash --help)
+assert_eq "$bash_help" "$help_out" "--help is byte-identical to the bash help (trash fragments included)"
 assert_eq "$help_out" "$(run_perl -h)" "-h is --help"
 assert_eq "$help_out" "$(run_perl --report --help)" "--help after a mode flag still prints help and exits 0"
 for case in "--bogus" "--docker-until" "--docker-until bogus" "--docker-until=99x" "--docker-until 168"; do
 	# shellcheck disable=SC2086
-	b_rc=0; b_err=$(run_bash $case 2>&1 >/dev/null) || b_rc=$?
+	b_err=$(run_bash $case 2>&1 >/dev/null) || true
 	# shellcheck disable=SC2086
 	p_rc=0; p_err=$(CACHE_PRUNE_SHIM="$BASH_TOOL" run_perl $case 2>&1 >/dev/null) || p_rc=$?
-	assert_eq "$b_rc" "$p_rc" "'$case' exits $b_rc in both tools"
+	assert_eq "2" "$p_rc" "'$case' is a usage error: perl exits 2 (the bash exit code is not compared)"
 	assert_eq "$b_err" "$p_err" "'$case' prints the bash tool's message (program name via CACHE_PRUNE_SHIM)"
 done
 p_err=$(run_perl --bogus 2>&1 >/dev/null) || true
 assert_eq "ERROR: usage: $PROG [--report|--yes] [--include-purge] [--docker-until <window>] [-h|--help]" "$p_err" "without CACHE_PRUNE_SHIM the usage error names \$0"
 fixture
 p_rc=0; out=$(run_perl --report --docker-until=24h 2>&1) || p_rc=$?
-assert_eq "0" "$p_rc" "a valid --docker-until window is accepted (the docker runtime consuming it is WP-9)"
+assert_eq "0" "$p_rc" "a valid --docker-until window is accepted"
 : > "$STUB_LOG"
 p_rc=0; p_err=$(run_perl 2>&1 >/dev/null) || p_rc=$?
 assert_eq "1" "$p_rc" "interactive mode without a terminal exits 1"
@@ -174,7 +282,7 @@ fixture
 p_rc=0; out=$(CACHE_PRUNE_FLEET_DIR="$FLEET" CACHE_PRUNE_FIXTURE_DIR="$SANDBOX/fixslot-cache" run_perl --report 2>&1) || p_rc=$?
 assert_eq "0" "$p_rc" "a fleet dir holding *.sh and other files beside the module runs cleanly (non-.pm ignored)"
 order=$(printf '%s\n' "$out" | sed -n 's/^==== \(.*\) ====$/\1/p' | tr '\n' ' ')
-assert_eq "uv npm pip bun cargo fixslot fixtail Total " "$order" "core order first; after => cargo slots fixslot right after cargo; fixtail appends"
+assert_eq "uv npm docker pip bun cargo fixslot trash fixtail Total " "$order" "core order first; after => cargo slots fixslot right after cargo, ahead of trash; fixtail appends after the core"
 assert_has "$out" "skip: fixtail: fixture tail never present" "a fleet absent hook names its reason"
 assert_has "$out" "fixslot reclaimable via the purge verb (300.0B, 300 bytes) -- requires --include-purge" "a fleet purge-only runtime reports the purge tier"
 assert_has "$out" "fixslot detail: state=fixture" "a fleet detail hook prints, reading its module state"
@@ -183,7 +291,7 @@ assert_has "$f_help" "  -h, --help               show this help and exit
 
 The fixslot runtime is a test fixture.
 
-Notes:" "a fleet runtimes fragment prints before the Notes block"
+The trash runtime reports" "a fleet runtimes fragment prints after the options, ahead of the core trash fragment"
 assert_has "$f_help" "                unless a fleet module sets one)
   CACHE_PRUNE_FIXTURE_DIR (fixture)" "a fleet env fragment prints after the shared CACHE_PRUNE_COMPOSE_PROJECT_DIRS entry"
 p_rc=0; out=$(CACHE_PRUNE_FLEET_DIR="$SANDBOX/no-such-fleet" run_perl --report 2>&1) || p_rc=$?

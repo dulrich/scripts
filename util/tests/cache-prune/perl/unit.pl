@@ -121,7 +121,7 @@ use CachePrune::Measurement qw(probe_available probe_unavailable probe_is_valid 
 
 # ---- registry -----------------------------------------------------------------
 section('[registry] core order and hook membership');
-is_eq('uv npm pip bun cargo', join(' ', map { $_->{name} } @CachePrune::Runtime::ORDER), 'core runtimes register in the bash order (docker/trash arrive in WP-9)');
+is_eq('uv npm docker pip bun cargo trash', join(' ', map { $_->{name} } @CachePrune::Runtime::ORDER), 'core runtimes register in the bash order');
 for my $n (qw(uv npm)) { truthy("$n has a safe verb (prune)", rt($n)->{prune}); truthy("$n has a purge verb", rt($n)->{purge}); }
 for my $n (qw(pip bun cargo)) { falsy("$n has no safe verb -- purge-only", rt($n)->{prune}); truthy("$n has a purge verb (its only verb)", rt($n)->{purge}); }
 
@@ -587,12 +587,12 @@ has($rerr, 'ERROR: Refusing to run as root:', 'the refusal names the reason');
 truthy('non-root EUID is accepted', $rok);
 
 section('[argument parsing] unknown flags and bad --docker-until windows exit 2');
-is_eq('1', (capture(sub { CachePrune::Main::main('--bogus-flag') }))[2], 'an unknown flag is a usage error: exit 1, what the bash CLI really exits (its in-function suite asserts 2)');
+is_eq('2', (capture(sub { CachePrune::Main::main('--bogus-flag') }))[2], 'an unknown flag is a usage error: exit 2');
 for my $w ('bogus', '99x', '', '168') {
 	is_eq('2', (capture(sub { CachePrune::Main::main('--docker-until', $w) }))[2], "--docker-until '$w' (space form) exits 2");
 	is_eq('2', (capture(sub { CachePrune::Main::main("--docker-until=$w") }))[2], "--docker-until=$w (equals form) exits 2");
 }
-is_eq('1', (capture(sub { CachePrune::Main::main('--docker-until') }))[2], '--docker-until without a value is a usage error (exit 1, as the bash CLI)');
+is_eq('2', (capture(sub { CachePrune::Main::main('--docker-until') }))[2], '--docker-until without a value is a usage error: exit 2');
 $CachePrune::Core::DOCKER_UNTIL = '168h';
 is_eq('0', (capture(sub { CachePrune::Main::set_docker_until('bogus') }))[2], 'set_docker_until rejects an invalid window');
 is_eq('168h', $CachePrune::Core::DOCKER_UNTIL, 'a rejected window leaves DOCKER_UNTIL untouched');
@@ -670,7 +670,7 @@ for my $bad (['no name', {}], ['no detect', { name => 'x1', size => sub { 1 } }]
 	['bad help slot', { name => 'x5', detect => sub { 1 }, size => sub { 1 }, help => { nope => 'x' } }]) {
 	falsy("register_runtime dies on $bad->[0]", eval { CachePrune::Runtime::register_runtime($bad->[1]); 1 });
 }
-is_eq('uv npm pip bun cargo', join(' ', map { $_->{name} } @CachePrune::Runtime::ORDER), 'a rejected spec registers nothing');
+is_eq('uv npm docker pip bun cargo trash', join(' ', map { $_->{name} } @CachePrune::Runtime::ORDER), 'a rejected spec registers nothing');
 
 # ---- missing-tool.sh ----------------------------------------------------------
 section('[missing tool] a runtime whose CLI is absent says no <tool> on host and does not fail');
