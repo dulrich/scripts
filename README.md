@@ -1,121 +1,83 @@
----
-title: README
-created: 2026-07-11
-modified: 2026-07-19
-word-count: 646
-tags: ""
----
-
 # scripts
 
-A personal collection of bash aliases, dotfiles, and small utility scripts.
-The entry point is `aliases.sh`, which is meant to be sourced from every shell.
+A personal bash alias chain, dotfiles and small Linux utilities, published as-is under CC0 for anyone to read or borrow. The alias chain detects Debian-family and Gentoo systems and loads the matching package-manager aliases.
 
 ## Install
 
-```bash
-git clone <this-repo> ~/scripts
-~/scripts/link.sh
+```sh
+git clone <this repository> ~/scripts && ~/scripts/link.sh
 ```
 
-`link.sh` creates the standard symlinks:
+`link.sh` creates these symlinks (existing links are replaced):
 
-- `~/.bash_aliases` → `aliases.sh` (sourced by `~/.bashrc` on most distros)
-- `~/.Xresources` → `Xresources`
-- `~/.vim/plugin/osc52.vim` → `vim/osc52.vim` (OSC 52 yank helper)
+- `~/.bash_aliases` -> `aliases.sh`
+- `~/.Xresources` -> `dotfiles/Xresources`
+- `~/.config/foot/foot.ini` -> `dotfiles/foot/foot.ini`
+- `~/.vim/plugin/osc52.vim` -> `dotfiles/vim/osc52.vim` (OSC 52 yank helper)
 
-Or just add `source ~/scripts/aliases.sh` to your `~/.bashrc`.
+To skip the symlinks, add `source ~/scripts/aliases.sh` to `~/.bashrc` instead.
+
+## Layout
+
+```
+aliases.sh            alias chain root (loaded via ~/.bash_aliases)
+git-aliases.sh        git shorthands
+debian-aliases.sh     Debian-family package aliases
+gentoo-aliases.sh     Gentoo package aliases
+config.example.sh     template for per-machine overrides
+link.sh               creates the symlinks above
+dotfiles/             Xresources, gdb/, foot/, vim/, gpuedit/
+util/                 the `util` router and its subcommands
+tools/                self-contained tools: build_system/, blamecount/
+tests/                the shell gate and the repo-level smoke suites
+```
 
 ## Alias chain
 
-`aliases.sh` is the root. It defines the core aliases/functions and then
-chain-loads:
+`aliases.sh` is the root. It always sources `git-aliases.sh`, then `debian-aliases.sh` or `gentoo-aliases.sh` depending on the OS it detects. It also sources two optional files when they exist: `config.sh` (per-machine overrides) and `private/aliases.sh` (see Local overrides). `git-aliases.sh` relies on helpers defined in `aliases.sh`, so it must be sourced after it.
 
-- `git-aliases.sh` — git shorthands (`s`, `a`, `c`, `d`, `u`, `p`, `z`, …).
-  Depends on helpers from `aliases.sh`, so it is always sourced after it.
-- `debian-aliases.sh` **or** `gentoo-aliases.sh` — selected by OS detection.
-- `config.sh` and `work-aliases.sh` — optional local files (see
-  [Local overrides](#local-overrides)); sourced only if present.
+## The `util` router
 
-`aliases.sh` resolves its own real location from `BASH_SOURCE`, so every
-sibling-script reference works regardless of where the file is symlinked from.
+`aliases.sh` aliases `util` to `util/dispatch.sh`: `util <command> [args]` runs `util/<command>.sh`. There is no registry; adding a subcommand means adding a file. Helper code lives in a directory named after its command (for example `util/cache-prune/`), one level down where the router's `util/*.sh` glob cannot reach it, so helpers are never routable. Shell completion comes from the same discovery function (`util/lib.sh`) as the command listing that `util` prints with no arguments, so the two cannot drift. Subcommands from an optional private overlay (`private/util/*.sh`) are listed and completed too.
 
-## The `util` command
+## Tools
 
-Custom scripts live under `util/` behind a small filesystem-router. Running
-`util <command> [args]` execs `util/<command>[.sh]`:
+- `util cache-prune` - report and prune rebuildable language-runtime caches (uv, npm, docker, pip, bun, cargo) and the home trash: [util/cache-prune/README.md](util/cache-prune/README.md)
+- `util debian-maintenance` - root-run interactive APT maintenance, plus a read-only JSON `--report`: [util/debian-maintenance/README.md](util/debian-maintenance/README.md)
+- `util battery` - read-only sysfs battery report: charge, health, draw and time to full or empty; `--brief` prints one line
+- `util ip` - the machine's real IP addresses, hiding loopback and container interfaces; `--public` adds the public address
+- `util dotfiles` - dotfile management across machines through a meta repository (add, backup, list, restore, snapshot, status)
+- `util youtube-id` - print a YouTube channel id from a channel URL or handle
 
-```bash
-util                       # list available commands
-util youtube-id @handle    # -> util/youtube-id.sh
-util vault-snapshot ./dir  # -> util/vault-snapshot.sh
-util debian-maintenance    # -> util/debian-maintenance.sh
-util battery [--brief]     # -> util/battery.sh (charge, health, time to full/empty)
+Details for these five are in [util/AGENTS.md](util/AGENTS.md), and each answers `--help`.
+
+- [tools/build_system/](tools/build_system/README.md) - a public-domain C build system with a `mkproject` bootstrapper
+- `tools/blamecount/` - a bun-run tool that summarizes `git blame` statistics per author and language; see [tools/AGENTS.md](tools/AGENTS.md)
+
+## Versioning
+
+`master` is rolling; there are no releases or semantic versions. Every entrypoint answers `--help`, and `--build` (or `--version`) prints its build id: the 40-hex hash of the last commit that touched that tool, with `-dirty` appended when the tool has uncommitted changes.
+
+```sh
+util cache-prune --version
 ```
 
-Adding a command is just dropping a new `util/<name>.sh` file — no central
-registry. Bash completion for `util` (in `util/completions.sh`) generates its
-subcommand list from `util/*.sh`, so new commands complete automatically.
+## Local overrides and the private overlay
 
-### Debian maintenance safety
+Copy `config.example.sh` to `config.sh` to set per-machine values such as paths and display outputs; `config.sh` is gitignored and `aliases.sh` sources it when present.
 
-`util debian-maintenance` is an interactive, root-only command. It updates APT,
-then simulates and separately confirms `upgrade --with-new-pkgs`,
-`full-upgrade`, explicit old-kernel purges, general autoremove, apt archive
-cleanup, and a journal vacuum down to 200M. It refuses
-transactions that would remove boot-critical kernel, GRUB, shim, or initramfs
-packages.
+An optional private overlay may be checked out at `private/` (also gitignored). It can hold `aliases.sh` (sourced at the end of the chain), `util/*.sh` subcommands, and `util/cache-prune/fleet/*.pm` runtime modules for cache-prune. With `private/` absent everything works unchanged.
 
-Kernel cleanup considers only fully installed concrete image packages. It keeps
-the newest two images plus the running kernel, verifies their `/boot` artifacts,
-and purges only older images and their exact installed companions. Missing
-running/protected kernels abort cleanup. Package hooks own initramfs and
-bootloader updates; the script does not retry boot repairs or reboot the host.
+## Checks
 
-## Development gate
-
-Run the complete public shell suite with:
-
-```bash
+```sh
 bash tests/shell-gate.sh
 ```
 
-It checks every tracked `.sh` file with ShellCheck and `bash -n`, then runs all
-hermetic smoke, build-system, and public-contract checks. Private/gitignored
-overlays are excluded.
+This is the full public gate: ShellCheck and `bash -n` over every tracked `.sh` file, the hermetic suites for the utilities, the alias chain and the public contract, the build-system compile and smoke, and the blamecount smoke. It needs `shellcheck`, `perl` (with JSON::PP), a C compiler (`gcc`) for the build-system step, and `bun` for blamecount.
 
-## Key utilities
-
-| Script | Purpose |
-|---|---|
-| `daylog.sh` | Time-tracking log. Appends to `logs/YYYY-MM-DD.daylog`. Aliases: `dl` (log entry), `dls` (show today), `wl` (last 7 days). |
-| `dotfiles.sh` | Manages dotfiles across machines via a `meta_repo`. Commands: `add`, `backup`, `list`, `migrate`, `project`, `restore`, `snapshot`, `status`. Every project is identified by a record at `<meta_repo>/<meta_dotfiles>/.projects/<name>` holding its absolute source root, so a root is never guessed from a sibling directory; `project` registers `$PWD` and refuses a duplicate basename, `migrate` adopts an unambiguous pre-record payload directory and refuses ambiguous names. Parsing and validation write nothing — only `project` and `migrate` create metadata. `restore` reports restored, skipped or failed truthfully and keeps no-clobber. `snapshot` stages only the managed paths, refuses unrelated pre-staged content, commits locally, and prints the publish command instead of running it. |
-| `build_system/build.sh` | C build system (public domain, from yzziizzy). `mkproject` bootstraps new C projects. Aliases `x` = `./build.sh`, `xd` = `./debug.sh`. |
-
-## Subdirectories
-
-- `util/` — utility subcommands dispatched by the `util` command.
-- `build_system/` — C build system + `mkproject`.
-- `blamecount/` — Node.js (built-ins only; Node ≥ 18) tool summarizing `git blame` stats per author/language via the `git` CLI, no `npm install` required.
-- `pkg-ioc/` — supply-chain-attack IOC scanner for npm/PyPI.
-- `gpuedit/` — config (themes, keybindings, highlighters) for the gpuedit editor.
-- `gentoo/` — Portage `make.conf`, `package.use`, and world files.
-
-## Local overrides
-
-Per-machine and private customization stays out of the repo:
-
-- `config.sh` — machine-specific overrides for `aliases.sh` variables
-  (display outputs, audio device, paths). Copy `config.example.sh` → `config.sh`
-  and edit. Gitignored.
-- `work-aliases.sh` and private `util/*` scripts — provided by a separate,
-  private overlay repo and symlinked into place; both are gitignored so they
-  never land in this public repo. The `util` router picks up any private
-  subcommands symlinked into `util/` automatically.
+Two maintainer-only checks, the `--help` contract gate and the shell-disposition gate, run from tooling that is not published. Their manifests are not part of the public tree, and the shell gate skips the disposition step with a message when its manifest is absent.
 
 ## License
 
-[CC0 1.0 Universal](./LICENSE) — dedicated to the public domain. Anything added
-to this repo should be CC0 / public-domain compatible. Vendored subdirectories
-keep their own (compatible) licenses: `build_system/` is public domain,
-`pkg-ioc/` is CC0.
+CC0 1.0 (see `LICENSE`). `tools/build_system/` is public domain and keeps its own license. Contributions must be CC0-compatible.
