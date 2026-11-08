@@ -1,0 +1,41 @@
+
+==== uv ====
+uv cache size: 5.0KB total (5096 bytes)
+uv reclaimable via the purge verb (5.0KB, 5096 bytes) -- requires --include-purge
+note: uv's safe verb cannot be predicted (no dry run exists) -- it is not represented by any reclaimable figure here.
+uv: observed footprint change: 0.0B (0 bytes) -- partial result: the action above reported failure
+
+==== npm ====
+npm cache size: 19.5KB total (20000 bytes)
+npm reclaimable via the purge verb (19.5KB, 20000 bytes) -- requires --include-purge
+note: npm's safe verb cannot be predicted (no dry run exists) -- it is not represented by any reclaimable figure here.
+npm: prune complete.
+npm: observed footprint change: 0.0B (0 bytes)
+
+==== docker ====
+skip: docker: docker daemon not reachable
+
+==== pip ====
+pip cache size: 2.9KB total (3000 bytes)
+pip reclaimable via the purge verb (2.9KB, 3000 bytes) -- requires --include-purge
+pip: skipped.
+
+==== bun ====
+bun cache size: 6.8KB total (7000 bytes)
+bun reclaimable via the purge verb (6.8KB, 7000 bytes) -- requires --include-purge
+bun: skipped.
+
+==== cargo ====
+cargo cache size: 6.8KB total (7000 bytes)
+cargo reclaimable via the purge verb (4.9KB, 5000 bytes) -- requires --include-purge
+cargo: skipped.
+
+==== trash ====
+skip: trash: no no-such-gio on host
+
+==== Total ====
+Total cache footprint seen:                   41.1KB (42096 bytes)
+Estimated safe-tier reclaimable (upper bound): 0.0B (0 bytes)
+Estimated purge-tier reclaimable (--include-purge; trash interactive-only): 39.2KB (40096 bytes)
+Observed footprint change (measured, not predicted): 0.0B (0 bytes)
+Total counts every byte present, including any runtime with no verb; the safe- and purge-tier figures are separate per-verb estimates and are never summed into one number; the observed footprint change is what was actually measured before/after acting, not a prediction.

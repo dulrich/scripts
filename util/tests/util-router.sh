@@ -106,7 +106,7 @@ apply_fixture_script "$fixture_util/scripted.sh"
 apply_fixture_script "$fixture_private/private-command.sh"
 
 # Helper modules that a command keeps in its own subdirectory (util/cache-prune/
-# holds cache-prune.sh's adapters/measurement/actions/cli modules). The router
+# holds cache-prune.sh's perl core; these fixtures stand in for any such helpers). The router
 # globs "$here"/*.sh, so a helper dropped beside dispatch.sh *would* become a
 # command; under a subdirectory it must not, and these fixtures are executable
 # so that nothing but the glob's depth is doing the excluding.
@@ -181,8 +181,8 @@ assert_not_contains "$completion_output" 'lib' 'completion excludes library infr
 assert_not_contains "$completion_output" 'completions' 'completion excludes completion infrastructure'
 
 # A command's helper modules must never become commands themselves. This is
-# the structural guarantee that lets cache-prune keep adapters/measurement/
-# actions/cli as separate files: they live one directory down, where neither
+# the structural guarantee that lets a command keep its helpers as separate
+# files: they live one directory down, where neither
 # the router's glob nor the completion's glob can see them.
 set +e
 listing_output=$("$fixture_util/dispatch.sh" 2>&1)
@@ -205,10 +205,17 @@ set +e
 real_listing=$("$repo_dir/util/dispatch.sh" 2>&1)
 set -e
 assert_contains "$real_listing" 'cache-prune' 'the real router still lists cache-prune itself'
-assert_status 0 "$(if test -e "$repo_dir/util/cache-prune/runtimes/uv.sh"; then echo 0; else echo 1; fi)" 'util/cache-prune/runtimes/ holds the core runtime modules'
-for helper in "$repo_dir"/util/cache-prune/*.sh "$repo_dir"/util/cache-prune/runtimes/*.sh; do
+assert_status 0 "$(if test -f "$repo_dir/util/cache-prune/perl/cache-prune.pl"; then echo 0; else echo 1; fi)" 'util/cache-prune/ holds the perl core (perl/cache-prune.pl)'
+assert_status 1 "$(if find "$repo_dir/util/cache-prune" -name '*.sh' | grep -q .; then echo 0; else echo 1; fi)" 'util/cache-prune/ holds no shell module the router glob could ever match'
+for helper in "$repo_dir"/util/cache-prune/* "$repo_dir"/util/cache-prune/perl/CachePrune/*.pm "$repo_dir"/util/cache-prune/perl/runtimes/*.pm; do
 	[ -e "$helper" ] || continue
-	assert_not_contains "$real_listing" "$(basename "$helper" .sh)" "the real router does not list ${helper#"$repo_dir"/}"
+	name=$(basename "$helper"); name=${name%.*}
+	assert_not_contains "$real_listing" "$name" "the real router does not list ${helper#"$repo_dir"/}"
+	set +e
+	"$repo_dir/util/dispatch.sh" "$name" >/dev/null 2>&1
+	helper_status=$?
+	set -e
+	assert_status 1 "$helper_status" "routing to ${helper#"$repo_dir"/} fails -- it is not a command"
 done
 
 completion_output=$(

@@ -1,0 +1,29 @@
+uv cache dir
+uv cache prune
+npm config get cache
+npm cache verify
+docker info
+docker system df
+docker system df -v --format json
+docker compose version
+docker images -q --no-trunc
+docker image inspect sha256:old sha256:old1 sha256:overlay sha256:ua sha256:ub
+docker ps -aq --no-trunc
+docker ps -a --size --no-trunc --format {"id":{{json .ID}},"size":{{json .Size}}}
+docker container inspect c1
+docker compose -f @SANDBOX@/dr-root/homelab/compose.yml --profile * config --no-interpolate --format json
+docker builder prune --filter until=24h --force
+docker system df
+docker system df -v --format json
+docker compose version
+docker images -q --no-trunc
+docker image inspect sha256:old sha256:old1 sha256:overlay sha256:ua sha256:ub
+docker ps -aq --no-trunc
+docker ps -a --size --no-trunc --format {"id":{{json .ID}},"size":{{json .Size}}}
+docker container inspect c1
+docker compose -f @SANDBOX@/dr-root/homelab/compose.yml --profile * config --no-interpolate --format json
+docker system df --format json
+docker rmi webapp-overlay:v0.11.1
+docker rmi webapp-overlay:v0.11.3
+docker system df --format json
+pip cache dir

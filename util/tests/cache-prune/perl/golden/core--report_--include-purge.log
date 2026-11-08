@@ -1,0 +1,4 @@
+uv cache dir
+npm config get cache
+docker info
+pip cache dir

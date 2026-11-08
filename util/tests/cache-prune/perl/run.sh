@@ -1,8 +1,9 @@
 #!/bin/sh
 # CC0: This work has been marked as dedicated to the public domain.
-# Hermetic regression tests for util/cache-prune/perl/cache-prune.pl (the perl port, side by
-# side with util/cache-prune.sh). Core logic runs in-process via unit.pl and docker.pl (faked seams);
-# the CLI, the fleet-module seam and byte parity with the bash tool run as real subprocesses
+# Hermetic regression tests for util/cache-prune/perl/cache-prune.pl, the cache-prune tool (the
+# util/cache-prune.sh shim execs it). Core logic runs in-process via unit.pl and docker.pl (faked
+# seams); the CLI, the fleet-module seam and the golden-output cases (golden/: stdout, stderr,
+# exit status and tool-call log captured from the retired bash tool) run as real subprocesses
 # with stub uv/npm/pip/bun/cargo/docker/gio executables on PATH, inside a mktemp sandbox.
 for _a in "$@"; do case "$_a" in --help|-h)
 	printf 'usage: %s %s\n' "${0##*/}" ''
@@ -22,7 +23,7 @@ case " $* " in *" --build "*|*" --version "*)
 	# shellcheck source=util/lib/build-id.sh
 	. "$HERE/../../../lib/build-id.sh"; build_flags "$0" "$@";; esac
 PROG="$HERE/../../../cache-prune/perl/cache-prune.pl"
-BASH_TOOL="$HERE/../../../cache-prune.sh"
+GOLDEN="$HERE/golden"
 PASS=0
 FAIL=0
 SANDBOX=$(mktemp -d)
@@ -37,7 +38,7 @@ assert_hasnt() { case "$1" in *"$2"*) bad "$3 (did not expect <$2> in <$1>)" ;; 
 # ---- in-process unit cases -------------------------------------------------
 for unit in unit docker; do
 rm -rf "$SANDBOX/unit"; mkdir "$SANDBOX/unit"
-unit_out=$(perl "$HERE/$unit.pl" "$PROG" "$SANDBOX/unit" "$HERE/../fixtures/docker-residue" 2>&1) || true
+unit_out=$(perl "$HERE/$unit.pl" "$PROG" "$SANDBOX/unit" "$HERE/fixtures/docker-residue" 2>&1) || true
 printf '%s\n' "$unit_out" | grep -v '^UNIT '
 unit_pass=$(printf '%s\n' "$unit_out" | grep -c '^  ok   - ' || true)
 unit_fail=$(printf '%s\n' "$unit_out" | grep -c '^  FAIL - ' || true)
@@ -53,8 +54,8 @@ export HOME="$SANDBOX/home"
 export STUB_LOG="$SANDBOX/stub.log"
 export STUB_UV_DIR="$SANDBOX/uv-cache" STUB_NPM_DIR="$SANDBOX/npm-cache" STUB_PIP_DIR="$SANDBOX/pip-cache"
 export BUN_INSTALL="$SANDBOX/bun-install" CARGO_HOME="$SANDBOX/cargo-home"
-export CACHE_PRUNE_FLEET_DIR="$SANDBOX/empty-fleet" FLEET_TEST_DIR="$SANDBOX/empty-fleet"
-# Neither tool's docker or trash runtime may reach the host: docker is a stub that fails
+export CACHE_PRUNE_FLEET_DIR="$SANDBOX/empty-fleet"
+# Neither the docker nor the trash runtime may reach the host: docker is a stub that fails
 # `docker info` (daemon not reachable) unless a case swaps in the fixture docker, the trash dir
 # is absent and gio is a missing path unless a case points them into the sandbox.
 export CACHE_PRUNE_TRASH_DIR="$SANDBOX/absent-trash" CACHE_PRUNE_GIO="$SANDBOX/no-such-gio"
@@ -91,39 +92,42 @@ fixture() {
 }
 
 run_perl() { perl "$PROG" "$@" </dev/null; }
-run_bash() { bash "$BASH_TOOL" "$@" </dev/null; }
+# norm <file>: sandbox paths masked, so a golden capture is independent of the mktemp name.
+norm() { sed "s#$SANDBOX#@SANDBOX@#g" "$1"; }
+# golden <name> <rc>: the last run (SANDBOX/p.out, p.err, p.log) and its exit status must match
+# the capture taken from the retired bash tool before the cutover (usage errors now exit 2), in
+# golden/<name>.{out,err,log,rc}, byte for byte.
+golden() {
+	printf "%s\n" "$2" > "$SANDBOX/p.rc"
+	for s in out err log rc; do
+		norm "$SANDBOX/p.$s" > "$SANDBOX/n.$s"
+		if cmp -s "$GOLDEN/$1.$s" "$SANDBOX/n.$s"; then ok "$1: $s matches the golden capture"
+		else bad "$1: $s golden"; diff "$GOLDEN/$1.$s" "$SANDBOX/n.$s" | head -20 || true; fi
+	done
+}
 
-echo "[parity] the whole report (docker daemon down, trash absent) is byte-identical to the bash tool"
+echo "[golden] the whole report (docker daemon down, trash absent) matches the golden capture"
 for args in "--report" "--report --include-purge" "--yes" "--yes --include-purge"; do
 	fixture
 	# shellcheck disable=SC2086 # word-split the flag set on purpose
-	b_rc=0; run_bash $args > "$SANDBOX/b.out" 2> "$SANDBOX/b.err" || b_rc=$?
-	cp "$STUB_LOG" "$SANDBOX/b.log"
-	fixture
-	# shellcheck disable=SC2086
 	p_rc=0; run_perl $args > "$SANDBOX/p.out" 2> "$SANDBOX/p.err" || p_rc=$?
 	cp "$STUB_LOG" "$SANDBOX/p.log"
-	assert_eq "$b_rc" "$p_rc" "$args: exit status matches the bash tool ($b_rc)"
-	b_cmp=$(cat "$SANDBOX/b.out")
+	name=$(printf "%s" "core$args" | tr " " "_")
+	golden "$name" "$p_rc"
 	p_cmp=$(cat "$SANDBOX/p.out")
-	if [ "$b_cmp" = "$p_cmp" ]; then ok "$args: stdout is byte-identical, docker and trash sections included"
-	else bad "$args: stdout parity"; diff "$SANDBOX/b.out" "$SANDBOX/p.out" | head -20 || true; fi
-	assert_eq "$(cat "$SANDBOX/b.err")" "$(cat "$SANDBOX/p.err")" "$args: stderr matches"
-	assert_eq "$(cat "$SANDBOX/b.log")" "$(cat "$SANDBOX/p.log")" "$args: the same tool calls, in the same order"
 done
 assert_has "$p_cmp" "uv: observed footprint change: 5.0KB (5096 bytes)" "a real purge reports the measured delta"
 assert_has "$p_cmp" "cargo: observed footprint change: 4.9KB (5000 bytes)" "cargo's purge frees registry/src only"
 
-echo "[parity] a failing verb: same warning, same exit status 1"
-fixture
-b_rc=0; STUB_UV_PRUNE_RC=1 run_bash --yes > "$SANDBOX/b.out" 2> "$SANDBOX/b.err" || b_rc=$?
+echo "[golden] a failing verb: the warning and exit status 1"
 fixture
 p_rc=0; STUB_UV_PRUNE_RC=1 run_perl --yes > "$SANDBOX/p.out" 2> "$SANDBOX/p.err" || p_rc=$?
-assert_eq "1 1" "$b_rc $p_rc" "a failed safe verb exits 1 in both tools"
+cp "$STUB_LOG" "$SANDBOX/p.log"
+golden "core--yes_uv-prune-fails" "$p_rc"
+assert_eq "1" "$p_rc" "a failed safe verb exits 1"
 assert_eq "WARNING: uv: prune failed" "$(cat "$SANDBOX/p.err")" "the failure warning is the bash wording"
-assert_eq "$(cat "$SANDBOX/b.out")" "$(cat "$SANDBOX/p.out")" "the partial-result output matches the bash tool"
 
-# ---- docker + trash parity, against a fixture docker and a gio stub -----------------
+# ---- docker + trash golden cases, against a fixture docker and a gio stub -----------------
 # The fixture docker answers every read the build-cache probe and the residue step make from
 # files under $DFIX, logs every call to STUB_LOG, and fakes every mutation (exit 0, nothing
 # real). STUB_DF_MODE: ok | fail (plain `system df` fails: buildx du fallback) | flip (plain
@@ -176,24 +180,17 @@ printf '%s\n' '{"id":"c1","size":"1kB"}' > "$DFIX/sizes.json"
 printf '%s\n' '[{"Name":"/gone-x-1","Id":"c1","Image":"sha256:ua","Config":{"Image":"orphan-a:1","Labels":{"com.docker.compose.project":"gone","com.docker.compose.service":"x"}},"State":{"Status":"exited"},"Created":"2026-02-02T00:00:00Z"}]' > "$DFIX/containers.json"
 TRASH="$SANDBOX/trash"
 trash_fixture() { rm -rf "$TRASH"; mkdir -p "$TRASH/files/dir1" "$TRASH/info"; head -c 4096 /dev/zero > "$TRASH/files/a.bin"; head -c 8192 /dev/zero > "$TRASH/files/dir1/b.bin"; head -c 100 /dev/zero > "$TRASH/info/a.bin.trashinfo"; : > "$TRASH/files/.hidden"; }
-# dparity <label> <args...>: both tools on the fixture docker + gio; stdout, stderr, exit
-# status and the full tool-call log must match byte for byte.
+# dparity <label> <args...>: the tool on the fixture docker + gio; stdout, stderr, exit status
+# and the full tool-call log must match the golden capture byte for byte.
 dparity() {
 	label=$1; shift
 	fixture; trash_fixture
-	b_rc=0; PATH="$DSTUBS:$PATH" CACHE_PRUNE_GIO=gio CACHE_PRUNE_TRASH_DIR="$TRASH" CACHE_PRUNE_REPO_ROOT="$SANDBOX/dr-root" DFIX="$DFIX" run_bash "$@" > "$SANDBOX/b.out" 2> "$SANDBOX/b.err" || b_rc=$?
-	cp "$STUB_LOG" "$SANDBOX/b.log"
-	fixture; trash_fixture
 	p_rc=0; PATH="$DSTUBS:$PATH" CACHE_PRUNE_GIO=gio CACHE_PRUNE_TRASH_DIR="$TRASH" CACHE_PRUNE_REPO_ROOT="$SANDBOX/dr-root" DFIX="$DFIX" run_perl "$@" > "$SANDBOX/p.out" 2> "$SANDBOX/p.err" || p_rc=$?
 	cp "$STUB_LOG" "$SANDBOX/p.log"
-	assert_eq "$b_rc" "$p_rc" "$label: exit status matches the bash tool ($b_rc)"
-	if [ "$(cat "$SANDBOX/b.out")" = "$(cat "$SANDBOX/p.out")" ]; then ok "$label: stdout is byte-identical, docker residue and trash included"
-	else bad "$label: stdout parity"; diff "$SANDBOX/b.out" "$SANDBOX/p.out" | head -20 || true; fi
-	assert_eq "$(cat "$SANDBOX/b.err")" "$(cat "$SANDBOX/p.err")" "$label: stderr matches"
-	assert_eq "$(cat "$SANDBOX/b.log")" "$(cat "$SANDBOX/p.log")" "$label: the same tool calls (docker and gio included), in the same order"
+	golden "docker$(printf "%s" "$label" | tr " ()=" "____")" "$p_rc"
 	p_out=$(cat "$SANDBOX/p.out"); p_log=$(cat "$SANDBOX/p.log")
 }
-echo "[parity] docker build cache, residue and trash match the bash tool in every non-interactive mode"
+echo "[golden] docker build cache, residue and trash match the golden capture in every non-interactive mode"
 dparity "--report" --report
 assert_has "$p_out" "docker reclaimable via the safe verb (5.6GB, 6000000000 bytes)" "the system-df Build Cache row is the safe figure"
 assert_has "$p_out" "docker superseded images: 9.0B (9 bytes, 2 tags) (safe tier, upper bound: shared layers)" "the residue report runs under docker"
@@ -227,13 +224,6 @@ STUB_DF_MODE=fail dparity "--yes (system df fails)" --yes
 assert_has "$p_out" "docker reclaimable via the safe verb (3.7GB, 4000000000 bytes)" "buildx du is the fallback size source"
 STUB_DF_MODE=flip dparity "--yes (source flips)" --yes
 assert_has "$p_out" "docker: observed footprint change: unavailable (docker size source changed between probes: system-df -> buildx-du)" "a cross-source pair reports the delta unavailable"
-for v in "500B 500" "512kB 512000" "2.5MB 2500000" "4GB 4000000000" "3TB 3000000000000" "1.5kB 1500" "0B 0"; do
-	tok=${v% *}; exp=${v#* }
-	got=$(printf '{"Type":"Images","Size":"%s"}\n{"Type":"Containers","Size":"0B"}\n{"Type":"Local Volumes","Size":"0B"}\n' "$tok" | perl "$HERE/../../../cache-prune/docker-residue.pl" footprint 2>&1)
-	assert_eq "$exp" "$got" "wrapper footprint (module hbytes): $tok is $exp bytes"
-done
-w_rc=0; perl "$HERE/../../../cache-prune/docker-residue.pl" bogus 2>/dev/null || w_rc=$?
-assert_eq "2" "$w_rc" "the wrapper rejects an unknown mode with exit 2"
 
 echo "[missing tool] absent executables are named skips, never failures"
 mkdir -p "$SANDBOX/only-uv"
@@ -248,17 +238,15 @@ echo "[cli] --help, usage errors and mode guards"
 help_rc=0; help_out=$(run_perl --help 2>/dev/null) || help_rc=$?
 assert_eq "0" "$help_rc" "--help exits 0"
 assert_has "$help_out" "usage: cache-prune [--report | --yes [--include-purge]]" "--help prints usage on stdout"
-bash_help=$(run_bash --help)
-assert_eq "$bash_help" "$help_out" "--help is byte-identical to the bash help (trash fragments included)"
+assert_eq "$(cat "$GOLDEN/help.out")" "$help_out" "--help matches the golden capture (trash fragments included)"
 assert_eq "$help_out" "$(run_perl -h)" "-h is --help"
 assert_eq "$help_out" "$(run_perl --report --help)" "--help after a mode flag still prints help and exits 0"
 for case in "--bogus" "--docker-until" "--docker-until bogus" "--docker-until=99x" "--docker-until 168"; do
 	# shellcheck disable=SC2086
-	b_err=$(run_bash $case 2>&1 >/dev/null) || true
-	# shellcheck disable=SC2086
-	p_rc=0; p_err=$(CACHE_PRUNE_SHIM="$BASH_TOOL" run_perl $case 2>&1 >/dev/null) || p_rc=$?
-	assert_eq "2" "$p_rc" "'$case' is a usage error: perl exits 2 (the bash exit code is not compared)"
-	assert_eq "$b_err" "$p_err" "'$case' prints the bash tool's message (program name via CACHE_PRUNE_SHIM)"
+	p_rc=0; p_err=$(CACHE_PRUNE_SHIM=util/cache-prune.sh run_perl $case 2>&1 >/dev/null) || p_rc=$?
+	g=$GOLDEN/usage$(printf "%s" "$case" | tr " =" "__").err
+	assert_eq "2" "$p_rc" "'$case' is a usage error: exit 2"
+	assert_eq "$(cat "$g")" "$p_err" "'$case' prints the golden usage message (program name via CACHE_PRUNE_SHIM)"
 done
 p_err=$(run_perl --bogus 2>&1 >/dev/null) || true
 assert_eq "ERROR: usage: $PROG [--report|--yes] [--include-purge] [--docker-until <window>] [-h|--help]" "$p_err" "without CACHE_PRUNE_SHIM the usage error names \$0"

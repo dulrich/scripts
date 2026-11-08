@@ -4,8 +4,7 @@
 # CachePrune::DockerResidue: the JSON half of the docker residue step -- capture shaping (the
 # docker/compose subprocesses and the Dockerfile FROM parser), the classifier, the footprint sum
 # and hbytes. The one source of truth for that logic: the perl docker runtime
-# (perl/runtimes/docker.pm) calls it in-process, and ../../docker-residue.pl is a thin CLI
-# wrapper over it for the bash tool. Shapes: see ../../docker-residue.sh.
+# (perl/runtimes/docker.pm) calls it in-process.
 #
 # JSON::PP is loaded lazily (json_reason / _json), never at compile time, so the cache-prune
 # perl core and every other runtime run on a host without it; the residue step then reports

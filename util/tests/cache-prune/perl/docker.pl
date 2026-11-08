@@ -274,12 +274,6 @@ is_eq('', $class_of->('engine-svc-tts:torch2.11-rocm7.2'), "the image of a live 
 has($rows, "stale\tlegacy_project-old-1\tsha256:prerename0000\t1000\t", "a pre-rename project's exited container is stale, with its writable-layer bytes");
 has($rows, "unreferenced\tlegacy_project-legacy-project:latest\tsha256:prerename0000\t384300000\t2026-07-09T00:00:00Z\tlegacy_project-old-1", 'an image held only by a stale container is a candidate naming its blocker');
 has($rows, "volume\thomelab_radar-data\t4300000000\t0\tdangling", 'a zero-link volume is flagged dangling');
-{
-	my $wrapper = File::Basename::dirname($prog) . '/../docker-residue.pl';
-	open(my $p, '-|', 'sh', '-c', 'perl "$1" classify < "$2"', 'sh', $wrapper, "$FIXD/classify-input.json") or die;
-	local $/; my $cli = <$p>; close $p;
-	is_eq("$rows\n", $cli, 'the docker-residue.pl wrapper classify mode prints exactly the module rows');
-}
 
 section('[docker-residue] Dockerfile base-ref resolution (the FROM parser, through capture)');
 my $DR_ROOT = "$SB/docker-residue-root";
