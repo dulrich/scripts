@@ -24,17 +24,15 @@ set -eu
 here=$(dirname "$(realpath "$0")")
 
 # aliases load on every shell (~/.bash_aliases is sourced by ~/.bashrc)
-rm -f "$HOME/.bash_aliases"
-ln -s "$here/aliases.sh" "$HOME/.bash_aliases"
+ln -sfn "$here/aliases.sh" "$HOME/.bash_aliases"
 
 # X resources (terminal colors / theme); merged via the `xres` alias
-rm -f "$HOME/.Xresources"
-ln -s "$here/Xresources" "$HOME/.Xresources"
+ln -sfn "$here/dotfiles/Xresources" "$HOME/.Xresources"
 
 # foot terminal config (CDE's default terminal)
 mkdir -p "$HOME/.config/foot"
-ln -sfn "$here/foot/foot.ini" "$HOME/.config/foot/foot.ini"
+ln -sfn "$here/dotfiles/foot/foot.ini" "$HOME/.config/foot/foot.ini"
 
 # vim OSC 52 yank helper (yanks reach the terminal clipboard)
 mkdir -p "$HOME/.vim/plugin"
-ln -sfn "$here/vim/osc52.vim" "$HOME/.vim/plugin/osc52.vim"
+ln -sfn "$here/dotfiles/vim/osc52.vim" "$HOME/.vim/plugin/osc52.vim"

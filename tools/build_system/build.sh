@@ -12,7 +12,7 @@ case $_shguard_m in
   *) printf '%s: refusing %s invocation (supports: exec; pipe callers set SHGUARD_MODE=pipe)\n' 'build.sh' "$_shguard_m" >&2; unset _shguard_m; return 1 2>/dev/null || exit 1 ;;
 esac
 # <<< shguard
-_bid="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../util/lib/build-id.sh"
+_bid="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../../util/lib/build-id.sh"
 # shellcheck source=util/lib/build-id.sh
 [ -r "$_bid" ] && { . "$_bid"; build_flags "${BASH_SOURCE[0]}" "$@"; }
 set -euo pipefail

@@ -23,12 +23,12 @@
 # PipeWire sink for the volume()/vol helper (wpctl; a node id or name, default @DEFAULT_AUDIO_SINK@)
 # AUDIO_SINK="@DEFAULT_AUDIO_SINK@"
 
-# dotfiles.sh runs standalone (it does not source config.sh) and reads these
+# util dotfiles runs standalone (it does not source config.sh) and reads these
 # two environment variables directly; documented here for discoverability.
 # DOTFILES_META_REPO="$HOME/code/meta_repo"
 # DOTFILES_META_DOTFILES="dot"
 #
-# There is no variable for the project records: dotfiles.sh always keeps them
+# There is no variable for the project records: util dotfiles always keeps them
 # at $DOTFILES_META_REPO/$DOTFILES_META_DOTFILES/.projects/<project name>, one
 # file per project holding that project's absolute source root. Payload
 # directories predating those records are adopted with `dot migrate`.

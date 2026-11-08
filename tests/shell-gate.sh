@@ -63,12 +63,12 @@ bash tests/root-utils-smoke.sh
 
 section 'build-system template compile'
 (
-	cd build_system
+	cd tools/build_system
 	./build.sh
 )
 
 section 'build-system smoke'
-bash build_system/tests/smoke.sh
+bash tools/build_system/tests/smoke.sh
 
 section 'shell disposition gate'
 gate=
@@ -87,6 +87,6 @@ section 'public contract smoke'
 bash tests/public-contract-smoke.sh
 
 section 'blamecount smoke'
-bash blamecount/tests/smoke.sh
+bash tools/blamecount/tests/smoke.sh
 
 printf '\nAll tracked shell gates passed.\n'

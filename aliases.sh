@@ -328,7 +328,7 @@ playdir() {
 alias gdbr="gdb -ex r"
 # The resolved path is intentionally captured when the alias chain is sourced.
 # shellcheck disable=SC2139
-alias gdbx="gdb -x $here/gdb.config"
+alias gdbx="gdb -x $here/dotfiles/gdb/gdb.config"
 
 cman() {
 	man -s "2,3,3p,2x,3x,7" "$*"

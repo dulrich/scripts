@@ -143,7 +143,7 @@ run_dotfiles_in() {
 		DOTFILES_META_REPO="$meta_repo" FAKE_LOG="$fake_log" \
 			FAKE_GIT_STAGED="$fake_git_staged" \
 			FAKE_GIT_COMMIT_FAIL="$fake_git_commit_fail" \
-			PATH="$extra_path$fakebin:$PATH" bash "$ROOT/dotfiles.sh" "$@"
+			PATH="$extra_path$fakebin:$PATH" bash "$ROOT/util/dotfiles.sh" "$@"
 	)
 }
 
@@ -158,7 +158,7 @@ run_fresh() {
 	(
 		cd "$project_one"
 		DOTFILES_META_REPO="$fresh_meta" FAKE_LOG="$fake_log" \
-			PATH="$fakebin:$PATH" bash "$ROOT/dotfiles.sh" "$@"
+			PATH="$fakebin:$PATH" bash "$ROOT/util/dotfiles.sh" "$@"
 	)
 }
 
@@ -386,8 +386,18 @@ printf 'old resources\n' > "$home/.Xresources"
 HOME="$home" bash "$ROOT/link.sh"
 assert_eq "$ROOT/aliases.sh" "$(readlink "$home/.bash_aliases")" \
 	"link installs aliases target in disposable HOME"
-assert_eq "$ROOT/Xresources" "$(readlink "$home/.Xresources")" \
+assert_eq "$ROOT/dotfiles/Xresources" "$(readlink "$home/.Xresources")" \
 	"link installs Xresources target in disposable HOME"
+assert_eq "$ROOT/dotfiles/foot/foot.ini" "$(readlink "$home/.config/foot/foot.ini")" \
+	"link installs foot target in disposable HOME"
+assert_eq "$ROOT/dotfiles/vim/osc52.vim" "$(readlink "$home/.vim/plugin/osc52.vim")" \
+	"link installs vim osc52 target in disposable HOME"
+link_rerun_status=0
+HOME="$home" bash "$ROOT/link.sh" || link_rerun_status=$?
+assert_eq "0" "$link_rerun_status" "link re-run exits 0"
+assert_eq "$ROOT/aliases.sh|$ROOT/dotfiles/Xresources|$ROOT/dotfiles/foot/foot.ini|$ROOT/dotfiles/vim/osc52.vim" \
+	"$(readlink "$home/.bash_aliases" "$home/.Xresources" "$home/.config/foot/foot.ini" "$home/.vim/plugin/osc52.vim" | paste -sd"|")" \
+	"link re-run converges on the same four targets"
 assert_eq "absent" "$([ -e "$home/.config/ghostty" ] && echo present || echo absent)" \
 	"link no longer creates the ghostty config dir in disposable HOME"
 
