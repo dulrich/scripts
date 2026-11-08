@@ -8,7 +8,7 @@ directly, in build order); `mkproject` copies `parts/` into every generated
 project alongside `_build.c`, so generated projects are self-contained.
 
 # setup/install
-`sudo ln -s /home/username/code/scripts/build_system/mkproject.sh /usr/bin/mkproject`
+`sudo ln -s /home/username/code/scripts/tools/build_system/mkproject.sh /usr/bin/mkproject`
 
 
 # basic usage
