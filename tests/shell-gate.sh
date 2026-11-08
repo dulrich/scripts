@@ -49,6 +49,8 @@ bash util/tests/util-router.sh
 
 section 'cache-prune smoke'
 bash util/tests/cache-prune.sh
+perl -wc util/cache-prune/perl/cache-prune.pl
+sh util/tests/cache-prune/perl/run.sh
 
 section 'battery smoke'
 bash util/tests/battery.sh
