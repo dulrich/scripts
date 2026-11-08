@@ -4,66 +4,70 @@
 # CachePrune::Measurement: the one measurement result type shared by every size hook, the one
 # helper that decides whether two of them may be subtracted, and byte rendering. perl-base only.
 #
-# THE PROBE RECORD -- a string of four single-space-separated fields in this fixed order:
+# THE PROBE RECORD -- a perl hashref with three named fields:
 #
-#     <status> <total_bytes> <reclaimable_bytes> <source>
+#     { total => BYTES, reclaimable => BYTES, source => TOKEN | undef }
 #
-#   status             "available" or "unavailable"
-#   total_bytes        non-negative decimal integer (0 when unavailable)
-#   reclaimable_bytes  non-negative decimal integer (0 when unavailable)
-#   source             provenance token, no whitespace, never empty; "-" when unavailable
+#   total        non-negative integer (0 when unavailable)
+#   reclaimable  non-negative integer (0 when unavailable)
+#   source       provenance token, no whitespace, never empty; undef when unavailable --
+#                availability is implied by a defined source, there is no separate flag
 #
-# A size hook returns exactly one record (built with probe_available / probe_unavailable) and
-# prints nothing. Anything else -- a bare pair, junk, '' -- is rejected by probe_is_valid, so a
-# regressed hook can never arithmetic its way to a silent 0.
+# The unavailable record is one shared constant hashref (probe_unavailable); it is read-only in
+# spirit and never mutated. A size hook returns exactly one record (built with probe_available /
+# probe_unavailable) and prints nothing. Anything else -- a string, a bare pair, junk, '' -- fails
+# probe_is_record, the one shape check (applied by Main at the hook boundary), so a regressed
+# hook can never arithmetic its way to a silent 0.
 package CachePrune::Measurement;
 use strict;
 use warnings;
 use Exporter 'import';
-our @EXPORT_OK = qw(probe_available probe_unavailable probe_is_valid probe_is_available
-	probe_fields probe_compare human_bytes human_bytes_signed);
+our @EXPORT_OK = qw(probe_available probe_unavailable probe_is_record probe_is_available
+	probe_compare human_bytes human_bytes_signed);
 
-use constant UNAVAILABLE => 'unavailable 0 0 -';
+my $UNAVAILABLE = { total => 0, reclaimable => 0, source => undef };
 
 # probe_available($total, $reclaimable, $source): fails closed to the unavailable record when the
 # source is empty or contains whitespace -- an anonymous measurement must never reach a delta.
+# The byte figures are integer-coerced as sprintf %d does.
 sub probe_available {
 	my ($total, $reclaimable, $source) = @_;
-	return UNAVAILABLE unless defined $source && length $source && $source !~ /\s/;
-	return sprintf('available %d %d %s', $total // 0, $reclaimable // 0, $source);
+	return $UNAVAILABLE unless defined $source && length $source && $source !~ /\s/;
+	return { total => 0 + sprintf('%d', $total // 0), reclaimable => 0 + sprintf('%d', $reclaimable // 0),
+		source => $source };
 }
 
-sub probe_unavailable { return UNAVAILABLE; }
+sub probe_unavailable { return $UNAVAILABLE; }
 
-sub probe_is_valid {
+# probe_is_record($r): the one shape check -- a hashref whose total/reclaimable are non-negative
+# integers and whose source is undef (unavailable, then both figures 0) or a whitespace-free token.
+sub probe_is_record {
 	my ($r) = @_;
-	return 0 unless defined $r;
-	return 1 if $r eq UNAVAILABLE;
-	return $r =~ /\Aavailable [0-9]+ [0-9]+ \S+\z/ ? 1 : 0;
+	return 0 unless ref $r eq 'HASH';
+	for my $k (qw(total reclaimable)) {
+		return 0 unless defined $r->{$k} && $r->{$k} =~ /\A[0-9]+\z/;
+	}
+	my $s = $r->{source};
+	unless (defined $s) { return $r->{total} == 0 && $r->{reclaimable} == 0 ? 1 : 0; }
+	return $s =~ /\A\S+\z/ ? 1 : 0;
 }
 
 sub probe_is_available {
 	my ($r) = @_;
-	return (probe_is_valid($r) && $r =~ /\Aavailable /) ? 1 : 0;
+	return (probe_is_record($r) && defined $r->{source}) ? 1 : 0;
 }
 
-# probe_fields($record): (status, total, reclaimable, source) of a valid record.
-sub probe_fields { return split / /, $_[0], 4; }
-
 # probe_compare($name, $before, $after): the single owner of delta eligibility and signed
-# subtraction. Returns "available <signed_delta>" when both records are available and carry the
-# same source, else "unavailable <reason>". Before/after from different sources are never
-# subtracted, for every runtime.
+# subtraction. Returns ($signed_delta) when both records are available and carry the same
+# source, else (undef, $reason). Before/after from different sources are never subtracted, for
+# every runtime.
 sub probe_compare {
 	my ($name, $before, $after) = @_;
-	return 'unavailable the pre-action size probe failed' unless probe_is_available($before);
-	return 'unavailable the post-action size probe failed' unless probe_is_available($after);
-	my (undef, $bt, undef, $bs) = probe_fields($before);
-	my (undef, $at, undef, $as) = probe_fields($after);
-	if ($bs ne $as) {
-		return "unavailable $name size source changed between probes: $bs -> $as";
-	}
-	return 'available ' . ($bt - $at);
+	return (undef, 'the pre-action size probe failed') unless probe_is_available($before);
+	return (undef, 'the post-action size probe failed') unless probe_is_available($after);
+	my ($bs, $as) = ($before->{source}, $after->{source});
+	return (undef, "$name size source changed between probes: $bs -> $as") if $bs ne $as;
+	return ($before->{total} - $after->{total});
 }
 
 # human_bytes($bytes): "%.1f<unit>" with 1024 steps, B..PB (bash human_bytes).

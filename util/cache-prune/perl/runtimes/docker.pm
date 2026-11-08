@@ -310,10 +310,10 @@ sub residue {
 	print "docker residue: $summary\n";
 	my $after = CachePrune::Measurement::probe_unavailable();
 	$after = footprint_probe() if CachePrune::Measurement::probe_is_available($before);
-	my $cmp = CachePrune::Measurement::probe_compare('docker-residue', $before, $after);
-	if ($cmp =~ /\Aavailable (-?[0-9]+)\z/) {
+	my ($delta) = CachePrune::Measurement::probe_compare('docker-residue', $before, $after);
+	if (defined $delta) {
 		printf "docker images/containers/volumes: observed footprint change %s (%d bytes)\n",
-			CachePrune::Measurement::human_bytes_signed($1), $1;
+			CachePrune::Measurement::human_bytes_signed($delta), $delta;
 	} else {
 		print "docker images/containers/volumes: observed footprint change unavailable (docker system df --format json reading failed)\n";
 	}
@@ -328,8 +328,12 @@ CachePrune::Runtime::register_runtime({
 	size => \&size,
 	prune => \&prune,
 	purge => \&purge,
-	purge_unpredicted_note => 'docker purge verb (docker builder prune -a) clears the whole unused build cache, up to the total above, not just the safe-verb figure -- requires --include-purge',
-	safe_estimate_note => 'note: docker reclaimable is an upper bound (not pinned by an active build), not a guarantee of what a prune will free.',
+	# The probe predicts the safe verb only; the purge verb's reach is described, not figured.
+	predicts => 'safe',
+	report_notes => [
+		'note: docker reclaimable is an upper bound (not pinned by an active build), not a guarantee of what a prune will free.',
+		'docker purge verb (docker builder prune -a) clears the whole unused build cache, up to the total above, not just the safe-verb figure -- requires --include-purge',
+	],
 	detail => \&detail,
 	residue => \&residue,
 });

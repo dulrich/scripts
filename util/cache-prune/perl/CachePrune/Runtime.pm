@@ -14,8 +14,7 @@ our @CORE_ORDER = qw(uv npm docker pip bun cargo trash);
 
 my %HOOKS = map { $_ => 1 } qw(detect absent cache_dir size prune purge purge_prompt
 	safe_reclaimable detail residue);
-my %DATA = map { $_ => 1 } qw(name after purge_unpredicted_note safe_estimate_note
-	interactive_only help state);
+my %DATA = map { $_ => 1 } qw(name after predicts report_notes interactive_only help state);
 my %HELP_SLOTS = map { $_ => 1 } keys %HELP;
 
 sub reset_registry { @ORDER = (); %BY_NAME = (); $HELP{$_} = [] for keys %HELP; }
@@ -34,7 +33,18 @@ sub register_runtime {
 		die "register_runtime: $name: '$k' must be a code ref\n"
 			if $HOOKS{$k} && defined $spec->{$k} && ref $spec->{$k} ne 'CODE';
 	}
+	my $predicts = $spec->{predicts} // ($spec->{purge} ? 'purge' : $spec->{prune} ? 'safe' : undef);
+	if (defined $predicts) {
+		die "register_runtime: $name: predicts must be 'purge' or 'safe'\n"
+			unless $predicts eq 'purge' || $predicts eq 'safe';
+		my $verb = $predicts eq 'safe' ? 'prune' : 'purge';
+		die "register_runtime: $name: predicts '$predicts' needs a $verb hook\n"
+			unless ref $spec->{$verb} eq 'CODE';
+	}
+	die "register_runtime: $name: report_notes must be an array ref\n"
+		if defined $spec->{report_notes} && ref $spec->{report_notes} ne 'ARRAY';
 	my %rt = %$spec;
+	$rt{predicts} = $predicts;
 	$rt{state} = {} unless ref $rt{state} eq 'HASH';
 	my $help = delete $rt{help} // {};
 	for my $slot (sort keys %$help) {
@@ -155,11 +165,11 @@ and never fails the run.
 
 =item size => sub($rt, $cache_dir) -> RECORD | undef
 
-Returns one probe record (L<CachePrune::Measurement>; build it with C<probe_available> /
+Returns one probe record, a hashref (L<CachePrune::Measurement>; build it with C<probe_available> /
 C<probe_unavailable>) and prints nothing. C<$cache_dir> is C<cache_dir>'s result, or C<''>
 when there is no C<cache_dir> hook. C<undef> means the probe itself failed
 (C<WARNING: NAME: failed to determine cache size>, C<$FAILED> set); any other non-record
-(C<''>, a bare pair, junk) is C<WARNING: NAME: cache size probe returned a malformed result>,
+(a string, C<''>, a bare pair, junk) is C<WARNING: NAME: cache size probe returned a malformed result>,
 C<$FAILED> set. An unavailable record prints C<NAME cache size: unavailable> and skips every
 action. The size hook runs once before acting and once after any verb ran; the two records are
 compared by C<probe_compare>, so a hook that can measure from more than one source must name
@@ -240,14 +250,17 @@ Purge-tier data never elected under C<--yes>, whatever C<--include-purge> says; 
 the note printed under C<--yes>. The report gate reads C<emptied only after an interactive
 confirm, never under --yes>.
 
-=item purge_unpredicted_note => STRING
+=item predicts => 'purge' | 'safe'
 
-For a dual-verb runtime whose probe predicts the safe verb only: the reclaimable is reported on
-the safe line, and this note replaces any purge figure.
+Which verb the size record's reclaimable figure predicts. Default C<purge> when the runtime has a
+C<purge> hook, else C<safe> when it has a C<prune> hook; the named verb's hook must exist, and
+any other value is rejected at registration. A dual-verb runtime whose probe predicts the safe
+verb only declares C<safe> (its purge reach then belongs in C<report_notes>). A
+C<safe_reclaimable> hook implies both figures, whatever C<predicts> says.
 
-=item safe_estimate_note => STRING
+=item report_notes => [STRING, ...]
 
-Caveat printed under the safe-tier estimate.
+Notes printed verbatim, one per line, after the reclaimable lines, in list order.
 
 =item help => { SLOT => STRING | [STRING, ...] }
 
@@ -268,9 +281,11 @@ Initial module state (default C<{}>).
 
 Tier follows from hook membership alone: safe tier iff C<prune>, purge tier iff C<purge>
 (uv/npm carry both); with neither, the bytes count toward the total only. Report lines, per
-kind: dual verb -- purge line plus C<note: NAME's safe verb cannot be predicted ...> (or both
-lines with C<safe_reclaimable>; or the safe line plus C<purge_unpredicted_note>); purge-only --
-purge line; safe-only -- safe line (+ C<safe_estimate_note>).
+kind: both verbs with C<safe_reclaimable> -- the safe and purge lines; a predicted purge verb
+(C<predicts> C<purge>) -- the purge line, plus C<note: NAME's safe verb cannot be predicted ...>
+when a C<prune> hook exists too; a predicted safe verb (C<predicts> C<safe>) -- the safe line.
+C<report_notes> follow. C<interactive_only> only changes the purge line's gate text and the
+election rule.
 
 =head1 SHARED HELPERS FOR MODULES
 
@@ -278,7 +293,7 @@ C<CachePrune::Core>: C<cmd_capture([\%o,] @cmd)> -> (stdout, status), C<cmd_run(
 -> status (options C<< dir => DIR >>, C<< stdin => 'null' >>, C<< stderr => 'null' >>), C<have_cmd(NAME)>,
 C<confirm(PROMPT)>, C<warn_msg(@words)>, C<docker_window_seconds(W)>; always call them fully
 qualified (the test seam replaces the globs). C<CachePrune::Measurement>: C<probe_available>,
-C<probe_unavailable>, C<probe_is_valid>, C<probe_is_available>, C<probe_compare>,
+C<probe_unavailable>, C<probe_is_available>, C<probe_compare>,
 C<human_bytes>, C<human_bytes_signed>. C<CachePrune::Adapters>: C<dir_census_bytes(DIR)> ->
 (total, reclaimable), C<generic_size>, C<path_du_bytes(PATH)>. C<CachePrune::Actions>:
 C<tier_elected(KIND, PROMPT, NOTE)> (kinds C<safe purge optin item>), C<guarded_remove(ROOT_REAL,

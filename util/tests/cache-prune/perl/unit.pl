@@ -117,7 +117,10 @@ sub delta_line { my ($out) = @_; return join("\n", grep { /observed footprint ch
 sub F { return $CachePrune::Core::FAILED; }
 sub T { no strict 'refs'; return ${"CachePrune::Main::$_[0]"}; }
 
-use CachePrune::Measurement qw(probe_available probe_unavailable probe_is_valid probe_is_available probe_compare human_bytes human_bytes_signed);
+use CachePrune::Measurement qw(probe_available probe_unavailable probe_is_record probe_is_available probe_compare human_bytes human_bytes_signed);
+# Test-local field views of a probe record and a probe_compare verdict, for comparison only.
+sub fields { my ($r) = @_; return 'not a record' unless probe_is_record($r); return defined $r->{source} ? "$r->{total} $r->{reclaimable} $r->{source}" : 'unavailable'; }
+sub verdict { my ($d, $why) = @_; return defined $d ? $d : "unavailable $why"; }
 
 # ---- registry -----------------------------------------------------------------
 section('[registry] core order and hook membership');
@@ -162,43 +165,43 @@ mkdir "$SB/census-nested"; mkdir "$SB/census-nested/d"; mkfile("$SB/census-neste
 is_eq('50 50', census("$SB/census-nested"), 'nested files count and a symlinked directory is never followed');
 
 section('[generic_size] the census reaches the registry as a probe record, source and all');
-is_eq('available 111 111 census', CachePrune::Adapters::generic_size(undef, "$SB/census-plain"), 'the directory adapter wraps the census pair in a record naming census as its source');
-is_eq('available 333 0 census', CachePrune::Adapters::generic_size(undef, "$SB/census-external"), 'the record keeps total and reclaimable distinct and in the documented field order');
-is_eq('available 0 0 census', CachePrune::Adapters::generic_size(undef, "$SB/census-does-not-exist"), 'a nonexistent cache directory is an available zero measurement, not an unavailable one');
+is_eq('111 111 census', fields(CachePrune::Adapters::generic_size(undef, "$SB/census-plain")), 'the directory adapter wraps the census pair in a record naming census as its source');
+is_eq('333 0 census', fields(CachePrune::Adapters::generic_size(undef, "$SB/census-external")), 'the record keeps total and reclaimable distinct, in their named fields');
+is_eq('0 0 census', fields(CachePrune::Adapters::generic_size(undef, "$SB/census-does-not-exist")), 'a nonexistent cache directory is an available zero measurement, not an unavailable one');
 truthy('every directory-backed runtime therefore measures with one comparable source', probe_is_available(CachePrune::Adapters::generic_size(undef, "$SB/census-empty")));
 is_eq(CachePrune::Adapters::path_du_bytes("$SB/census-plain") > 0 ? 'positive' : 'zero', 'positive', 'path_du_bytes sizes a path with du -sb');
 is_eq('0', CachePrune::Adapters::path_du_bytes("$SB/census-does-not-exist"), 'path_du_bytes reads an unmeasurable path as 0');
 
 # ---- measurement.sh -----------------------------------------------------------
 section('[probe record] the transport carries provenance or is not a record');
-is_eq('available 1000 900 system-df', probe_available(1000, 900, 'system-df'), 'probe_available emits <status> <total> <reclaimable> <source> in that fixed order');
-is_eq('unavailable 0 0 -', probe_unavailable(), 'probe_unavailable emits the canonical unavailable record');
-is_eq('unavailable 0 0 -', probe_available(1000, 900, ''), 'an empty source identity yields an unavailable record, never an anonymous available one');
-is_eq('unavailable 0 0 -', probe_available(1000, 900, 'two words'), 'a source identity containing whitespace is rejected the same way');
+is_eq('1000 900 system-df', fields(probe_available(1000, 900, 'system-df')), 'probe_available builds a record whose total, reclaimable and source fields are named');
+is_eq('unavailable', fields(probe_unavailable()), 'probe_unavailable returns the canonical unavailable record');
+is_eq('unavailable', fields(probe_available(1000, 900, '')), 'an empty source identity yields an unavailable record, never an anonymous available one');
+is_eq('unavailable', fields(probe_available(1000, 900, 'two words')), 'a source identity containing whitespace is rejected the same way');
 
 section('[probe record] validation rejects every non-record, including the retired bare pair');
-truthy('an available record validates', probe_is_valid('available 1000 900 system-df'));
-truthy('the unavailable record validates', probe_is_valid('unavailable 0 0 -'));
-falsy('the retired bare <total> <reclaimable> pair is not a record', probe_is_valid('1000 900'));
-falsy("a bare 'unavailable' word is not a record", probe_is_valid('unavailable'));
-falsy('an available record missing its source is not a record', probe_is_valid('available 1000 900'));
-falsy('an empty probe result is not a record', probe_is_valid(''));
-falsy('a non-numeric byte field is not a record', probe_is_valid('available abc def census'));
-truthy('probe_is_available accepts an available record', probe_is_available('available 1 2 census'));
-falsy('probe_is_available rejects an unavailable record', probe_is_available('unavailable 0 0 -'));
+truthy('an available record validates', probe_is_record(probe_available(1000, 900, 'system-df')));
+truthy('the unavailable record validates', probe_is_record(probe_unavailable()));
+falsy('the retired bare <total> <reclaimable> pair is not a record', probe_is_record('1000 900'));
+falsy("a bare 'unavailable' word is not a record", probe_is_record('unavailable'));
+falsy('an available record missing its source is not a record', probe_is_record({ total => 1000, reclaimable => 900 }));
+falsy('an empty probe result is not a record', probe_is_record(''));
+falsy('a non-numeric byte field is not a record', probe_is_record({ total => 'abc', reclaimable => 'def', source => 'census' }));
+truthy('probe_is_available accepts an available record', probe_is_available(probe_available(1, 2, 'census')));
+falsy('probe_is_available rejects an unavailable record', probe_is_available(probe_unavailable()));
 falsy('probe_is_available rejects junk', probe_is_available('garbage'));
 
 section('[probe_compare] one helper owns eligibility and signed subtraction');
-is_eq('available 200000', probe_compare('uv', 'available 500000 100000 census', 'available 300000 100000 census'), 'two available records from the same source subtract to a signed delta');
-is_eq('available 0', probe_compare('uv', 'available 500000 1 census', 'available 500000 1 census'), 'an unchanged cache compares to an explicit zero, not to nothing');
-is_eq('available -200000', probe_compare('uv', 'available 500000 1 census', 'available 700000 1 census'), 'a cache that grew compares to a negative delta, reported as observed');
-is_eq('unavailable docker size source changed between probes: system-df -> buildx-du', probe_compare('docker', 'available 1000 900 system-df', 'available 400 300 buildx-du'), 'a changed source is ineligible, and the reason names both sources');
-is_eq('unavailable npm size source changed between probes: census -> other', probe_compare('npm', 'available 1000 900 census', 'available 400 300 other'), 'the source-match rule is not docker-specific -- it holds for every runtime');
-is_eq('unavailable the post-action size probe failed', probe_compare('uv', 'available 1000 900 census', 'unavailable 0 0 -'), 'an unavailable after-record is ineligible');
-is_eq('unavailable the post-action size probe failed', probe_compare('uv', 'available 1000 900 census', ''), 'a missing after-record is ineligible');
-is_eq('unavailable the post-action size probe failed', probe_compare('uv', 'available 1000 900 census', '400 300'), 'a malformed after-record (a bare pair) is ineligible');
-is_eq('unavailable the pre-action size probe failed', probe_compare('uv', 'unavailable 0 0 -', 'available 400 300 census'), 'an unavailable before-record is ineligible');
-is_eq('unavailable the pre-action size probe failed', probe_compare('uv', 'unavailable 0 0 -', 'garbage'), "probe_compare answers 'not comparable' rather than failing");
+is_eq('200000', verdict(probe_compare('uv', probe_available(500000, 100000, 'census'), probe_available(300000, 100000, 'census'))), 'two available records from the same source subtract to a signed delta');
+is_eq('0', verdict(probe_compare('uv', probe_available(500000, 1, 'census'), probe_available(500000, 1, 'census'))), 'an unchanged cache compares to an explicit zero, not to nothing');
+is_eq('-200000', verdict(probe_compare('uv', probe_available(500000, 1, 'census'), probe_available(700000, 1, 'census'))), 'a cache that grew compares to a negative delta, reported as observed');
+is_eq('unavailable docker size source changed between probes: system-df -> buildx-du', verdict(probe_compare('docker', probe_available(1000, 900, 'system-df'), probe_available(400, 300, 'buildx-du'))), 'a changed source is ineligible, and the reason names both sources');
+is_eq('unavailable npm size source changed between probes: census -> other', verdict(probe_compare('npm', probe_available(1000, 900, 'census'), probe_available(400, 300, 'other'))), 'the source-match rule is not docker-specific -- it holds for every runtime');
+is_eq('unavailable the post-action size probe failed', verdict(probe_compare('uv', probe_available(1000, 900, 'census'), probe_unavailable())), 'an unavailable after-record is ineligible');
+is_eq('unavailable the post-action size probe failed', verdict(probe_compare('uv', probe_available(1000, 900, 'census'), '')), 'a missing after-record is ineligible');
+is_eq('unavailable the post-action size probe failed', verdict(probe_compare('uv', probe_available(1000, 900, 'census'), '400 300')), 'a malformed after-record (a bare pair) is ineligible');
+is_eq('unavailable the pre-action size probe failed', verdict(probe_compare('uv', probe_unavailable(), probe_available(400, 300, 'census'))), 'an unavailable before-record is ineligible');
+is_eq('unavailable the pre-action size probe failed', verdict(probe_compare('uv', probe_unavailable(), 'garbage')), "probe_compare answers 'not comparable' rather than failing");
 
 section('[human_bytes] rendering');
 is_eq('0.0B', human_bytes(0), 'zero renders 0.0B');
@@ -212,7 +215,7 @@ section('[source identity] a fake runtime whose source changes between probes yi
 my %calls;
 my $fake = CachePrune::Runtime::register_runtime({
 	name => 'srcfake', detect => sub { 1 },
-	size => queue('available 1000 900 system-df', 'available 400 300 buildx-du'),
+	size => queue(probe_available(1000, 900, 'system-df'), probe_available(400, 300, 'buildx-du')),
 	prune => sub { push @MUTATE, 'MOCK srcfake prune'; 1 },
 });
 reset_logs(); mode('yes');
@@ -254,7 +257,7 @@ is_eq('1', F(), 'process_runtime fails closed on an adapter that returns nothing
 
 section('[process_runtime] prints both figures; footprint and purge-tier totals accumulate independently');
 all_present(); reset_logs(); mode('report');
-($out) = with_size('uv', sub { 'available 500 0 census' }, sub { proc('uv') });
+($out) = with_size('uv', sub { probe_available(500, 0, 'census') }, sub { proc('uv') });
 has($out, '500.0B total (500 bytes)', 'process_runtime prints the total figure');
 has($out, 'reclaimable via the purge verb (0.0B, 0 bytes)', 'process_runtime prints the purge-tier reclaimable figure, labelled with its verb');
 is_eq('500', T('TOTAL_BYTES'), 'a fully-shared runtime still advances the footprint total');
@@ -276,7 +279,7 @@ my $CH = $ENV{CARGO_HOME};
 system('rm', '-rf', $CH);
 system('mkdir', '-p', "$CH/registry/src/i/a", "$CH/registry/cache/i");
 mkfile("$CH/registry/src/i/a/f", 3000); mkfile("$CH/registry/cache/i/c.crate", 5000);
-is_eq('available 8000 3000 census', rt('cargo')->{size}->(rt('cargo'), "$CH/registry"), 'cargo size: total is whole registry/, reclaimable is registry/src bytes');
+is_eq('8000 3000 census', fields(rt('cargo')->{size}->(rt('cargo'), "$CH/registry")), 'cargo size: total is whole registry/, reclaimable is registry/src bytes');
 ($out) = proc('cargo');
 is_eq('8000', T('TOTAL_BYTES'), "cargo's bytes count toward total footprint");
 is_eq('0', T('SAFE_RECLAIMABLE_BYTES'), "cargo's bytes never reach the safe-tier reclaimable total");
@@ -293,23 +296,23 @@ sub delta_case {
 	return ($o2, $e2, $rv);
 }
 my $rv;
-($out) = delta_case('[delta] computed from real before/after probe values', ['available 500000 100000 census', 'available 300000 100000 census']);
+($out) = delta_case('[delta] computed from real before/after probe values', [probe_available(500000, 100000, 'census'), probe_available(300000, 100000, 'census')]);
 has(delta_line($out), '200000 bytes', 'the delta line reports the real before/after difference (500000 - 300000), not a guess');
 is_eq('200000', T('DELTA_BYTES'), 'the grand-total delta accumulator reflects the real computed value');
 
-($out) = delta_case('[delta] edge case 1: an action that frees nothing reports 0B explicitly', ['available 500000 424242 census', 'available 500000 424242 census']);
+($out) = delta_case('[delta] edge case 1: an action that frees nothing reports 0B explicitly', [probe_available(500000, 424242, 'census'), probe_available(500000, 424242, 'census')]);
 $dl = delta_line($out);
 has($dl, '0.0B', 'an action that frees nothing reports 0B explicitly');
 has($dl, '(0 bytes)', 'the zero delta is the literal computed byte count, not omitted');
 hasnt($dl, '424242', 'the zero delta line never substitutes the (nonzero) reclaimable estimate');
 is_eq('0', T('DELTA_BYTES'), 'the grand-total delta reflects the real zero, not the estimate');
 
-($out) = delta_case('[delta] edge case 5: before-probe unavailable -- no delta, action skipped', ['unavailable 0 0 -']);
+($out) = delta_case('[delta] edge case 5: before-probe unavailable -- no delta, action skipped', [probe_unavailable()]);
 hasnt($out, 'observed footprint change', 'an unavailable before-probe never prints a delta line at all');
 hasnt(mutate(), 'uv cache', 'an unavailable before-probe still skips the action for safety');
 is_eq('0', T('DELTA_BYTES'), 'an unavailable before-probe never contributes to the grand-total delta');
 
-($out) = delta_case('[delta] edge case 3: post-action probe failure', ['available 500000 100000 census', 'unavailable 0 0 -']);
+($out) = delta_case('[delta] edge case 3: post-action probe failure', [probe_available(500000, 100000, 'census'), probe_unavailable()]);
 $dl = delta_line($out);
 has($dl, 'unavailable', 'a failed post-action probe reports the delta as unavailable');
 has($dl, 'post-action size probe failed', 'the unavailable delta names the post-action probe as the reason');
@@ -317,7 +320,7 @@ is_eq('0', F(), 'a post-action probe failure alone does not set FAILED');
 is_eq('0', T('DELTA_BYTES'), 'a runtime with an unavailable post-action probe is excluded from the grand-total delta');
 
 (undef, undef, undef) = ();
-my @r = delta_case('[delta] edge case 4: a failed action still reports the delta, labelled partial, and still fails', ['available 1000000 500000 census', 'available 700000 500000 census'], prune_rc => 1);
+my @r = delta_case('[delta] edge case 4: a failed action still reports the delta, labelled partial, and still fails', [probe_available(1000000, 500000, 'census'), probe_available(700000, 500000, 'census')], prune_rc => 1);
 ($out, $err, $rv) = @r;
 $dl = delta_line($out);
 has($dl, '300000 bytes', "a failed action's partial delta is still the real measured difference");
@@ -327,14 +330,14 @@ falsy('process_runtime still returns failure when the verb it ran failed', $rv);
 is_eq('300000', T('DELTA_BYTES'), 'a partial-but-measured delta is still summed into the grand total');
 has($err, 'WARNING: uv: prune failed', 'the failed verb warns');
 
-($out) = delta_case('[delta] edge case 2: negative delta is reported signed, not clamped, not a failure', ['available 500000 100000 census', 'available 700000 100000 census']);
+($out) = delta_case('[delta] edge case 2: negative delta is reported signed, not clamped, not a failure', [probe_available(500000, 100000, 'census'), probe_available(700000, 100000, 'census')]);
 $dl = delta_line($out);
 has($dl, '-200000 bytes', 'a negative delta is reported signed, as observed, not clamped to zero');
 has($dl, 'negative', 'a negative delta carries the concurrent-write note');
 is_eq('0', F(), 'a negative delta is not treated as a failure');
 is_eq('-200000', T('DELTA_BYTES'), 'the grand-total delta reflects the signed negative value');
 
-($out) = delta_case('[delta] dual-verb interactive, both confirms accepted: one delta spans both verbs', ['available 1000000 500000 census', 'available 200000 500000 census'], mode => 'interactive', purge => 1, confirm => 1);
+($out) = delta_case('[delta] dual-verb interactive, both confirms accepted: one delta spans both verbs', [probe_available(1000000, 500000, 'census'), probe_available(200000, 500000, 'census')], mode => 'interactive', purge => 1, confirm => 1);
 is_eq('uv cache prune|uv cache clean|', mutate(), 'both verbs actually ran (safe then purge) ahead of the delta');
 is_eq('1', scalar(() = $out =~ /observed footprint change/g), 'exactly one delta line is printed for a dual-verb run');
 has(delta_line($out), '800000 bytes', 'the single delta reflects the pair spanning both verbs');
@@ -343,7 +346,7 @@ is_eq('800000', T('DELTA_BYTES'), 'the grand total reflects the one spanning del
 section('[totals] safe-tier and purge-tier reclaimable accumulate independently across a full pass');
 all_present(); reset_logs(); mode('report');
 {
-	my %fixed = (uv => 'available 10000 1000 census', npm => 'available 20000 2000 census', pip => 'available 5000 5000 census', bun => 'available 6000 6000 census', cargo => 'available 7000 7000 census');
+	my %fixed = (uv => probe_available(10000, 1000, 'census'), npm => probe_available(20000, 2000, 'census'), pip => probe_available(5000, 5000, 'census'), bun => probe_available(6000, 6000, 'census'), cargo => probe_available(7000, 7000, 'census'));
 	my %orig = map { $_ => rt($_)->{size} } keys %fixed;
 	for my $n (keys %fixed) { my $v = $fixed{$n}; rt($n)->{size} = sub { $v }; }
 	proc_all();
@@ -618,7 +621,7 @@ is_eq('', mutate(), 'a full --report run via main() still performs no mutating c
 hasnt($out, 'Overlap:', 'no split-tier bytes: the Total block carries no overlap line');
 
 section('[report seam] split-tier: safe_reclaimable gives a dual-verb runtime both figures; others unchanged');
-my $seam = { name => 'seamfake', prune => sub { 1 }, purge => sub { 1 } };
+my $seam = { name => 'seamfake', predicts => 'purge', prune => sub { 1 }, purge => sub { 1 } };
 CachePrune::Main::reset_totals();
 ($out) = capture(sub { CachePrune::Main::report_measurement($seam, 10240, 6144) });
 is_eq("seamfake cache size: 10.0KB total (10240 bytes)\nseamfake reclaimable via the purge verb (6.0KB, 6144 bytes) -- requires --include-purge\nnote: seamfake's safe verb cannot be predicted (no dry run exists) -- it is not represented by any reclaimable figure here.\n", $out, 'a dual-verb runtime without the entry reports exactly as before');
@@ -631,17 +634,31 @@ is_eq('2048 6144 2048', join(' ', T('SAFE_RECLAIMABLE_BYTES'), T('PURGE_RECLAIMA
 hasnt($out, 'cannot be predicted', 'a split-tier runtime prints no unpredicted-safe note');
 ($out) = capture(sub { CachePrune::Main::print_total() });
 has($out, 'Overlap: 2.0KB (2048 bytes) of the safe-tier figure', 'the Total block names the overlap');
-my $only = { name => 'onlyfake', purge => sub { 1 }, interactive_only => 'x' };
+my $only = { name => 'onlyfake', predicts => 'purge', purge => sub { 1 }, interactive_only => 'x' };
 ($out) = capture(sub { CachePrune::Main::report_measurement($only, 10, 10) });
 has($out, 'onlyfake reclaimable via the purge verb (10.0B, 10 bytes) -- emptied only after an interactive confirm, never under --yes', 'an interactive-only runtime names its gate');
-my $safeonly = { name => 'safefake', prune => sub { 1 }, purge => sub { 1 }, purge_unpredicted_note => 'purge note', safe_estimate_note => 'safe note' };
+my $safeonly = { name => 'safefake', prune => sub { 1 }, purge => sub { 1 }, predicts => 'safe', report_notes => ['safe note', 'purge note'] };
 ($out) = capture(sub { CachePrune::Main::report_measurement($safeonly, 10, 5) });
 is_eq("safefake cache size: 10.0B total (10 bytes)\nsafefake reclaimable via the safe verb (5.0B, 5 bytes)\nsafe note\npurge note\n", $out, 'a safe-predicting dual-verb runtime prints the safe line, its estimate note and the purge-scope note');
+
+section('[registry] predicts and report_notes');
+{
+	my $d = CachePrune::Runtime::register_runtime({ name => 'predfake', detect => sub { 1 }, size => sub { probe_unavailable() }, prune => sub { 1 }, purge => sub { 1 } });
+	is_eq('purge', $d->{predicts}, 'a runtime with a purge hook defaults to predicts => purge');
+	my $s = CachePrune::Runtime::register_runtime({ name => 'predfake2', detect => sub { 1 }, size => sub { probe_unavailable() }, prune => sub { 1 }, purge => sub { 1 }, predicts => 'safe', report_notes => ['n1'] });
+	is_eq('safe n1', "$s->{predicts} @{ $s->{report_notes} }", 'an explicit predicts and report_notes are accepted');
+	falsy('register_runtime rejects an invalid predicts value', eval { CachePrune::Runtime::register_runtime({ name => 'predbad', detect => sub { 1 }, size => sub { 1 }, purge => sub { 1 }, predicts => 'both' }); 1 });
+	falsy('register_runtime rejects predicts naming a verb the runtime lacks', eval { CachePrune::Runtime::register_runtime({ name => 'predbad2', detect => sub { 1 }, size => sub { 1 }, purge => sub { 1 }, predicts => 'safe' }); 1 });
+	is_eq('docker safe', 'docker ' . rt('docker')->{predicts}, 'docker declares that its probe predicts the safe verb');
+	($out, $err) = with_size('uv', sub { 'available 10 10 census' }, sub { all_present(); reset_logs(); mode('report'); proc('uv') });
+	has($err, 'WARNING: uv: cache size probe returned a malformed result', 'a hook returning the retired string record is malformed');
+	@CachePrune::Runtime::ORDER = grep { $_->{name} !~ /\Apredfake/ } @CachePrune::Runtime::ORDER; delete @CachePrune::Runtime::BY_NAME{qw(predfake predfake2)};
+}
 
 section('[residue / detail / interactive_only] lifecycle seams a fake runtime exercises');
 my @trace;
 CachePrune::Runtime::register_runtime({
-	name => 'seamrt', detect => sub { 1 }, size => sub { 'available 10 10 census' },
+	name => 'seamrt', detect => sub { 1 }, size => sub { probe_available(10, 10, 'census') },
 	purge => sub { push @trace, 'purge'; 1 }, detail => sub { print "seamrt detail\n" },
 	residue => sub { push @trace, 'residue'; 1 }, interactive_only => 'skipped: seamrt needs an interactive confirm',
 	purge_prompt => sub { 'Custom seamrt prompt?' },

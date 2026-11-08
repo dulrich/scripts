@@ -8,7 +8,7 @@ package CachePrune::Main;
 use strict;
 use warnings;
 use CachePrune::Core ();
-use CachePrune::Measurement qw(probe_is_valid probe_is_available probe_fields probe_compare
+use CachePrune::Measurement qw(probe_is_record probe_is_available probe_compare
 	human_bytes human_bytes_signed);
 use CachePrune::Actions ();
 use CachePrune::Runtime ();
@@ -211,15 +211,20 @@ sub measure_runtime {
 	my ($rt, $dir) = @_;
 	my $r = $rt->{size}->($rt, $dir);
 	return (1) unless defined $r;
-	return (2) unless length $r && probe_is_valid($r);
+	return (2) unless probe_is_record($r);
 	return (0, $r);
 }
 
+# report_measurement($rt, $total, $reclaimable): the reclaimable lines follow from the verb hooks
+# and the registry's predicts ('purge' | 'safe'): both verbs + safe_reclaimable -- split safe and
+# purge lines; a predicted purge verb -- the purge line (plus the unpredictable-safe-verb note
+# when a prune hook exists too); a predicted safe verb -- the safe line. report_notes follow.
 sub report_measurement {
 	my ($rt, $total, $recl) = @_;
 	my $name = $rt->{name};
 	printf "%s cache size: %s total (%d bytes)\n", $name, human_bytes($total), $total;
 	$TOTAL_BYTES += $total;
+	my $predicts = $rt->{predicts} // '';
 	if ($rt->{prune} && $rt->{purge} && $rt->{safe_reclaimable}) {
 		my $safe = $rt->{safe_reclaimable}->($rt);
 		$safe = 0 unless defined $safe && $safe =~ /\A[0-9]+\z/;
@@ -230,7 +235,7 @@ sub report_measurement {
 		$SAFE_RECLAIMABLE_BYTES += $safe;
 		$PURGE_RECLAIMABLE_BYTES += $recl;
 		$OVERLAP_RECLAIMABLE_BYTES += $safe;
-	} elsif ($rt->{purge} && !(defined $rt->{purge_unpredicted_note} && length $rt->{purge_unpredicted_note})) {
+	} elsif ($rt->{purge} && $predicts eq 'purge') {
 		my $gate = 'requires --include-purge';
 		$gate = 'emptied only after an interactive confirm, never under --yes'
 			if defined $rt->{interactive_only} && length $rt->{interactive_only};
@@ -239,13 +244,11 @@ sub report_measurement {
 		if ($rt->{prune}) {
 			print "note: ${name}'s safe verb cannot be predicted (no dry run exists) -- it is not represented by any reclaimable figure here.\n";
 		}
-	} elsif ($rt->{prune}) {
+	} elsif ($rt->{prune} && $predicts eq 'safe') {
 		printf "%s reclaimable via the safe verb (%s, %d bytes)\n", $name, human_bytes($recl), $recl;
 		$SAFE_RECLAIMABLE_BYTES += $recl;
-		print "$rt->{safe_estimate_note}\n" if defined $rt->{safe_estimate_note} && length $rt->{safe_estimate_note};
-		print "$rt->{purge_unpredicted_note}\n"
-			if $rt->{purge} && defined $rt->{purge_unpredicted_note} && length $rt->{purge_unpredicted_note};
 	}
+	print "$_\n" for @{ $rt->{report_notes} // [] };
 }
 
 # report_delta($rt, $dir, $before, $verb_failed): one post-action probe spanning every verb.
@@ -253,14 +256,12 @@ sub report_delta {
 	my ($rt, $dir, $before, $verb_failed) = @_;
 	my $name = $rt->{name};
 	my ($st, $after) = measure_runtime($rt, $dir);
-	$after = '' if $st != 0;
-	my $verdict = probe_compare($name, $before, $after);
-	my ($vs, $rest) = split / /, $verdict, 2;
-	if ($vs ne 'available') {
-		print "$name: observed footprint change: unavailable ($rest)\n";
+	$after = undef if $st != 0;
+	my ($delta, $reason) = probe_compare($name, $before, $after);
+	if (!defined $delta) {
+		print "$name: observed footprint change: unavailable ($reason)\n";
 		return;
 	}
-	my $delta = $rest;
 	$DELTA_BYTES += $delta;
 	my $note = '';
 	if ($verb_failed) {
@@ -300,8 +301,7 @@ sub process_runtime {
 		print "skip: $name size unavailable, skipping action for safety.\n";
 		return 1;
 	}
-	my (undef, $bt, $br) = probe_fields($before);
-	report_measurement($rt, $bt, $br);
+	report_measurement($rt, $before->{total}, $before->{reclaimable});
 	$rt->{detail}->($rt) if $rt->{detail};
 
 	return 1 if $CachePrune::Core::MODE eq 'report';

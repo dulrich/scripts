@@ -36,6 +36,8 @@ sub bad { $fail++; print "  FAIL - $_[0]\n"; }
 sub is_eq { my ($exp, $got, $label) = @_; $got = '<undef>' unless defined $got; $exp eq $got ? ok($label) : bad("$label (expected <$exp>, got <$got>)"); }
 sub has { my ($hay, $needle, $label) = @_; index($hay, $needle) >= 0 ? ok($label) : bad("$label (expected <$needle> in <$hay>)"); }
 sub hasnt { my ($hay, $needle, $label) = @_; index($hay, $needle) < 0 ? ok($label) : bad("$label (did not expect <$needle> in <$hay>)"); }
+# Test-local field view of a probe record, for comparison only.
+sub fields { my ($r) = @_; return 'not a record' unless CachePrune::Measurement::probe_is_record($r); return defined $r->{source} ? "$r->{total} $r->{reclaimable} $r->{source}" : 'unavailable'; }
 sub section { print "$_[0]\n"; }
 
 my $capn = 0;
@@ -158,7 +160,8 @@ sub field { my ($doc, $k) = @_; my $v = $doc->{$k}; return ref $v ? join("\n", @
 # ---- adapters.sh: docker ---------------------------------------------------------------
 section('[docker] registry membership: dual verb, daemon-owned cache, residue hooks');
 is_eq('prune purge detail residue', join(' ', grep { rt('docker')->{$_} } qw(prune purge cache_dir detail residue)), 'docker has prune, purge, detail and residue, and no cache_dir hook');
-has(rt('docker')->{purge_unpredicted_note}, 'docker builder prune -a', 'the size probe predicts the safe verb only: the purge figure is a note');
+is_eq('safe', rt('docker')->{predicts}, 'docker declares that the size probe predicts the safe verb only');
+has(join("\n", @{ rt('docker')->{report_notes} }), 'docker builder prune -a', 'the size probe predicts the safe verb only: the purge figure is a note');
 
 section('[docker] daemon-down is a skip, not a failure');
 reset_logs(); mode('yes'); $FX{info} = 1;
@@ -198,13 +201,13 @@ is_eq('', join(' ', CachePrune::Runtime::docker::docker_system_df_bytes("Images 
 
 section('[docker] size: system df first, buildx du fallback, unavailable when both fail');
 reset_logs();
-is_eq('available 10000000000 6000000000 system-df', rt('docker')->{size}->(rt('docker'), ''), 'system df is the primary source, named in the record');
+is_eq('10000000000 6000000000 system-df', fields(rt('docker')->{size}->(rt('docker'), '')), 'system df is the primary source, named in the record');
 hasnt(all_log(), 'buildx du', 'buildx du is never queried when system df succeeded');
 reset_logs(); $FX{df_rc} = 1;
-is_eq('available 10000000000 4000000000 buildx-du', rt('docker')->{size}->(rt('docker'), ''), 'a failing system df falls back to buildx du, named in the record');
+is_eq('10000000000 4000000000 buildx-du', fields(rt('docker')->{size}->(rt('docker'), '')), 'a failing system df falls back to buildx du, named in the record');
 has(all_log(), 'docker system df|docker buildx du|', 'system df is attempted first');
 reset_logs(); $FX{df} = "no build-cache row\n"; $FX{df_rc} = 0; $FX{buildx_rc} = 1;
-is_eq('unavailable 0 0 -', rt('docker')->{size}->(rt('docker'), ''), 'neither source parses: unavailable, never a guess');
+is_eq('unavailable', fields(rt('docker')->{size}->(rt('docker'), '')), 'neither source parses: unavailable, never a guess');
 mode('yes');
 ($out) = proc('docker');
 has($out, 'skip: docker size unavailable, skipping action for safety.', 'an unavailable docker size skips the action');
@@ -253,7 +256,7 @@ is_eq('docker builder prune --force|', (mutate() =~ /\A(docker builder prune[^|]
 
 section('[partial failure] docker still processes after another runtime fails');
 reset_logs(); mode('yes');
-CachePrune::Runtime::register_runtime({ name => 'failfirst', detect => sub { 1 }, size => sub { 'available 10 10 x' }, prune => sub { 0 } });
+CachePrune::Runtime::register_runtime({ name => 'failfirst', detect => sub { 1 }, size => sub { CachePrune::Measurement::probe_available(10, 10, 'x') }, prune => sub { 0 } });
 my @saved = @CachePrune::Runtime::ORDER;
 @CachePrune::Runtime::ORDER = (rt('failfirst'), rt('docker'));
 my ($o2, $e2) = capture(sub { CachePrune::Main::process_runtime($_) for @CachePrune::Runtime::ORDER; });
@@ -546,7 +549,7 @@ is_eq('1', rt('trash')->{detect}->(rt('trash')), 'gio plus the fixture dir is de
 	is_eq("$ENV{HOME}/.local/share/Trash", CachePrune::Runtime::trash::trash_dir(), 'without XDG_DATA_HOME it is $HOME/.local/share/Trash'); }
 
 section('[trash --report] files/ + info/ (+ expunged/) sized, nothing emptied');
-is_eq("available $texp $texp trash", rt('trash')->{size}->(rt('trash'), ''), 'size counts files/ + info/, all reclaimable');
+is_eq("$texp $texp trash", fields(rt('trash')->{size}->(rt('trash'), '')), 'size counts files/ + info/, all reclaimable');
 reset_logs(); mode('report');
 ($out) = proc('trash');
 has($out, 'trash: 2 items in files/', 'detail counts the items in files/');
@@ -557,7 +560,7 @@ is_eq('1', -f "$TR/files/a.bin" ? 1 : 0, '--report leaves the fixture intact');
 mkdir "$TR/expunged";
 { open(my $h, '>', "$TR/expunged/x") or die; print $h "\0" x 500; close $h; }
 my $texp2 = $texp + CachePrune::Adapters::path_du_bytes("$TR/expunged");
-is_eq("available $texp2 $texp2 trash", rt('trash')->{size}->(rt('trash'), ''), 'expunged/ counts when present');
+is_eq("$texp2 $texp2 trash", fields(rt('trash')->{size}->(rt('trash'), '')), 'expunged/ counts when present');
 trash_fixture();
 
 for my $ip (0, 1) {
