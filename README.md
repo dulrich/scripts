@@ -66,7 +66,7 @@ util cache-prune --version
 
 Copy `config.example.sh` to `config.sh` to set per-machine values such as paths and display outputs; `config.sh` is gitignored and `aliases.sh` sources it when present.
 
-An optional private overlay may be checked out at `private/` (also gitignored). It can hold `aliases.sh` (sourced at the end of the chain), `util/*.sh` subcommands, and `util/cache-prune/fleet/*.pm` runtime modules for cache-prune. With `private/` absent everything works unchanged.
+An optional private overlay may be checked out at `private/` (also gitignored). It can hold `private/aliases.sh` (sourced at the end of the chain), `private/util/*.sh` subcommands, and cache-prune runtime modules in `private/util/cache-prune/fleet/*.pm`. With `private/` absent everything works unchanged.
 
 ## Checks
 
