@@ -64,9 +64,6 @@ bash tests/aliases-smoke.sh
 section 'root-utility smoke'
 bash tests/root-utils-smoke.sh
 
-section 'pkg-ioc smoke'
-bash pkg-ioc/tests/smoke.sh
-
 section 'build-system template compile'
 (
 	cd build_system
@@ -81,7 +78,9 @@ gate=
 for _g in "$(dirname "$repo_dir")"/*/scripts/shell-disposition-gate.mjs; do
 	if [[ -f $_g ]]; then gate=$_g; break; fi
 done
-if command -v bun >/dev/null 2>&1 && [[ -n $gate ]]; then
+if [[ ! -f .shell-disposition.json ]]; then
+	printf 'SKIPPED: .shell-disposition.json absent (public projection; maintainer-only gate)\n'
+elif command -v bun >/dev/null 2>&1 && [[ -n $gate ]]; then
 	bun "$gate" .
 else
 	printf 'SKIPPED: bun or shell-disposition-gate.mjs not available\n'

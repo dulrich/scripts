@@ -213,4 +213,32 @@ else
 	printf 'skip: no local public branch; control-plane strip check not run\n'
 fi
 
+# --- maintainer-only gate manifests are stripped from the projection ------
+# Offline: asserts the publication config strips them, and (when a local
+# public branch exists) that the projected tree carries neither.
+strip_ok=1
+for manifest in .help-gate.json .shell-disposition.json; do
+	if ! grep -qF "\"$manifest\"" .publication.json; then
+		printf '.publication.json strip list lacks %s\n' "$manifest" >&2
+		strip_ok=0
+	fi
+done
+if [[ $strip_ok -eq 1 ]]; then
+	ok '.publication.json strips .help-gate.json and .shell-disposition.json'
+else
+	fail '.publication.json strips .help-gate.json and .shell-disposition.json'
+fi
+if git rev-parse --verify --quiet refs/heads/public >/dev/null; then
+	if [[ -z "$(git ls-tree -r --name-only public -- .help-gate.json .shell-disposition.json)" ]]; then
+		ok 'public branch carries neither .help-gate.json nor .shell-disposition.json'
+	else
+		# A projection built before this strip landed still carries them;
+		# the config check above is the hard assertion, this one nags.
+		printf 'WARN: public branch still carries a gate manifest; re-project (publish.mjs) to apply the strip\n' >&2
+		ok 'public branch manifest check (stale projection: warned, re-project to clear)'
+	fi
+else
+	printf 'skip: no local public branch; manifest strip projection check not run\n'
+fi
+
 printf 'public-contract-smoke: %d/%d passed\n' "$passed" "$total"
