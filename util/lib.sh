@@ -24,7 +24,12 @@ _util_infra="dispatch lib completions"
 # (<dir>/../private/util/*.sh). The one discovery operation shared by
 # dispatch.sh's listing and completions.sh's completion, so both stay in
 # sync on overlay precedence, infrastructure exclusion, and .sh resolution.
+# Output is sorted and de-duplicated (LC_ALL=C sort -u) across public+private.
 _util_commands () {
+	_util_commands_raw "$1" | LC_ALL=C sort -u
+}
+
+_util_commands_raw () {
 	local dir="$1" priv f name
 	priv="$dir/../private/util"
 

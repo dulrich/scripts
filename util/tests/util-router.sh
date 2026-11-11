@@ -272,6 +272,86 @@ for candidate in "$repo_dir"/util/*.sh; do
 	fi
 done
 
+# The listing is one sorted, de-duplicated set across public and private
+# (LC_ALL=C sort -u in _util_commands): a private name sorts among public ones
+# and a shadowed name appears once.
+apply_fixture_script "$fixture_private/aaa-private.sh"
+apply_fixture_script "$fixture_util/zzz-public.sh"
+listing_raw=$(_util_commands "$fixture_util")
+assert_eq "$(printf '%s\n' "$listing_raw" | LC_ALL=C sort -u)" "$listing_raw" 'command listing is sorted and de-duplicated across public and private'
+assert_eq 'aaa-private' "$(printf '%s\n' "$listing_raw" | head -n 1)" 'a private command sorts ahead of public ones'
+assert_eq 1 "$(printf '%s\n' "$listing_raw" | grep -cx shadowed)" 'a shadowed name is listed once'
+set +e
+sorted_router=$("$fixture_util/dispatch.sh" 2>&1 | sed -n 's/^  //p')
+set -e
+assert_eq "$listing_raw" "$sorted_router" 'the router prints the sorted listing'
+
+# Completion protocol, end to end: a fixture opted in with the marker answers
+# `--complete <idx> <w1..wN>` with candidates that contain spaces (E1).
+complete_log="$fixture_root/complete.log"
+cat > "$fixture_util/spaced.sh" <<'FIX'
+#!/usr/bin/env bash
+# util-complete: yes
+if [ "${1-}" = --complete ]; then
+	printf '%s\n' "$*" > "$COMPLETE_LOG"
+	printf '%s\n' 'home net' 'home office' 'other'
+	exit 0
+fi
+echo ran
+FIX
+cat > "$fixture_util/silent.sh" <<'FIX'
+#!/usr/bin/env bash
+# util-complete: yes
+[ "${1-}" = --complete ] && exit 0
+FIX
+cat > "$fixture_private/broken.sh" <<'FIX'
+#!/usr/bin/env bash
+# util-complete: yes
+echo 'home never' ; exit 3
+FIX
+chmod +x "$fixture_util/spaced.sh" "$fixture_util/silent.sh" "$fixture_private/broken.sh"
+
+run_complete() {
+	# run_complete <dir> <word...>: COMP_WORDS=(util <word...>), current = last
+	local dir=$1
+	shift
+	COMPLETE_LOG="$complete_log" FIXTURE_COMPLETIONS="$fixture_util/completions.sh" bash -c '
+		cd "$1"; shift
+		source "$FIXTURE_COMPLETIONS"
+		COMP_WORDS=(util "$@")
+		COMP_CWORD=$#
+		_util_complete
+		printf "<%s>\n" "${COMPREPLY[@]}"
+	' bash "$dir" "$@"
+}
+mkdir -p "$fixture_root/cwd"
+touch "$fixture_root/cwd/home-file.txt"
+
+output=$(run_complete "$fixture_root/cwd" spaced '')
+assert_eq $'<home net>\n<home office>\n<other>' "$output" 'a marked command supplies the candidates, one element per line, spaces intact'
+assert_eq '--complete 1 ' "$(cat "$complete_log")" 'the script is called as --complete <idx> <words>'
+output=$(run_complete "$fixture_root/cwd" spaced first 'ho')
+assert_eq '--complete 2 first ho' "$(cat "$complete_log")" 'idx is 1-based over the words after util <cmd>, current word included'
+assert_eq $'<home net>\n<home office>' "$output" 'candidates are filtered by literal prefix'
+output=$(run_complete "$fixture_root/cwd" spaced 'home\ n')
+assert_eq '<home net>' "$output" 'a backslash-escaped partial spaced word completes to one element'
+output=$(run_complete "$fixture_root/cwd" spaced "'home n")
+assert_eq '<home net>' "$output" 'a quoted partial spaced word completes to one element'
+output=$(run_complete "$fixture_root/cwd" spaced '*')
+assert_eq '<>' "$output" 'the prefix match is literal, not a glob'
+output=$(run_complete "$fixture_root/cwd" silent home)
+assert_eq '<home-file.txt>' "$output" 'a marked command printing nothing falls back to filenames'
+output=$(run_complete "$fixture_root/cwd" broken home)
+assert_eq '<home-file.txt>' "$output" 'a marked private command exiting non-zero falls back to filenames'
+output=$(run_complete "$fixture_root/cwd" scripted home)
+assert_eq '<home-file.txt>' "$output" 'an unmarked command falls back to filenames'
+registration=$(bash -c 'source "$1"; complete -p util' bash "$fixture_util/completions.sh")
+assert_contains "$registration" '-o filenames' 'registration keeps -o filenames, so readline quotes spaced candidates and filename fallback works'
+
+# dotfiles has no smoke of its own: its verbs at position 1, nothing after
+assert_eq $'add\nbackup\nlist\nmigrate\nproject\nrestore\nsnapshot\nstatus' "$("$repo_dir/util/dotfiles.sh" --complete 1 '')" 'dotfiles --complete lists its verbs'
+assert_eq '' "$("$repo_dir/util/dotfiles.sh" --complete 2 add '')" 'dotfiles --complete defers to filenames after the verb'
+
 printf '1..%d\n' "$((pass_count + fail_count))"
 printf '%d passed, %d failed\n' "$pass_count" "$fail_count"
 

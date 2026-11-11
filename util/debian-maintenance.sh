@@ -1,4 +1,5 @@
 #!/bin/sh
+# util-complete: yes
 # CC0: This work has been marked as dedicated to the public domain.
 # debian-maintenance.sh: dash shim for `util debian-maintenance [--report]`.
 # It owns --help and --build/--version, then execs the perl program
@@ -12,6 +13,8 @@ case $_shguard_m in
   *) printf '%s: refusing %s invocation (supports: exec; pipe callers set SHGUARD_MODE=pipe)\n' 'debian-maintenance.sh' "$_shguard_m" >&2; unset _shguard_m; return 1 2>/dev/null || exit 1 ;;
 esac
 # <<< shguard
+# completion protocol (util/AGENTS.md): answered in the shim, perl never starts
+if [ "${1-}" = --complete ]; then printf '%s\n' --report --help; exit 0; fi
 set -eu
 for _a in "$@"; do case "$_a" in --help|-h)
 	printf 'usage: %s [--report]\n' "${0##*/}"

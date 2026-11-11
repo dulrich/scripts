@@ -97,5 +97,7 @@ check "bad arg exit 2" "2" "$rc"
 IP_CMD="$root/nope" bash "$script" >/dev/null 2>&1; rc=$?
 check "missing ip exit 1" "1" "$rc"
 
+check "--complete lists the flags" "--public" "$(bash "$script" --complete 1 "")"
+
 printf '%d passed, %d failed\n' "$pass_count" "$fail_count"
 [ "$fail_count" -eq 0 ]

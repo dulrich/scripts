@@ -167,5 +167,12 @@ else
 	esac
 fi
 
+# ---- completion protocol ---------------------------------------------------------
+echo "[completion] the shim answers --complete without starting perl"
+mkdir -p "$SANDBOX/noperl"; ln -s "$(command -v realpath)" "$SANDBOX/noperl/realpath"
+SH_BIN=$(command -v sh)
+assert_eq "--report
+--help" "$(PATH="$SANDBOX/noperl" "$SH_BIN" "$SHIM" --complete 1 "")" "--complete lists the documented flags"
+
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

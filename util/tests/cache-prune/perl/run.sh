@@ -373,5 +373,12 @@ p_rc=0; out=$(CACHE_PRUNE_FLEET_DIR="$FLEET" run_perl --report 2>&1) || p_rc=$?
 assert_eq "255" "$p_rc" "a fleet module that fails to compile aborts the run"
 assert_has "$out" "cache-prune: failed to load $FLEET/zbroken.pm" "the load failure names the module"
 
+# ---- completion protocol ---------------------------------------------------------
+# the shim answers --complete itself: a PATH holding only realpath (for the mode guard) has no perl
+mkdir -p "$SANDBOX/noperl"; ln -s "$(command -v realpath)" "$SANDBOX/noperl/realpath"
+SH_BIN=$(command -v sh)
+c_out=$(PATH="$SANDBOX/noperl" "$SH_BIN" "$HERE/../../../cache-prune.sh" --complete 1 "")
+assert_has "$c_out" "--include-purge" "--complete lists the documented flags from the shim, without perl"
+
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

@@ -76,5 +76,7 @@ check 'no battery exits 1' '1' "$?"
 bash "$script" --bogus >/dev/null 2>&1
 check 'unknown argument exits 2' '2' "$?"
 
+check "--complete lists the flags" "--brief" "$(bash "$script" --complete 1 "")"
+
 printf '%d passed, %d failed\n' "$pass_count" "$fail_count"
 [ "$fail_count" -eq 0 ]

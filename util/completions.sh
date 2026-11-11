@@ -1,8 +1,9 @@
 #!/bin/bash
 
 # completions.sh: bash completion for the `util` router command.
-# Level 1 completes the subcommand list, generated from util/*.sh (so new
-# commands appear automatically). Deeper levels complete filenames.
+# Level 1 completes the subcommand list from _util_commands (so new
+# commands appear automatically). Deeper levels ask an opted-in subcommand
+# (`--complete`, see _util_complete) and otherwise complete filenames.
 #
 # CC0: This work has been marked as dedicated to the public domain.
 # https://creativecommons.org/publicdomain/zero/1.0/
@@ -24,19 +25,66 @@ _UTIL_DIR=$(dirname "$(realpath "${BASH_SOURCE[0]}")")
 # shellcheck source=util/lib.sh
 source "$_UTIL_DIR/lib.sh"
 
+# _util_dequote <word>: undo the shell quoting readline leaves in COMP_WORDS
+# ('home n, "home n, home\ n -> home n) so prefix matching sees the literal text.
+_util_dequote() {
+	local w=$1
+	case $w in
+		\'*) w=${w#\'}; w=${w%\'} ;;
+		\"*) w=${w#\"}; w=${w%\"} ;;
+		*) w=$(printf '%s' "$w" | sed 's/\\\(.\)/\1/g') ;;
+	esac
+	printf '%s' "$w"
+}
+
+# _util_resolve <cmd>: the script dispatch.sh would exec for <cmd>, same order.
+_util_resolve() {
+	local f
+	for f in "$_UTIL_DIR/$1" "$_UTIL_DIR/$1.sh" "$_UTIL_DIR/../private/util/$1" "$_UTIL_DIR/../private/util/$1.sh"; do
+		if [[ -f $f ]]; then printf '%s\n' "$f"; return 0; fi
+	done
+	return 1
+}
+
+# Completion protocol: a subcommand opts in with a line exactly
+# `# util-complete: yes` in its first 20 lines; it is then run as
+# `<script> --complete <idx> <w1> ... <wN>` (w1..wN = the words after
+# `util <cmd>` up to and including the current one, idx = 1-based index of
+# the current one) and prints one candidate per line. Candidates may contain
+# spaces; each matching line becomes one COMPREPLY element. Marker absent,
+# non-zero exit or empty output falls back to filename completion.
 _util_complete() {
-	local cur
-	local -a cmds=()
+	local cur script line i
+	local -a cmds=() lines=() words=()
 	cur=${COMP_WORDS[COMP_CWORD]}
+	COMPREPLY=()
 
 	if [[ ${COMP_CWORD:-0} == 1 ]]; then
 		mapfile -t cmds < <(_util_commands "$_UTIL_DIR")
 		mapfile -t COMPREPLY < <(compgen -W "${cmds[*]}" -- "$cur")
-	else
-		# subcommand arguments are completed as filenames
-		mapfile -t COMPREPLY < <(compgen -f -- "$cur")
+		return 0
 	fi
 
+	if script=$(_util_resolve "${COMP_WORDS[1]}") \
+		&& head -n 20 -- "$script" 2>/dev/null | grep -qx '# util-complete: yes'; then
+		for ((i = 2; i <= COMP_CWORD; i++)); do
+			words+=("$(_util_dequote "${COMP_WORDS[i]}")")
+		done
+		cur=${words[${#words[@]}-1]}
+		if mapfile -t lines < <("$script" --complete "$((COMP_CWORD - 1))" "${words[@]}" 2>/dev/null; printf '\n%s' "$?") \
+			&& [[ ${lines[${#lines[@]}-1]} == 0 ]]; then
+			unset 'lines[${#lines[@]}-1]'
+			for line in "${lines[@]}"; do
+				[[ -n $line && $line == "$cur"* ]] && COMPREPLY+=("$line")
+			done
+			# non-empty output answers (-o filenames makes readline quote spaced
+			# candidates); empty output falls through to filenames
+			if [[ ${#lines[@]} -gt 1 || -n ${lines[0]-} ]]; then return 0; fi
+		fi
+	fi
+
+	# subcommand arguments are completed as filenames
+	mapfile -t COMPREPLY < <(compgen -f -- "$cur")
 	return 0
 }
 

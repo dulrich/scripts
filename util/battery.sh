@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# util-complete: yes
 # battery.sh: report battery charge, health and time estimate from sysfs.
 # `util battery` prints one line per battery plus a total; `--brief` prints
 # just the total for prompts and `ssh <host> …` checks. Reads only
@@ -16,6 +17,8 @@ case $_shguard_m in
   *) printf '%s: refusing %s invocation (supports: exec,pipe; pipe callers set SHGUARD_MODE=pipe)\n' 'battery.sh' "$_shguard_m" >&2; unset _shguard_m; return 1 2>/dev/null || exit 1 ;;
 esac
 # <<< shguard
+# completion protocol (util/AGENTS.md): no side effect, answered first
+if [ "${1-}" = --complete ]; then printf '%s\n' --brief; exit 0; fi
 # shellcheck source=util/lib/build-id.sh
 case " $* " in *" --help "*|*" -h "*) ;; *) . "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/lib/build-id.sh"; build_flags "${BASH_SOURCE[0]}" "$@" ;; esac
 usage() {

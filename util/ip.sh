@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# util-complete: yes
 # ip.sh: show the machine's useful IP addresses — the ones you'd hand to
 # someone or ssh to — hiding loopback, link-local and container/VM plumbing
 # (docker*, br-*, veth*, virbr*, …). The interface carrying the default route
@@ -16,6 +17,8 @@ case $_shguard_m in
   *) printf '%s: refusing %s invocation (supports: exec; pipe callers set SHGUARD_MODE=pipe)\n' 'ip.sh' "$_shguard_m" >&2; unset _shguard_m; return 1 2>/dev/null || exit 1 ;;
 esac
 # <<< shguard
+# completion protocol (util/AGENTS.md): no side effect, answered first
+if [ "${1-}" = --complete ]; then printf '%s\n' --all --public -4 -6; exit 0; fi
 # shellcheck source=util/lib/build-id.sh
 case " $* " in *" --help "*|*" -h "*) ;; *) . "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/lib/build-id.sh"; build_flags "${BASH_SOURCE[0]}" "$@" ;; esac
 usage() {

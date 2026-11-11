@@ -37,7 +37,6 @@ ssh_cmd="ssh"
 work_user="username"
 EXTERNAL_OUTPUT="DP-1-3"
 INTERNAL_OUTPUT="eDP-1-1"
-AUDIO_SINK="@DEFAULT_AUDIO_SINK@" # wpctl target for volume(): a PipeWire node id or name, or the default sink
 
 # https://github.com/ElectricRCAircraftGuy/eRCaGuy_hello_world/blob/master/bash/get_script_path.sh
 here=$(dirname "$(realpath "${BASH_SOURCE[0]}")")
@@ -303,22 +302,6 @@ internal () {
     xrandr --output "$INTERNAL_OUTPUT" --mode "1920x1080_60.00"
 }
 
-volume() {
-	# PipeWire + WirePlumber (wpctl): bare prints the sink volume as NN% (" muted" appended when muted); an integer 0-100 sets it.
-	local out pct
-	if [ "${1:-}" == "" ]; then
-		out=$(wpctl get-volume "$AUDIO_SINK") || return
-		pct=$(awk '{printf "%d%%", $2 * 100 + 0.5}' <<< "$out")
-		if [[ $out == *MUTED* ]]; then echo "$pct muted"; else echo "$pct"; fi
-	elif [[ $1 =~ ^[0-9]+$ ]] && ((10#$1 <= 100)); then
-		wpctl set-volume -l 1.0 "$AUDIO_SINK" "$((10#$1))%"
-	else
-		echo "usage: vol [0-100]" >&2
-		return 2
-	fi
-}
-alias vol="volume"
-
 playdir() {
 	# options don't seem to work w/o interface?
 	# --key-play-pause " " --key-next "d" --key-prev "a"
@@ -370,6 +353,9 @@ if [ -f "$here/util/dispatch.sh" ]; then
 	# The resolved path is intentionally captured when the alias chain is sourced.
 	# shellcheck disable=SC2139
 	alias util="$here/util/dispatch.sh"
+	# `vol`/`volume` chain through the `util` alias (bash re-expands its first word).
+	alias vol='util volume'
+	alias volume='util volume'
 	if [ -f "$here/util/completions.sh" ]; then
 		# shellcheck source=util/completions.sh
 		# The runtime-resolved sibling path works when aliases.sh is symlinked.

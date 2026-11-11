@@ -20,7 +20,7 @@
 # EXTERNAL_OUTPUT="DP-1-3"
 # INTERNAL_OUTPUT="eDP-1-1"
 
-# PipeWire sink for the volume()/vol helper (wpctl; a node id or name, default @DEFAULT_AUDIO_SINK@)
+# PipeWire sink for `util volume` (vol) (wpctl; a node id or name, default @DEFAULT_AUDIO_SINK@)
 # AUDIO_SINK="@DEFAULT_AUDIO_SINK@"
 
 # util dotfiles runs standalone (it does not source config.sh) and reads these

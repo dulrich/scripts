@@ -57,6 +57,9 @@ bash util/tests/battery.sh
 section 'ip smoke'
 bash util/tests/ip.sh
 
+section 'volume smoke'
+bash util/tests/volume.sh
+
 section 'alias-chain smoke'
 bash tests/aliases-smoke.sh
 

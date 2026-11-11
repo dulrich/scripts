@@ -1,4 +1,5 @@
 #!/bin/sh
+# util-complete: yes
 # CC0: This work has been marked as dedicated to the public domain.
 # cache-prune.sh: dash shim for `util cache-prune [--report|--yes] [--include-purge] ...`.
 # It owns only --build/--version; -h/--help and everything else is the perl program
@@ -12,6 +13,8 @@ case $_shguard_m in
   *) printf '%s: refusing %s invocation (supports: exec; pipe callers set SHGUARD_MODE=pipe)\n' 'cache-prune.sh' "$_shguard_m" >&2; unset _shguard_m; return 1 2>/dev/null || exit 1 ;;
 esac
 # <<< shguard
+# completion protocol (util/AGENTS.md): answered in the shim, perl never starts
+if [ "${1-}" = --complete ]; then printf '%s\n' --report --yes --include-purge --docker-until --help; exit 0; fi
 set -eu
 here=$(dirname "$(readlink -f "$0")")
 case " $* " in *" --build "*|*" --version "*)
