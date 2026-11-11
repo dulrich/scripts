@@ -86,7 +86,7 @@ out=$(bash "$script" -4)
 absent "-4 hides v6" "2001:" "$out"
 check "-4 keeps v4" "203.0.113.3/24" "$out"
 out=$(bash "$script" -6)
-absent "-6 hides v4" "192.168" "$out"
+absent "-6 hides v4" "192.0.2" "$out"
 
 help=$(bash "$script" --help); rc=$?
 check "--help exit 0" "0" "$rc"
