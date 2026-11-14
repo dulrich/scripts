@@ -104,8 +104,8 @@ declare here code_path private_loaded
 assert_eq "$fixture_repo" "$here" 'source resolves its real sibling directory'
 assert_eq "$fixture_home/custom code" "$code_path" 'optional config overrides defaults'
 assert_eq '1' "$private_loaded" 'private overlay is sourced once'
-assert_contains "$(alias util)" "$fixture_repo/util/dispatch.sh" 'util alias captures the resolved sibling path'
-assert_eq "alias sudo='sudo '" "$(alias sudo)" "sudo alias keeps a trailing space so 'sudo util …' alias-expands"
+assert_eq '' "$(alias util 2>/dev/null || true)" 'no util alias (util is reached on PATH)'
+assert_eq "alias sudo='sudo '" "$(alias sudo)" "sudo alias keeps a trailing space so the word after sudo alias-expands"
 
 for cd_name in .. ... down code; do
 	completion=$(complete -p "$cd_name" 2>/dev/null || true)

@@ -344,16 +344,13 @@ fi
 # shellcheck disable=SC1091
 source "$here/git-aliases.sh"
 
-# Trailing space: bash then alias-expands the word after `sudo`, so
-# `sudo util <command>` reaches the router like a bare `util <command>`.
+# Trailing space: bash then alias-expands the word after `sudo`.
 alias sudo='sudo '
 
-# util script router: `util <command> [args]` -> util/<command>[.sh]
+# util script router: `util <command> [args]` -> util/<command>[.sh], reached as `util` on PATH
+# (~/.local/sbin/util, linked by the private sibling's bin/install.sh), never as an alias.
 if [ -f "$here/util/dispatch.sh" ]; then
-	# The resolved path is intentionally captured when the alias chain is sourced.
-	# shellcheck disable=SC2139
-	alias util="$here/util/dispatch.sh"
-	# `vol`/`volume` chain through the `util` alias (bash re-expands its first word).
+	# `vol`/`volume` run `util` from PATH.
 	alias vol='util volume'
 	alias volume='util volume'
 	if [ -f "$here/util/completions.sh" ]; then
