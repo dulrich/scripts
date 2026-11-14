@@ -348,7 +348,7 @@ source "$here/git-aliases.sh"
 alias sudo='sudo '
 
 # util script router: `util <command> [args]` -> util/<command>[.sh], reached as `util` on PATH
-# (~/.local/sbin/util, linked by the private sibling's bin/install.sh), never as an alias.
+# (~/.local/sbin/util, a declared host-baseline command link: fleet-deploy commands), never as an alias.
 if [ -f "$here/util/dispatch.sh" ]; then
 	# `vol`/`volume` run `util` from PATH.
 	alias vol='util volume'
