@@ -1,48 +1,7 @@
-!! Colorscheme
-
-! special
-*.foreground:   #c5c8c6
-*.background:   #000000
-*.cursorColor:  #c5c8c6
-
-! black
-*.color0:       #282a2e
-*.color8:       #373b41
-
-! red
-*.color1:       #a54242
-*.color9:       #cc6666
-
-! green
-*.color2:       #649440
-*.color10:      #8abd68
-
-! yellow
-*.color3:       #de935f
-*.color11:      #f0c674
-
-! blue
-*.color4:       #5f819d
-*.color12:      #81a2be
-
-! magenta
-*.color5:       #85678f
-*.color13:      #b294bb
-
-! cyan
-*.color6:       #5e8d87
-*.color14:      #8abeb7
-
-! white
-*.color7:       #707880
-*.color15:      #c5c8c6
-
+!! Colours and font come from the CDE generated theme (~/.config/cde/terminal-theme/urxvt.Xresources),
+!! merged by CDE after this file.
 
 !! URxvt Appearance
-*.font:           xft:bitstream vera sans mono:style=Regular:size=14
-*.boldFont:       xft:bitstream vera sans mono:style=Bold:size=14
-*.italicFont:     xft:bitstream vera sans mono:style=Italic:size=14
-*.boldItalicFont: xft:bitstream vera sans mono:style=Bold Italic:size=14
 URxvt.letterSpace: 0
 URxvt.lineSpace: 0
 URxvt.geometry: 92x24
@@ -59,7 +18,6 @@ URxvt.iso14755: false
 
 URxvt.transparent: false
 URxvt.depth: 32
-URxvt*background: rgba:0000/0000/0000/cccc
 
 
 !! Common Keybinds for Navigations
