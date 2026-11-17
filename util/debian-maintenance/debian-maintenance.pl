@@ -14,6 +14,8 @@
 # absolute path, so `util debian-maintenance` works unprefixed); without the env var it re-execs
 # `sudo -- perl <abs $0>`; without sudo on PATH it fails with "Run as root, e.g.: sudo ...".
 #
+# Kernel cleanup keeps the newest $KEEP_NEWEST_KERNELS images plus the running one; purged headers bring the linux-headers-*-common and linux-kbuild-* packages named in their dpkg Depends (never one a retained headers package also depends on), and once the newest kernel is running the fallback kernels lose their headers too (image and modules kept). The purge runs only if `apt-get -s purge` removes exactly the listed packages; kernel_purge_plan() is the read-only derivation.
+#
 # Kernel and bootloader package hooks own initramfs/GRUB regeneration; this program deliberately
 # does not retry or repair those hooks. Every destructive step requires its own explicit confirm.
 #
@@ -147,6 +149,8 @@ sub require_tty {
 sub transaction_has_changes { return scalar grep { /^(?:Inst|Remv) / } split /\n/, $_[0]; }
 
 sub extract_removals { return map { /^Remv (\S+)/ ? $1 : () } split /\n/, $_[0]; }
+# apt-get -s purge prints `Purg <pkg> [<ver>]` (plain removals print `Remv`); count both.
+sub extract_purge_removals { return map { /^(?:Remv|Purg) (\S+)/ ? $1 : () } split /\n/, $_[0]; }
 
 sub is_boot_critical_package {
 	my ($p) = @_;
@@ -298,28 +302,108 @@ sub build_kernel_purge_list {
 	return @purge;
 }
 
-sub run_kernel_cleanup {
-	section('Installed kernel packages');
+# Package names in a dpkg Depends field: version constraints and `|` alternatives stripped.
+sub depends_names {
+	my ($field) = @_;
+	my @names;
+	for my $clause (split /,/, (defined $field ? $field : '')) {
+		for my $alt (split /\|/, $clause) {
+			push @names, $1 if $alt =~ /\A\s*([a-z0-9][a-z0-9+.-]*)/;
+		}
+	}
+	return @names;
+}
+
+# The installed `linux-headers-*-common*` / `linux-kbuild-*` packages a headers package names in its
+# dpkg Depends; read from the dpkg db, never built from name patterns.
+sub headers_build_companions {
+	my ($headers) = @_;
+	my ($out, $rc) = cmd_capture('null', 'dpkg-query', '-W', '-f=${Depends}', $headers);
+	return () unless $rc == 0;
+	return grep { (/\Alinux-headers-.*-common/ || /\Alinux-kbuild-/) && package_is_installed($_) } depends_names($out);
+}
+
+# The kernel purge plan. Removable images contribute their exact release companions
+# (build_kernel_purge_list). When the running kernel is the newest installed one (post-reboot), every
+# other protected kernel contributes its installed linux-headers-<rel> only: image and modules stay as
+# the boot fallback. Every purged headers package adds its Depends-derived -common/kbuild companions,
+# minus any companion a retained (kept, unstripped) installed headers package also depends on.
+# Returns {images => [...], stripped => [...]}: images = the exact removable-kernel list, stripped =
+# fallback headers plus derived companions not already listed.
+sub derive_kernel_purge_plan {
+	my ($running, $kernels, $protected, $removable) = @_;
+	my @images = build_kernel_purge_list(@$removable);
+	my %listed = map { $_ => 1 } @images;
+	my $post_reboot = @$kernels && $kernels->[-1]{release} eq $running;
+	my (@stripped, @retained_headers);
+	for my $p (@$protected) {
+		my $h = 'linux-headers-' . kernel_release_for_package($p);
+		next unless package_is_installed($h);
+		if ($post_reboot && kernel_release_for_package($p) ne $running) {
+			push @stripped, $h unless $listed{$h}++;
+		} else {
+			push @retained_headers, $h;
+		}
+	}
+	my %retained_dep = map { $_ => 1 } map { headers_build_companions($_) } @retained_headers;
+	my @purged_headers = grep { /\Alinux-headers-/ } @images, @stripped;
+	for my $c (map { headers_build_companions($_) } @purged_headers) {
+		next if $retained_dep{$c} || $listed{$c}++;
+		push @stripped, $c;
+	}
+	return { images => \@images, stripped => \@stripped };
+}
+
+# Read-only: compute and print the kernel purge plan for this host (no root, no TTY, nothing purged).
+# Returns the plan, or undef when retention selection refused. Live check:
+#   perl -e 'require shift; main::kernel_purge_plan() or exit 1' /abs/path/to/debian-maintenance.pl
+sub kernel_purge_plan {
 	my $running = must_capture('uname', '-r');
 	print "Running kernel: $running\n";
 	my @kernels = load_installed_kernels();
-	return err('No fully installed concrete kernel image packages were found.') unless @kernels;
+	return err('No fully installed concrete kernel image packages were found.') && undef unless @kernels;
 	my ($protected, $removable) = select_protected_kernels($running, @kernels);
-	return 0 unless $protected;
+	return undef unless $protected;
 	print "\nProtected kernel image packages:\n";
 	print "  $_\n" for @$protected;
-	if (!@$removable) {
-		print "No old kernel image packages are eligible for removal.\n";
-		return 1;
+	my $plan = derive_kernel_purge_plan($running, \@kernels, $protected, $removable);
+	$plan->{protected} = $protected;
+	if (@{$plan->{images}}) {
+		print "\nOld kernel packages proposed for purge:\n";
+		print "  $_\n" for @{$plan->{images}};
 	}
-	my @purge = build_kernel_purge_list(@$removable);
+	if (@{$plan->{stripped}}) {
+		print "\nKernel build companions proposed for purge (images and modules kept):\n";
+		print "  $_\n" for @{$plan->{stripped}};
+	}
+	return $plan;
+}
+
+# Audit E1: APT's resolved purge transaction must remove exactly the proposed packages, no more.
+# Prints and returns the resolved removals outside @purge (arch suffix ignored).
+sub unexpected_purge_removals {
+	my (@purge) = @_;
+	my %allowed = map { $_ => 1 } @purge;
+	my $sim = must_capture('apt-get', '-s', 'purge', @purge);
+	my @extra = grep { (my $n = $_) =~ s/:[a-z0-9]+\z//; !$allowed{$n} && !$allowed{$_} } extract_purge_removals($sim);
+	print STDERR "  BLOCKED unlisted removal: $_\n" for @extra;
+	return @extra;
+}
+
+sub run_kernel_cleanup {
+	section('Installed kernel packages');
+	my $plan = kernel_purge_plan();
+	return 0 unless $plan;
+	my @purge = (@{$plan->{images}}, @{$plan->{stripped}});
 	if (!@purge) {
 		print "No installed kernel-related packages are eligible for purge.\n";
 		return 1;
 	}
-	print "\nKernel-related packages proposed for purge:\n";
-	print "  $_\n" for @purge;
-	if (confirm('Purge the listed old kernel packages?')) {
+	if (unexpected_purge_removals(@purge)) {
+		print "Skipping kernel cleanup: the purge transaction removes unlisted packages; manual review required.\n";
+		return 1;
+	}
+	if (confirm('Purge the listed kernel packages?')) {
 		must_run('apt-get', '-y', 'purge', @purge);
 	} else {
 		print "Skipping kernel cleanup.\n";

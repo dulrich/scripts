@@ -98,6 +98,56 @@ is_eq('apt-get -y autoremove --purge|', stage(\&main::run_autoremove, 'Remv orph
 is_eq('apt-get -y upgrade --with-new-pkgs|', stage(\&main::run_upgrade, 'Inst package-a', 1), 'approved upgrade runs once');
 is_eq('', stage(\&main::run_upgrade, 'Inst package-a', 0), 'declined upgrade does not execute');
 
+
+# ---- build companions --------------------------------------------------------------
+print "[build companions] Depends-derived -common/kbuild, post-reboot fallback strip\n";
+is_eq('linux-base linux-headers-6.12.116+deb13-common linux-image-6.12.116+deb13-amd64 linux-image-6.12.116+deb13-amd64-unsigned linux-kbuild-6.12.116+deb13 gcc-14',
+	join(' ', main::depends_names('linux-base (>= 4.12~), linux-headers-6.12.116+deb13-common (= 6.12.116-1), linux-image-6.12.116+deb13-amd64 (= 6.12.116-1) | linux-image-6.12.116+deb13-amd64-unsigned (= 6.12.116-1), linux-kbuild-6.12.116+deb13, gcc-14')),
+	'Depends parsing strips version constraints and splits alternatives');
+sub trixie_dep { my ($v) = @_; return "linux-base (>= 4.12~), linux-headers-6.12.$v+deb13-common (= 6.12.$v-1), linux-image-6.12.$v+deb13-amd64 (= 6.12.$v-1) | linux-image-6.12.$v+deb13-amd64-unsigned (= 6.12.$v-1), linux-kbuild-6.12.$v+deb13, gcc-14"; }
+our %DEPENDS;
+our $KREC = '';
+$CAPTURE{'dpkg-query'} = sub {
+	my @a = @_;
+	return ($DEPENDS{$a[2]}, defined $DEPENDS{$a[2]} ? 0 : 1) if $a[1] eq '-f=${Depends}';
+	return ($KREC, 0);
+};
+sub kset { return map { { package => "linux-image-6.12.$_+deb13-amd64", version => "6.12.$_-1", release => "6.12.$_+deb13-amd64" } } @_; }
+sub tri_installed { my %i; for my $v (@_) { $i{$_} = 1 for ("linux-image-6.12.$v+deb13-amd64", "linux-headers-6.12.$v+deb13-amd64", "linux-headers-6.12.$v+deb13-common", "linux-kbuild-6.12.$v+deb13", "linux-modules-6.12.$v+deb13-amd64"); } $i{'linux-base'} = 1; return %i; }
+%DEPENDS = map { ("linux-headers-6.12.$_+deb13-amd64" => trixie_dep($_)) } 115, 116, 117;
+%installed = tri_installed(116, 117);
+my @tk = kset(116, 117);
+my $plan = main::derive_kernel_purge_plan('6.12.117+deb13-amd64', \@tk, [map { $_->{package} } @tk], []);
+is_eq('', join(' ', @{$plan->{images}}), 'post-reboot: no image is removable');
+is_eq('linux-headers-6.12.116+deb13-amd64 linux-headers-6.12.116+deb13-common linux-kbuild-6.12.116+deb13', join(' ', @{$plan->{stripped}}), 'post-reboot: fallback headers, -common and kbuild are stripped');
+falsy('post-reboot: fallback image kept', grep { /\Alinux-(?:image|modules)-/ } @{$plan->{stripped}});
+falsy('post-reboot: running kernel build packages kept', grep { /117/ } @{$plan->{stripped}});
+$plan = main::derive_kernel_purge_plan('6.12.116+deb13-amd64', \@tk, [map { $_->{package} } @tk], []);
+is_eq('', join(' ', @{$plan->{images}}, @{$plan->{stripped}}), 'pre-reboot (running is not newest): nothing is stripped');
+%installed = tri_installed(115, 116, 117);
+@tk = kset(115, 116, 117);
+$plan = main::derive_kernel_purge_plan('6.12.116+deb13-amd64', \@tk, [map { $_->{package} } @tk[1, 2]], [$tk[0]{package}]);
+is_eq('linux-image-6.12.115+deb13-amd64 linux-headers-6.12.115+deb13-amd64 linux-modules-6.12.115+deb13-amd64', join(' ', @{$plan->{images}}), 'pre-reboot: removable kernel exact companions');
+is_eq('linux-headers-6.12.115+deb13-common linux-kbuild-6.12.115+deb13', join(' ', @{$plan->{stripped}}), 'pre-reboot: removable kernel derived -common/kbuild companions');
+# bookworm-style shared kbuild: linux-kbuild-6.1 is depended on by every 6.1 headers package.
+%installed = map { $_ => 1 } qw(linux-image-6.1.0-1-amd64 linux-headers-6.1.0-1-amd64 linux-headers-6.1.0-1-common linux-image-6.1.0-2-amd64 linux-headers-6.1.0-2-amd64 linux-headers-6.1.0-2-common linux-image-6.1.0-3-amd64 linux-headers-6.1.0-3-amd64 linux-headers-6.1.0-3-common linux-kbuild-6.1);
+%DEPENDS = map { ("linux-headers-6.1.0-$_-amd64" => "linux-headers-6.1.0-$_-common (= 6.1.$_-1), linux-kbuild-6.1 (>= 6.1.$_-1)") } 1, 2, 3;
+$plan = main::derive_kernel_purge_plan('6.1.0-3-amd64', \@k, [map { $_->{package} } @k[1, 2]], [$k[0]{package}]);
+is_eq('linux-headers-6.1.0-2-amd64 linux-headers-6.1.0-1-common linux-headers-6.1.0-2-common', join(' ', @{$plan->{stripped}}), 'companion shared with the retained running kernel (linux-kbuild-6.1) is excluded');
+falsy('shared kbuild never purged', contains('linux-kbuild-6.1', @{$plan->{stripped}}));
+
+print "[build companions] run_kernel_cleanup transaction check\n";
+%installed = tri_installed(116, 117);
+%DEPENDS = map { ("linux-headers-6.12.$_+deb13-amd64" => trixie_dep($_)) } 116, 117;
+$KREC = join("\n", "linux-image-6.12.116+deb13-amd64\t6.12.116-1\tii ", "linux-image-6.12.117+deb13-amd64\t6.12.117-1\tii ");
+$CAPTURE{uname} = sub { return ('6.12.117+deb13-amd64', 0); };
+my $exact = "Purg linux-headers-6.12.116+deb13-amd64 [6.12.116-1]\nPurg linux-headers-6.12.116+deb13-common [6.12.116-1]\nPurg linux-kbuild-6.12.116+deb13 [6.12.116-1]";
+is_eq('apt-get -y purge linux-headers-6.12.116+deb13-amd64 linux-headers-6.12.116+deb13-common linux-kbuild-6.12.116+deb13|',
+	stage(\&main::run_kernel_cleanup, $exact, 1), 'confirmed post-reboot strip runs one purge of the build companions');
+is_eq('', stage(\&main::run_kernel_cleanup, $exact, 0), 'declined kernel purge executes nothing');
+is_eq('', stage(\&main::run_kernel_cleanup, "$exact\nPurg some-dkms-module [1.0]", 1), 'an unlisted Purg in the simulated purge refuses the kernel purge');
+is_eq('', stage(\&main::run_kernel_cleanup, "$exact\nRemv some-dkms-module [1.0]", 1), 'an unlisted Remv in the simulated purge refuses the kernel purge');
+
 # ---- rc kernels --------------------------------------------------------------------
 print "[rc kernels] removed-but-not-purged sweep\n";
 our $RC = join("\n", "linux-image-6.1.0-1-amd64\trc ", "linux-image-6.1.0-3-amd64\tii ", "linux-modules-6.1.0-1-amd64\trc ", "linux-modules-extra-6.1.0-0-amd64\trc ", "linux-image-unsigned-6.1.0-9-amd64:amd64\trc ", "linux-image-6.1.0-4-amd64\tiU ", "linux-image-6.1.0-5-amd64\trc ", "linux-image-amd64\tii ");
