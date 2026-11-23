@@ -16,6 +16,7 @@ sub ok { $pass++; print "  ok   - $_[0]\n"; }
 sub bad { $fail++; print "  FAIL - $_[0]\n"; }
 sub is_eq { my ($exp, $got, $label) = @_; $got = '<undef>' unless defined $got; $exp eq $got ? ok($label) : bad("$label (expected <$exp>, got <$got>)"); }
 sub truthy { my ($label, $v) = @_; $v ? ok($label) : bad($label); }
+sub like_is { my ($v, $re, $label) = @_; $v =~ $re ? ok($label) : bad("$label (got <$v>)"); }
 sub falsy { my ($label, $v) = @_; $v ? bad($label) : ok($label); }
 sub contains { my ($needle, @list) = @_; return scalar grep { $_ eq $needle } @list; }
 
@@ -198,6 +199,50 @@ $JRC = 0;
 	main::run_journal_cleanup(); close(STDOUT); open(STDOUT, '>&', $o);
 	($buf =~ /journalctl not found/ && run_log() eq '') ? ok('missing journalctl skips the stage') : bad("missing journalctl should skip (got: $buf)");
 }
+
+# ---- next steps ------------------------------------------------------------------------
+print "[next steps] closing print-only block\n";
+$ENV{TMPDIR} //= '/tmp';
+my $ntmp = "$ENV{TMPDIR}/dm-next-$$";
+mkdir $ntmp or die "mkdir $ntmp: $!";
+$main::REBOOT_REQUIRED_FILE = "$ntmp/reboot-required";
+$main::REBOOT_REQUIRED_PKGS_FILE = "$ntmp/reboot-required.pkgs";
+sub touch { open(my $f, '>', $_[0]) or die; print $f $_[1] // ''; close($f); }
+sub next_steps { my $buf = ''; open(my $o, '>&', \*STDOUT); close(STDOUT); open(STDOUT, '>', \$buf); @RUN_LOG = (); main::run_next_steps(); close(STDOUT); open(STDOUT, '>&', $o); return $buf; }
+$ENV{DEBIAN_MAINTENANCE_SHIM} = '/opt/x/debian-maintenance.sh';
+*main::boot_artifact_exists = sub { 1 };
+%installed = map { $_ => 1 } qw(linux-image-6.1.0-1-amd64 linux-image-6.1.0-2-amd64 linux-image-6.1.0-3-amd64);
+$CAPTURE{'dpkg-query'} = sub { return (join("\n", "linux-image-6.1.0-1-amd64\t6.1.1\tii ", "linux-image-6.1.0-2-amd64\t6.1.2\tii ", "linux-image-6.1.0-3-amd64\t6.1.3\tii "), 0); };
+$CAPTURE{uname} = sub { return ('6.1.0-2-amd64', 0); };
+@CONFIRMS = (1);
+my $out = next_steps();
+is_eq("\n==== NEXT STEPS ====\nOPEN: reboot required — running 6.1.0-2-amd64, newest installed 6.1.0-3-amd64\nOPEN: after the reboot, re-run: sudo /opt/x/debian-maintenance.sh — kernel purge candidates (simulated and confirmed by that run): linux-image-6.1.0-1-amd64\n", $out, 'running older than newest: both OPEN lines with the purge candidates');
+is_eq('', run_log(), 'next steps runs nothing');
+is_eq('1', join(',', @CONFIRMS), 'next steps consumes no confirm answer');
+touch($main::REBOOT_REQUIRED_FILE); touch($main::REBOOT_REQUIRED_PKGS_FILE, "libc6\nlinux-image-6.1.0-3-amd64\nlibc6\n");
+$CAPTURE{uname} = sub { return ('6.1.0-3-amd64', 0); };
+my $dq = $CAPTURE{'dpkg-query'}; $CAPTURE{'dpkg-query'} = sub { return (join("\n", "linux-image-6.1.0-2-amd64\t6.1.2\tii ", "linux-image-6.1.0-3-amd64\t6.1.3\tii "), 0); };
+$out = next_steps();
+like_is($out, qr/OPEN: reboot required — packages: libc6 linux-image-6\.1\.0-3-amd64\n/, 'marker with pkgs file: deduped package names, no kernel reason');
+like_is($out, qr/ — no kernel purge predicted\n\z/, 'marker, newest running: no kernel purge predicted');
+$CAPTURE{'dpkg-query'} = $dq;
+unlink $main::REBOOT_REQUIRED_PKGS_FILE;
+like_is(next_steps(), qr/OPEN: reboot required — reboot-required marker present\n/, 'marker without pkgs file or kernel reason: generic reason');
+*main::boot_artifact_exists = sub { 0 };
+$CAPTURE{uname} = sub { return ('6.1.0-2-amd64', 0); };
+$out = next_steps();
+like_is($out, qr/ — purge prediction unavailable\n\z/, 'selector refusal: purge prediction unavailable');
+*main::boot_artifact_exists = sub { 1 };
+unlink $main::REBOOT_REQUIRED_FILE;
+$CAPTURE{uname} = sub { return ('6.1.0-3-amd64', 0); };
+is_eq("\n==== NEXT STEPS ====\nNEXT STEPS: none — no reboot pending.\n", next_steps(), 'nothing pending: none line');
+$CAPTURE{uname} = sub { return ('', 127); };
+like_is(next_steps(), qr/NEXT STEPS: none/, 'uname failure alone is not pending');
+is_eq('', run_log(), 'no stage pushed to the run log');
+is_eq('1', join(',', @CONFIRMS), 'sentinel confirm answer is still queued');
+@CONFIRMS = ();
+delete $ENV{DEBIAN_MAINTENANCE_SHIM};
+rmdir $ntmp;
 
 printf "UNIT %d passed, %d failed\n", $pass, $fail;
 exit($fail ? 1 : 0);

@@ -14,13 +14,13 @@
 # absolute path, so `util debian-maintenance` works unprefixed); without the env var it re-execs
 # `sudo -- perl <abs $0>`; without sudo on PATH it fails with "Run as root, e.g.: sudo ...".
 #
-# Kernel cleanup keeps the newest $KEEP_NEWEST_KERNELS images plus the running one; purged headers bring the linux-headers-*-common and linux-kbuild-* packages named in their dpkg Depends (never one a retained headers package also depends on), and once the newest kernel is running the fallback kernels lose their headers too (image and modules kept). The purge runs only if `apt-get -s purge` removes exactly the listed packages; kernel_purge_plan() is the read-only derivation.
+# Kernel cleanup keeps the newest $KEEP_NEWEST_KERNELS images plus the running one; purged headers bring the linux-headers-*-common and linux-kbuild-* packages named in their dpkg Depends (never one a retained headers package also depends on), and once the newest kernel is running the fallback kernels lose their headers too (image and modules kept). The purge runs only if `apt-get -s purge` removes exactly the listed packages; kernel_purge_plan() is the read-only derivation. A closing print-only NEXT STEPS block reports a pending reboot and the kernel purge predicted for after it.
 #
 # Kernel and bootloader package hooks own initramfs/GRUB regeneration; this program deliberately
 # does not retry or repair those hooks. Every destructive step requires its own explicit confirm.
 #
 # Structure: stage subs run_upgrade, run_full_upgrade, run_kernel_cleanup, run_autoremove,
-# run_rc_kernel_cleanup, run_apt_cache_cleanup, run_journal_cleanup; run_report for --report.
+# run_rc_kernel_cleanup, run_apt_cache_cleanup, run_journal_cleanup, then the print-only run_next_steps; run_report for --report.
 # All external commands go through cmd_capture/cmd_run, the seam the unit tests replace.
 # Loaded with `require` (tests) it defines subs only; main() runs when it is the program.
 #
@@ -34,6 +34,7 @@ our $JOURNAL_VACUUM_SIZE = '200M';
 our $APT_LISTS_DIR = '/var/lib/apt/lists';
 our $ARCHIVE_DIR = '/var/cache/apt/archives';
 our $REBOOT_REQUIRED_FILE = '/var/run/reboot-required';
+our $REBOOT_REQUIRED_PKGS_FILE = '/var/run/reboot-required.pkgs';
 
 # ---- command seam -----------------------------------------------------------
 
@@ -527,6 +528,62 @@ sub run_journal_cleanup {
 	return 1;
 }
 
+# ---- closing print-only block -----------------------------------------------
+# Reports a pending reboot and the kernel purge predicted for after it. Print-only: no confirm, no
+# mutating command, no must_run/must_capture. Pending = the reboot-required marker exists OR the running
+# kernel (uname -r) differs from the newest installed one. When the inventory is empty or uname fails
+# the kernel condition is unknown: it neither makes the host pending by itself nor cancels a present marker.
+
+sub next_steps_command {
+	my $shim = $ENV{DEBIAN_MAINTENANCE_SHIM};
+	return "sudo $shim" if defined $shim && $shim ne '';
+	if ($0 ne '-' && $0 ne '-e' && -r $0) {
+		require File::Spec;
+		return 'sudo perl ' . File::Spec->rel2abs($0);
+	}
+	return 'util debian-maintenance';
+}
+
+sub run_next_steps {
+	section('NEXT STEPS');
+	my ($uname, $urc) = cmd_capture('null', 'uname', '-r');
+	my $running = (defined $urc && $urc == 0 && defined $uname && $uname ne '') ? $uname : undef;
+	$running =~ s/\n+\z// if defined $running;
+	my @kernels = load_installed_kernels();
+	my $newest = @kernels ? $kernels[-1]{release} : undef;
+	my $marker = -e $REBOOT_REQUIRED_FILE ? 1 : 0;
+	my $differs = (defined $running && defined $newest && $running ne $newest) ? 1 : 0;
+	if (!$marker && !$differs) {
+		print "NEXT STEPS: none — no reboot pending.\n";
+		return 1;
+	}
+	my @reasons;
+	if ($marker && open(my $fh, '<', $REBOOT_REQUIRED_PKGS_FILE)) {
+		my (%seen, @names);
+		while (my $l = <$fh>) {
+			$l =~ s/\s+\z//;
+			push @names, $l if $l ne '' && !$seen{$l}++;
+		}
+		close($fh);
+		push @reasons, 'packages: ' . join(' ', @names) if @names;
+	}
+	push @reasons, "running $running, newest installed $newest" if $differs;
+	@reasons = ('reboot-required marker present') unless @reasons;
+	print 'OPEN: reboot required — ' . join('; ', @reasons) . "\n";
+	my $tail = 'purge prediction unavailable';
+	if (defined $newest) {
+		my ($protected, $removable) = select_protected_kernels($newest, @kernels);
+		if ($protected) {
+			my $plan = derive_kernel_purge_plan($newest, \@kernels, $protected, $removable);
+			my @cand = (@{$plan->{images}}, @{$plan->{stripped}});
+			$tail = @cand ? 'kernel purge candidates (simulated and confirmed by that run): ' . join(' ', @cand)
+				: 'no kernel purge predicted';
+		}
+	}
+	print 'OPEN: after the reboot, re-run: ' . next_steps_command() . " — $tail\n";
+	return 1;
+}
+
 # ---- non-interactive posture report -----------------------------------------
 # The read-only sibling of the interactive flow: no root, no TTY, no `apt-get update`, no mutation.
 # stdout carries one JSON object and nothing else.
@@ -610,7 +667,7 @@ sub main {
 	run_rc_kernel_cleanup();
 	run_apt_cache_cleanup();
 	run_journal_cleanup();
-	section('Done');
+	run_next_steps();
 	return 0;
 }
 

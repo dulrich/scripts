@@ -12,6 +12,7 @@ Each destructive step is simulated first and then asks for its own explicit conf
 4. A sweep of `rc`-state kernel packages (old `linux-image-*` and `linux-modules-*` that were removed but not purged), purged behind a confirm. Only exact `rc` status is considered, never the running kernel.
 5. APT archive cleanup: a preview with `apt-get -s autoclean` and one confirm to run it, then a separate confirm for a full `apt-get clean`.
 6. Journal: prints `journalctl --disk-usage` and, behind its own confirm, vacuums archived journal files down to 200M. Skipped when `journalctl` is absent or its usage cannot be read.
+7. A closing print-only NEXT STEPS block: when a reboot is pending (the reboot-required marker, or the running kernel is not the newest installed one) it prints the reasons and the command to re-run after rebooting, with the kernel purge predicted for that run; otherwise it says no reboot is pending. It never prompts or changes anything.
 
 ## `--report`
 
